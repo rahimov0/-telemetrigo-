@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TelemetriGo">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>TelemetriGo — GoPro videona yatış, eğim ve G-kuvveti ekle</title>
+<style>
+  :root {
+    --bg: #0b0d12; --card: #151821; --card2: #1c2030; --line: rgba(255,255,255,.08);
+    --text: #f2f4f8; --muted: #8b93a7; --accent: #FF7A1A; --ok: #50E68C; --err: #FF4D5E;
+    --r: 18px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom)); }
+  header { display: flex; align-items: center; gap: 12px; margin: 4px 0 18px; }
+  header .logo { width: 40px; height: 40px; border-radius: 11px; background: linear-gradient(135deg, #FF7A1A, #ff3d6e); display: grid; place-items: center; }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; margin-bottom: 14px; }
+  .hidden { display: none !important; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 650; }
+  .pick { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 34px 16px; border: 1.5px dashed rgba(255,255,255,.18); border-radius: var(--r); cursor: pointer; }
+  .pick:hover { border-color: var(--accent); }
+  .pick strong { font-size: 18px; }
+  .pick span { color: var(--muted); font-size: 14px; max-width: 420px; }
+  .btn { appearance: none; border: 0; border-radius: 14px; padding: 14px 18px; font: inherit; font-weight: 650; cursor: pointer; color: #fff; background: var(--card2); }
+  .btn.primary { background: var(--accent); color: #111; }
+  .btn.block { width: 100%; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > * { flex: 1; }
+  .info { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .info div { background: var(--card2); border-radius: 12px; padding: 10px 12px; }
+  .info b { display: block; font-size: 15px; }
+  .info small { color: var(--muted); font-size: 12px; }
+  .stage { position: relative; background: #000; border-radius: 14px; overflow: hidden; }
+  .stage video { display: block; width: 100%; max-height: 70vh; }
+  .stage canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tog { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--card2); border-radius: 12px; padding: 12px; font-size: 15px; cursor: pointer; user-select: none; }
+  .tog input { appearance: none; width: 44px; height: 26px; border-radius: 99px; background: #3a3f4f; position: relative; flex: none; cursor: pointer; transition: .2s; margin: 0; }
+  .tog input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: .2s; }
+  .tog input:checked { background: var(--accent); }
+  .tog input:checked::after { left: 21px; }
+  .slider { margin-top: 14px; }
+  .slider label { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); margin-bottom: 4px; }
+  .slider label b { color: var(--text); font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .chips { display: flex; gap: 10px; margin-top: 14px; align-items: center; }
+  .chips span { color: var(--muted); font-size: 14px; margin-right: auto; }
+  .chip { width: 30px; height: 30px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; padding: 0; }
+  .chip.on { border-color: #fff; }
+  .seg { display: flex; background: var(--card2); border-radius: 12px; padding: 4px; gap: 4px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 600; padding: 10px 6px; border-radius: 9px; cursor: pointer; }
+  .seg button.on { background: #fff; color: #111; }
+  .seg button:disabled { opacity: .4; cursor: default; }
+  .seg small { display: block; font-weight: 500; font-size: 12px; opacity: .75; }
+  .bar { height: 10px; background: var(--card2); border-radius: 99px; overflow: hidden; margin: 12px 0 8px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .msg { border-radius: 14px; padding: 12px 14px; font-size: 14px; margin-bottom: 14px; }
+  .msg.err { background: rgba(255,77,94,.12); border: 1px solid rgba(255,77,94,.35); }
+  .msg.warn { background: rgba(255,210,63,.1); border: 1px solid rgba(255,210,63,.3); }
+  .msg.ok { background: rgba(80,230,140,.1); border: 1px solid rgba(80,230,140,.3); }
+  .spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,.2); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; vertical-align: -3px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 22px; }
+  @media (min-width: 860px) {
+    .grid2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; align-items: start; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.6" stroke-linecap="round"><path d="M4 16a8 8 0 0 1 16 0"/><path d="M12 16l4-5"/></svg></div>
+    <div><h1>TelemetriGo</h1><p>GoPro videona yatış, eğim ve G-kuvveti göstergesi ekle</p></div>
+  </header>
+
+  <section id="pickCard" class="card">
+    <label class="pick" for="file">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#FF7A1A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/></svg>
+      <strong>GoPro videosu seç</strong>
+      <span>Orijinal GoPro dosyası olmalı. WhatsApp'tan gelen videolarda sensör verisi silinmiş olur.</span>
+      <span class="btn primary" style="margin-top:6px">Video seç</span>
+    </label>
+    <input id="file" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" class="hidden">
+    <div class="msg warn" style="margin:14px 0 0"><b>iPhone'da:</b> "Fotoğraf Arşivi" yerine <b>"Gözat" / "Dosyalar"</b>dan seç. Fotoğraf arşivinden seçilen video iPhone tarafından sıkıştırılabilir ve sensör verisi kaybolur. Videon Fotoğraflar'daysa önce Paylaş → <b>Dosyalara Kaydet</b> de.</div>
+    <p class="muted" style="margin:12px 2px 0">Video hiçbir yere yüklenmez; tüm işlem bu cihazda yapılır.</p>
+  </section>
+
+  <div id="msg"></div>
+
+  <div id="work" class="hidden">
+    <div class="grid2">
+      <div>
+        <section class="card">
+          <h2>Önizleme</h2>
+          <div class="stage" id="stage">
+            <video id="video" playsinline controls preload="metadata" muted></video>
+            <canvas id="ov"></canvas>
+          </div>
+          <div class="info" id="info" style="margin-top:12px"></div>
+        </section>
+      </div>
+      <div>
+        <section class="card">
+          <h2>Göstergeler</h2>
+          <div class="toggles">
+            <label class="tog">Yatış açısı <input type="checkbox" data-k="lean"></label>
+            <label class="tog">G-kuvveti <input type="checkbox" data-k="gforce"></label>
+            <label class="tog">Eğim / ufuk <input type="checkbox" data-k="attitude"></label>
+            <label class="tog">Saat <input type="checkbox" data-k="clock"></label>
+          </div>
+          <div class="slider"><label>Boyut <b id="sizeV"></b></label><input type="range" min="60" max="150" step="5" data-k="size"></div>
+          <div class="slider"><label>Arka plan koyuluğu <b id="opacityV"></b></label><input type="range" min="0" max="100" step="5" data-k="opacity"></div>
+          <div class="slider"><label>Yatış göstergesi aralığı <b id="leanRangeV"></b></label><input type="range" min="15" max="60" step="15" data-k="leanRange"></div>
+          <div class="chips" id="chips"><span>Renk</span></div>
+        </section>
+        <section class="card">
+          <h2>Dışa aktar</h2>
+          <div class="seg" id="res">
+            <button data-v="1080" class="on">1080p<small>hızlı · paylaşım için</small></button>
+            <button data-v="orig">Orijinal<small id="origLbl">tam kalite</small></button>
+          </div>
+          <button id="go" class="btn primary block" style="margin-top:14px">Videoyu oluştur</button>
+          <div id="prog" class="hidden">
+            <div class="bar"><i id="barI"></i></div>
+            <div class="row" style="align-items:center">
+              <span class="muted" id="progT">Hazırlanıyor…</span>
+              <button id="cancel" class="btn" style="flex:none;padding:10px 14px">İptal</button>
+            </div>
+            <p class="muted" style="margin:10px 0 0">İşlem bitene kadar bu sayfada kal ve ekranı kapatma.</p>
+          </div>
+          <div id="done" class="hidden" style="margin-top:14px">
+            <div class="msg ok" id="doneT"></div>
+            <div class="row">
+              <button id="share" class="btn primary">Kaydet / Paylaş</button>
+              <a id="dl" class="btn" style="text-align:center;text-decoration:none">İndir</a>
+            </div>
+          </div>
+        </section>
+        <button id="again" class="btn block">Başka video seç</button>
+      </div>
+    </div>
+  </div>
+  <footer>TelemetriGo · GoPro HERO sensör verisi (GPMF) ile çalışır · Orijinal videon değişmez</footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

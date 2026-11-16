@@ -26,9 +26,14 @@ export function parseGpx(text) {
     if (!isFinite(lat) || !isFinite(lon) || !timeEl) continue;
     const t = Date.parse(timeEl.textContent.trim()); if (!isFinite(t)) continue;
     const eleEl = [...n.children].find(c => c.localName === 'ele');
-    let spd = null;
-    for (const el of n.getElementsByTagName('*')) if (el.localName === 'speed') { const v = parseFloat(el.textContent); if (isFinite(v) && v >= 0) spd = v; }
-    pts.push({ t, lat, lon, ele: eleEl ? parseFloat(eleEl.textContent) : NaN, spd });
+    let spd = null, acc = NaN;
+    for (const el of n.getElementsByTagName('*')) {
+      const v = parseFloat(el.textContent); if (!isFinite(v)) continue;
+      if (el.localName === 'speed' && v >= 0) spd = v;
+      else if (/^(hacc|horizontalAccuracy|accuracy)$/i.test(el.localName) && v > 0) acc = v;
+      else if (el.localName === 'hdop' && !isFinite(acc) && v > 0) acc = v * 5; // kaba tahmin
+    }
+    pts.push({ t, lat, lon, ele: eleEl ? parseFloat(eleEl.textContent) : NaN, spd, acc });
   }
   if (pts.length < 2) throw new Error('GPX dosyasında zaman bilgisi olan yeterli nokta yok.');
   pts.sort((a, b) => a.t - b.t);
@@ -36,19 +41,38 @@ export function parseGpx(text) {
   return buildTrack(pts, name);
 }
 
-export function buildTrack(pts, name) {
+// Temizlik kuralları (duruşta GPS kayması "hareket" gibi görünmesin diye)
+const MAX_ACC = 50;      // m: bundan kötü doğruluklu noktalar atılır
+const MAX_JUMP = 90;     // m/s (~324 km/h): bundan hızlı sıçramalar hatalı nokta sayılır
+const STOP_SPEED = 0.9;  // m/s (~3 km/h): altı duruş
+const WIN = 5;           // sn: duruş tespiti penceresi
+
+export function buildTrack(raw, name) {
+  // 1) kötü doğruluk ve imkânsız sıçramaları ayıkla
+  const pts = []; let dropped = 0;
+  for (const p of raw) {
+    if (isFinite(p.acc) && p.acc > MAX_ACC) { dropped++; continue; }
+    const q = pts[pts.length - 1];
+    if (q) {
+      const dt = (p.t - q.t) / 1000;
+      if (dt <= 0) { dropped++; continue; }
+      if (haversine(q.lat, q.lon, p.lat, p.lon) / dt > MAX_JUMP) { dropped++; continue; }
+    }
+    pts.push(p);
+  }
+  if (pts.length < 2) throw new Error('GPX dosyasında yeterli geçerli nokta yok (çoğu nokta çok düşük doğrulukta).');
   const n = pts.length;
-  const t = new Float64Array(n), lat = new Float64Array(n), lon = new Float64Array(n), ele = new Float32Array(n);
+  const t = new Float64Array(n), lat = new Float64Array(n), lon = new Float64Array(n), ele = new Float32Array(n), acc = new Float32Array(n);
   const spd = new Float32Array(n), course = new Float32Array(n), dist = new Float64Array(n);
-  pts.forEach((p, i) => { t[i] = p.t; lat[i] = p.lat; lon[i] = p.lon; ele[i] = p.ele; });
-  // mesafe ve konumdan hız
+  pts.forEach((p, i) => { t[i] = p.t; lat[i] = p.lat; lon[i] = p.lon; ele[i] = p.ele; acc[i] = isFinite(p.acc) ? p.acc : 5; });
+  // 2) konumdan hız
   const dSpd = new Float32Array(n);
   for (let i = 1; i < n; i++) dist[i] = dist[i - 1] + haversine(lat[i - 1], lon[i - 1], lat[i], lon[i]);
   for (let i = 0; i < n; i++) {
     const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1), dt = (t[b] - t[a]) / 1000;
     dSpd[i] = dt > 0 && dt < 10 ? (dist[b] - dist[a]) / dt : 0;
   }
-  // cihazın kaydettiği hız: birimi (m/s mi km/h mi) konumdan hesaplanan hızla karşılaştırarak bul
+  // 3) cihazın kaydettiği hız: birimi (m/s, km/h, mph) konumdan hesaplanan hızla karşılaştırarak bul
   const withSpd = pts.filter(p => p.spd !== null).length > n * 0.5;
   let unit = 'konum';
   if (withSpd) {
@@ -58,6 +82,26 @@ export function buildTrack(pts, name) {
     unit = k === 1 ? 'm/s' : k < 0.3 ? 'km/h' : 'mph';
     for (let i = 0; i < n; i++) spd[i] = pts[i].spd !== null ? pts[i].spd * k : dSpd[i];
   } else spd.set(dSpd);
+  // 4) duruş tespiti: ±WIN/2 sn içinde net yer değiştirme, GPS'in hata payından küçükse araç duruyordur
+  const still = new Uint8Array(n); let j0 = 0, j1 = 0;
+  for (let i = 0; i < n; i++) {
+    while (j0 < i && t[i] - t[j0] > WIN * 500) j0++;
+    while (j1 < n - 1 && t[j1 + 1] - t[i] <= WIN * 500) j1++;
+    const D = haversine(lat[j0], lon[j0], lat[j1], lon[j1]), dt = (t[j1] - t[j0]) / 1000;
+    const noise = Math.max(6, 1.5 * Math.max(acc[j0], acc[j1]));
+    if (spd[i] < STOP_SPEED || (dt >= 2 && D < noise && spd[i] < 4)) still[i] = 1;
+  }
+  // 5) duruşta konumu sabitle (haritada titreme, mesafede şişme olmasın), hızı sıfırla
+  let stillCount = 0;
+  for (let i = 0; i < n; i++) if (still[i]) {
+    stillCount++; spd[i] = 0;
+    if (i > 0 && still[i - 1]) { lat[i] = lat[i - 1]; lon[i] = lon[i - 1]; }
+  }
+  for (let i = 1; i < n; i++) dist[i] = dist[i - 1] + haversine(lat[i - 1], lon[i - 1], lat[i], lon[i]);
+  // 6) tek noktalık sıçramaları törpüle (3'lü medyan)
+  const sm = Float32Array.from(spd);
+  for (let i = 1; i < n - 1; i++) if (!still[i]) sm[i] = [spd[i - 1], spd[i], spd[i + 1]].sort((a, b) => a - b)[1];
+  spd.set(sm);
   // yön: en az 8 m ilerleyince güncellenir, yavaşken son geçerli yön korunur
   let last = NaN, j = 0;
   for (let i = 0; i < n; i++) {
@@ -73,7 +117,7 @@ export function buildTrack(pts, name) {
   const hasEle = [...ele].filter(isFinite).length > n * 0.5;
   let eMin = Infinity, eMax = -Infinity; for (const e of ele) if (isFinite(e)) { eMin = Math.min(eMin, e); eMax = Math.max(eMax, e); }
   let vMax = 0; for (const v of spd) vMax = Math.max(vMax, v);
-  return { name, n, t, lat, lon, ele, spd, course, dist, x, y, hasEle, eMin, eMax, vMax, unit,
+  return { name, n, t, lat, lon, ele, spd, course, dist, x, y, hasEle, eMin, eMax, vMax, unit, dropped, stillCount,
     start: t[0], end: t[n - 1], total: dist[n - 1] };
 }
 

@@ -8,6 +8,12 @@ GoPro videolarına yatış açısı, eğim, G-kuvveti, hız, rota ve daha fazla 
 - İsteğe bağlı GPX (telefonla kaydedilen GPS izi): hız, rota haritası, pusula, irtifa. Video saatine göre hizalanır; elle kaydırma ve otomatik eşitleme (GPS hız değişimi ↔ GoPro ivmesi) var.
 - Göstergeler: yatış (motor silüeti / yay), hız (kadran / dijital), G-kuvveti, rota, irtifa, pusula, eğim/ufuk, 10 sn grafik, saat. Her biri açılıp kapanabilir, boyutlandırılabilir ve önizlemede sürüklenerek taşınabilir. Temalar: koyu panel, cam, minimal.
 
+## GPS Kaydedici (`kayit.html`)
+
+Sürüşte telefonda açılan kendi GPS kayıt sayfamız. iPhone'un konum servisinden konum, Doppler hızı ve doğruluk (±m) bilgisini saniyede bir kaydeder, GPX olarak verir ve son kaydı ana uygulamaya "Son GPS kaydını kullan" düğmesiyle aktarır. Kayıt sırasında ekranı açık tutar, yarım kalan kaydı kurtarabilir ve GoPro ile eşitleme için saniyenin onda birini gösteren bir saat ekranı vardır.
+
+GPX işlenirken duruşta oluşan GPS kayması temizlenir: doğruluğu 50 m'den kötü noktalar ve imkânsız sıçramalar atılır, 5 sn içindeki net yer değiştirmesi GPS hata payından küçükse hız 0 sayılır ve konum sabitlenir.
+
 ## Yayınlama
 
 Klasördeki dosyaları olduğu gibi herhangi bir statik sunucuya (GitHub Pages vb.) koymak yeterli. HTTPS gerekir.

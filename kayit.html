@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TG GPS">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>TelemetriGo GPS Kaydedici</title>
+<style>
+  :root { --bg:#0b0d12; --card:#151821; --card2:#1c2030; --line:rgba(255,255,255,.08); --text:#f2f4f8; --muted:#8b93a7; --accent:#FF7A1A; --ok:#50E68C; --mid:#FFD23F; --err:#FF4D5E; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, Roboto, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: max(14px, env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom)); }
+  header { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; }
+  header .logo { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, #FF7A1A, #ff3d6e); display: grid; place-items: center; }
+  header h1 { font-size: 19px; margin: 0; } header p { margin: 0; color: var(--muted); font-size: 13px; }
+  header a { margin-left: auto; color: var(--muted); font-size: 14px; text-decoration: none; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-bottom: 12px; }
+  .hidden { display: none !important; }
+  .speed { text-align: center; padding: 8px 0 0; }
+  .speed b { font-size: 112px; line-height: 1; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .speed span { display: block; color: var(--muted); font-size: 18px; margin-top: 2px; }
+  .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 99px; background: var(--card2); font-size: 14px; font-weight: 600; }
+  .badge i { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .center { text-align: center; }
+  .clock { font-size: 44px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+  .clock small { font-size: 28px; color: var(--accent); }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stats div { background: var(--card2); border-radius: 12px; padding: 10px 12px; }
+  .stats b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .stats small { color: var(--muted); font-size: 12px; }
+  .btn { appearance: none; border: 0; border-radius: 16px; padding: 16px; font: inherit; font-weight: 700; font-size: 18px; cursor: pointer; color: #fff; background: var(--card2); width: 100%; }
+  .btn.go { background: var(--accent); color: #111; font-size: 22px; padding: 22px; }
+  .btn.stop { background: var(--err); color: #fff; font-size: 22px; padding: 22px; }
+  .row { display: flex; gap: 10px; margin-top: 10px; } .row > * { flex: 1; }
+  .msg { border-radius: 14px; padding: 12px 14px; font-size: 14px; margin-bottom: 12px; }
+  .msg.warn { background: rgba(255,210,63,.1); border: 1px solid rgba(255,210,63,.3); }
+  .msg.err { background: rgba(255,77,94,.12); border: 1px solid rgba(255,77,94,.35); }
+  .msg.ok { background: rgba(80,230,140,.1); border: 1px solid rgba(80,230,140,.3); }
+  ul { margin: 6px 0 0; padding-left: 20px; } li { margin: 3px 0; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .rec-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--err); margin-right: 8px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  #nosleep { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="10" r="3"/><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/></svg></div>
+    <div><h1>GPS Kaydedici</h1><p>TelemetriGo için hız ve rota kaydı</p></div>
+    <a href="./">← Video</a>
+  </header>
+
+  <div id="msg"></div>
+
+  <section class="card">
+    <div class="center"><span class="badge" id="acc"><i></i><span>Konum bekleniyor</span></span></div>
+    <div class="speed"><b id="spd">—</b><span>km/h</span></div>
+  </section>
+
+  <section class="card">
+    <div class="clock" id="clock">--:--:--<small>,-</small></div>
+    <p class="muted center" style="margin:4px 0 0">Kayda başlarken GoPro'yu birkaç saniye bu saate tut: video ile GPS'i saniyenin onda biri hassasiyetle eşleştirebilirsin.</p>
+  </section>
+
+  <section class="card">
+    <div class="stats">
+      <div><b id="dur">0:00</b><small>Süre</small></div>
+      <div><b id="dist">0,00 km</b><small>Mesafe</small></div>
+      <div><b id="max">0</b><small>Maks km/h</small></div>
+      <div><b id="cnt">0</b><small>Nokta</small></div>
+    </div>
+  </section>
+
+  <button id="start" class="btn go">Kaydı başlat</button>
+  <button id="stop" class="btn stop hidden"><span class="rec-dot"></span>Kaydı durdur</button>
+  <div id="after" class="hidden">
+    <div class="row"><button id="share" class="btn" style="background:var(--accent);color:#111">GPX'i kaydet / paylaş</button></div>
+    <div class="row"><a id="dl" class="btn" style="text-align:center;text-decoration:none">İndir</a><button id="new" class="btn">Yeni kayıt</button></div>
+    <p class="muted" style="margin:10px 2px 0">Kayıt bu telefonda da saklandı: TelemetriGo'da video seçince <b>"Son GPS kaydını kullan"</b> diyebilirsin.</p>
+  </div>
+
+  <section class="card" style="margin-top:14px">
+    <b>Doğru kayıt için</b>
+    <ul class="muted">
+      <li>Telefon gidonda veya depoda, <b>gökyüzünü görecek</b> şekilde dursun. Cepte veya kapalı alanda GPS sapar.</li>
+      <li>Kayıt sürerken <b>bu sayfa açık ve ekran açık kalmalı</b>. Ekranı açık tutmaya çalışıyorum ama telefonu şarja takman iyi olur.</li>
+      <li>Sürüşten önce 20–30 saniye açık alanda bekle; sinyal "İyi" olunca başlat.</li>
+      <li>Dururken oluşan küçük kaymalar ("hareket etmeden hız görünmesi") TelemetriGo'da otomatik temizlenir.</li>
+    </ul>
+  </section>
+  <video id="nosleep" src="nosleep.mp4" muted playsinline loop></video>
+</main>
+<script type="module" src="kayit.js"></script>
+</body>
+</html>

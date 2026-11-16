@@ -181,15 +181,24 @@ const gpsBase = () => state.meta?.created ? state.meta.created.getTime() : state
 $('gpxBtn').onclick = () => gpxEl.click();
 gpxEl.addEventListener('change', async () => {
   const f = gpxEl.files[0]; if (!f) return; gpxEl.value = '';
+  useGpx(await f.text(), f.name);
+});
+let last = null; try { last = JSON.parse(localStorage.getItem('tg-last-gpx') || 'null'); } catch {}
+if (last?.gpx) {
+  const b = $('lastGpx'); b.classList.remove('hidden');
+  b.textContent = `Son GPS kaydını kullan (${new Date(last.start).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})`;
+  b.onclick = () => useGpx(last.gpx, last.name);
+}
+function useGpx(text, name) {
   try {
-    const g = parseGpx(await f.text());
-    state.gps = g; state.gpxName = f.name; state.goff = 0; state.gbase = gpsBase();
+    const g = parseGpx(text);
+    state.gps = g; state.gpxName = name; state.goff = 0; state.gbase = gpsBase();
     for (const id of ['speed', 'map', 'compass']) if (!saved?.g?.[id]) opts.g[id].on = true;
     updateGpsUI(); renderGaugeList(); drawPreview();
     const cov = coverage(g, state.gbase, 0, state.info.duration);
     if (cov < 0.5 && state.tel?.hasAccel) runAutoSync(true);
   } catch (e) { setMsg('GPX okunamadı: ' + esc(e.message || e)); }
-});
+}
 function updateGpsUI() {
   const g = state.gps, has = !!g;
   $('gpxBtn').textContent = has ? 'Başka GPX seç' : 'GPX dosyası ekle';
@@ -198,7 +207,8 @@ function updateGpsUI() {
   const cov = state.info ? coverage(g, state.gbase, state.goff, state.info.duration) : 0;
   const durMin = Math.round((g.end - g.start) / 60000);
   $('gpsInfo').innerHTML = `<b>${esc(state.gpxName)}</b><br>${g.n} nokta · ${(g.total / 1000).toFixed(1).replace('.', ',')} km · ${durMin} dk · ${hhmm(g.start)}–${hhmm(g.end)}`
-    + `<br>Hız verisi: ${g.unit === 'konum' ? 'konumdan hesaplandı' : 'GPX içinden (' + g.unit + ')'} · Maks ${Math.round(g.vMax * 3.6)} km/h`;
+    + `<br>Hız verisi: ${g.unit === 'konum' ? 'konumdan hesaplandı' : 'GPX içinden (' + g.unit + ')'} · Maks ${Math.round(g.vMax * 3.6)} km/h`
+    + (g.stillCount || g.dropped ? `<br>Temizlik: ${g.stillCount ? g.stillCount + ' duruş noktasındaki GPS kayması sıfırlandı' : ''}${g.stillCount && g.dropped ? ', ' : ''}${g.dropped ? g.dropped + ' hatalı nokta atıldı' : ''}` : '');
   const vStart = state.gbase - state.goff * 1000;
   const status = cov >= 0.95 ? ['ok', 'GPX bu videonun tamamını kapsıyor.']
     : cov > 0 ? ['warn', `GPX videonun %${Math.round(cov * 100)}'ini kapsıyor; kalan kısımda GPS göstergeleri "—" gösterir.`]

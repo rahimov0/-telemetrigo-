@@ -157,7 +157,7 @@ async function loadFile(f) {
     if (state.url) URL.revokeObjectURL(state.url);
     state.url = URL.createObjectURL(f); video.src = state.url;
     showInfo(); renderGaugeList();
-    $('pickCard').classList.add('hidden'); $('work').classList.remove('hidden');
+    $('pickCard').classList.add('hidden'); $('recCard').classList.add('hidden'); $('work').classList.remove('hidden');
     setMsg(canDecode ? '' : 'Bu tarayıcı bu videonun formatını (' + (info.codec || '?') + ') çözemiyor; dışa aktarma çalışmayabilir. iPhone\'da Safari veya bilgisayarda güncel Chrome dene.', 'err');
     if (canDecode && !tel.hasAccel) setMsg('Bu videoda ivmeölçer verisi yok; G-kuvveti göstergesi gizlendi.', 'warn');
     drawPreview();

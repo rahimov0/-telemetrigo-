@@ -123,7 +123,12 @@
   .presets button { min-height: 44px; }
   .grow-row { display: flex; align-items: center; gap: var(--s2); background: var(--surface-2); border: 1.5px solid transparent; border-radius: var(--r-md); padding: 4px 12px 4px 4px; margin-bottom: var(--s2); transition: border-color var(--t-fast); }
   .grow-row.sel { border-color: var(--primary); }
-  .grow-row.na { opacity: .5; }
+  .grow-row.na { opacity: .55; }
+  .na-group { margin-top: var(--s2); } .na-group summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: var(--s2) 2px; min-height: 40px; display: flex; align-items: center; }
+  .na-group[open] summary { margin-bottom: var(--s2); }
+  /* iOS uygulamasında alttaki sekme çubuğu içeriği örtmesin */
+  .inapp main { padding-bottom: calc(170px + env(safe-area-inset-bottom)); }
+  .inapp .gobar { bottom: 84px; background: none; padding-bottom: var(--s2); }
   .grow-row .gname { flex: 1; text-align: left; background: none; border: 0; padding: 8px 10px; cursor: pointer; min-height: 44px; border-radius: var(--r-sm); }
   .grow-row .gname b { display: block; font-weight: 600; font-size: 15px; }
   .grow-row .gname small { color: var(--muted); font-size: 12.5px; }
@@ -294,6 +299,6 @@
   <footer>TelemetriGo · Orijinal videon değişmez · İşlem cihazında yapılır</footer>
 </main>
 <div class="gobar hidden" id="gobar"><button class="btn primary block lg" id="goMobile"><svg class="i"><use href="#i-down"/></svg><span>Videoyu oluştur</span></button></div>
-<script type="module" src="app.js"></script>
+<script type="module" src="app.6b650a97.js"></script>
 </body>
 </html>

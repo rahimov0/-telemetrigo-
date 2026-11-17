@@ -58,16 +58,24 @@ function seg(el, items, get, set) {
 // ---- gösterge listesi ve düzenleyici ----
 function renderGaugeList() {
   const list = $('gauges'); list.innerHTML = '';
-  for (const [id, G] of Object.entries(GAUGES)) {
-    const avail = !state.tel || gaugeAvailable(id, data());
-    const row = document.createElement('div'); row.className = 'grow-row' + (state.sel === id ? ' sel' : '') + (avail ? '' : ' na');
-    const sub = !avail ? (G.needs === 'gps' ? 'GPX gerekli' : 'bu videoda veri yok') : (G.styles ? (G.styles[opts.g[id].style] || Object.values(G.styles)[0]) + ' · ' : '') + 'düzenle';
-    row.innerHTML = `<button class="gname" aria-expanded="${state.sel === id}"><b>${G.name}</b><small>${sub}</small></button>
-      <input type="checkbox" class="switch" ${opts.g[id].on ? 'checked' : ''} ${avail ? '' : 'disabled'} aria-label="${G.name} göster">`;
-    row.querySelector('input').onchange = e => { opts.g[id].on = e.target.checked; save(); if (e.target.checked) select(id); else drawPreview(); };
-    row.querySelector('.gname').onclick = () => select(state.sel === id ? null : id);
-    list.appendChild(row);
-    if (state.sel === id) list.appendChild(editorFor(id));
+  const ids = Object.keys(GAUGES), avail = id => !state.tel || gaugeAvailable(id, data());
+  const row = id => {
+    const G = GAUGES[id], ok = avail(id), r = document.createElement('div');
+    r.className = 'grow-row' + (state.sel === id ? ' sel' : '') + (ok ? '' : ' na');
+    const sub = !ok ? (G.needs === 'gps' ? 'GPX ekleyince açılır' : 'Bu videoda sensör verisi yok') : (G.styles ? (G.styles[opts.g[id].style] || Object.values(G.styles)[0]) + ' · ' + Object.keys(G.styles).length + ' stil' : 'Boyut ve konum');
+    r.innerHTML = `<button class="gname" aria-expanded="${state.sel === id}" ${ok ? '' : 'disabled'}><b>${G.name}</b><small>${sub}</small></button>
+      <input type="checkbox" class="switch" ${opts.g[id].on && ok ? 'checked' : ''} ${ok ? '' : 'disabled'} aria-label="${G.name} göster">`;
+    r.querySelector('input').onchange = e => { opts.g[id].on = e.target.checked; save(); if (e.target.checked) select(id); else drawPreview(); };
+    r.querySelector('.gname').onclick = () => select(state.sel === id ? null : id);
+    list.appendChild(r);
+    if (state.sel === id && ok) list.appendChild(editorFor(id));
+  };
+  ids.filter(avail).forEach(row);
+  const na = ids.filter(id => !avail(id));
+  if (na.length) {
+    const d = document.createElement('details'); d.className = 'na-group';
+    d.innerHTML = `<summary>Bu videoda kullanılamayanlar (${na.length})</summary>`;
+    list.appendChild(d); const keep = list; na.forEach(id => { row(id); d.appendChild(keep.lastChild); });
   }
 }
 function editorFor(id) {
@@ -398,7 +406,7 @@ function resetResult() {
 $('again').onclick = () => fileEl.click();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.conv) keepAwake(true); });
 
-if (isApp) { $('recCard').remove(); document.querySelector('#gpsRecLink')?.remove(); document.querySelector('footer')?.remove(); }
+if (isApp) { document.documentElement.classList.add('inapp'); $('recCard').remove(); document.querySelector('#gpsRecLink')?.remove(); document.querySelector('footer')?.remove(); }
 // ---- açı kalibrasyonu: motorun dik durduğu an ----
 $('calBtn').onclick = () => {
   if (!state.tel?.raw) return;

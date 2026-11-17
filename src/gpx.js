@@ -144,7 +144,15 @@ export function gpsAt(g, base, offset, tv) {
   const L = arr => arr[lo] * (1 - a) + arr[hi] * a;
   let c0 = g.course[lo], c1 = g.course[hi], crs = c0;
   if (isFinite(c0) && isFinite(c1)) { let d = ((c1 - c0 + 540) % 360) - 180; crs = (c0 + d * a + 360) % 360; }
-  return { valid: true, T, i: lo, a, lat: L(g.lat), lon: L(g.lon), ele: L(g.ele), speed: L(g.spd), course: crs,
+  // hız: noktalar arasında yumuşak (Catmull-Rom) geçiş; 1 Hz veride göstergede basamak/sıçrama olmasın
+  let speed = L(g.spd);
+  if (hi > lo && lo > 0 && hi < g.n - 1 && (g.t[lo] - g.t[lo - 1]) < 3000 && (g.t[hi + 1] - g.t[hi]) < 3000) {
+    const p0 = g.spd[lo - 1], p1 = g.spd[lo], p2 = g.spd[hi], p3 = g.spd[hi + 1], u = a, u2 = u * u, u3 = u2 * u;
+    speed = 0.5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u3);
+    speed = Math.max(0, Math.min(speed, Math.max(p1, p2) * 1.15 + 0.3));
+    if (p1 === 0 && p2 === 0) speed = 0;
+  }
+  return { valid: true, T, i: lo, a, lat: L(g.lat), lon: L(g.lon), ele: L(g.ele), speed, course: crs,
     dist: L(g.dist), x: L(g.x), y: L(g.y), maxSpeed: maxUpTo(g, lo) };
 }
 function maxUpTo(g, i) {

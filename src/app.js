@@ -2,9 +2,9 @@ import {
   Input, Output, Conversion, BlobSource, BufferTarget, StreamTarget, Mp4OutputFormat,
   ALL_FORMATS, QUALITY_HIGH, canEncodeVideo,
 } from 'mediabunny';
-import { readGoProTelemetry, emptyTelemetry } from './gpmf.js';
+import { readGoProTelemetry, emptyTelemetry, calibrateAt, applyCalibration } from './gpmf.js';
 import { parseGpx, coverage, autoSync } from './gpx.js';
-import { drawOverlay, mergeOpts, ACCENTS, THEMES, GAUGES, gaugeAvailable } from './overlay.js';
+import { drawOverlay, drawGaugeThumb, mergeOpts, applyPreset, PRESETS, ACCENTS, THEMES, GAUGES, gaugeAvailable } from './overlay.js';
 
 const $ = id => document.getElementById(id);
 const fileEl = $('file'), gpxEl = $('gpxFile'), video = $('video'), ov = $('ov'), msgEl = $('msg');
@@ -38,10 +38,10 @@ function bindSettings() {
   for (const [name, col] of Object.entries(ACCENTS)) {
     const b = document.createElement('button'); b.className = 'chip' + (opts.accent === name ? ' on' : '');
     b.style.background = col; b.title = name; b.setAttribute('aria-label', name);
-    b.onclick = () => { opts.accent = name; save(); chips.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === b)); drawPreview(); };
+    b.onclick = () => { opts.accent = name; save(); chips.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === b)); drawPreview(); renderGaugeList(); };
     chips.appendChild(b);
   }
-  seg($('theme'), THEMES, () => opts.theme, v => { opts.theme = v; save(); drawPreview(); });
+  seg($('theme'), THEMES, () => opts.theme, v => { opts.theme = v; save(); drawPreview(); renderGaugeList(); });
   $('res').querySelectorAll('button').forEach(b => b.onclick = () => {
     if (b.disabled) return; state.res = b.dataset.v; $('res').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
   });
@@ -60,9 +60,10 @@ function renderGaugeList() {
   const list = $('gauges'); list.innerHTML = '';
   for (const [id, G] of Object.entries(GAUGES)) {
     const avail = !state.tel || gaugeAvailable(id, data());
-    const row = document.createElement('div'); row.className = 'grow' + (state.sel === id ? ' sel' : '') + (avail ? '' : ' na');
-    row.innerHTML = `<button class="gname"><b>${G.name}</b><small>${!avail ? (G.needs === 'gps' ? 'GPX gerekli' : 'veri yok') : (G.styles ? G.styles[opts.g[id].style] + ' · ' : '') + 'düzenle'}</small></button>
-      <input type="checkbox" ${opts.g[id].on ? 'checked' : ''} ${avail ? '' : 'disabled'} aria-label="${G.name}">`;
+    const row = document.createElement('div'); row.className = 'grow-row' + (state.sel === id ? ' sel' : '') + (avail ? '' : ' na');
+    const sub = !avail ? (G.needs === 'gps' ? 'GPX gerekli' : 'bu videoda veri yok') : (G.styles ? (G.styles[opts.g[id].style] || Object.values(G.styles)[0]) + ' · ' : '') + 'düzenle';
+    row.innerHTML = `<button class="gname" aria-expanded="${state.sel === id}"><b>${G.name}</b><small>${sub}</small></button>
+      <input type="checkbox" class="switch" ${opts.g[id].on ? 'checked' : ''} ${avail ? '' : 'disabled'} aria-label="${G.name} göster">`;
     row.querySelector('input').onchange = e => { opts.g[id].on = e.target.checked; save(); if (e.target.checked) select(id); else drawPreview(); };
     row.querySelector('.gname').onclick = () => select(state.sel === id ? null : id);
     list.appendChild(row);
@@ -71,15 +72,37 @@ function renderGaugeList() {
 }
 function editorFor(id) {
   const G = GAUGES[id], g = opts.g[id], box = document.createElement('div'); box.className = 'geditor';
-  box.innerHTML = `${G.styles ? '<div class="seg small" data-r="style"></div>' : ''}
-    <div class="slider"><label>Bu göstergenin boyutu <b>%${g.scale}</b></label><input type="range" min="50" max="200" step="5" value="${g.scale}"></div>
-    <div class="row"><button class="btn sm" data-r="reset">Konumu sıfırla</button><button class="btn sm" data-r="edit">Önizlemede taşı</button></div>`;
-  if (G.styles) seg(box.querySelector('[data-r=style]'), G.styles, () => g.style, v => { g.style = v; save(); drawPreview(); renderGaugeList(); });
+  box.innerHTML = `${G.styles ? '<div class="styles" data-r="style" role="radiogroup" aria-label="Stil"></div>' : ''}
+    <div class="slider"><label>Bu göstergenin boyutu <b class="num">%${g.scale}</b></label><input type="range" min="50" max="200" step="5" value="${g.scale}" aria-label="Gösterge boyutu"></div>
+    <div class="row" style="margin-top:var(--s2)"><button class="btn sm grow" data-r="edit">Önizlemede taşı</button><button class="btn sm ghost" data-r="reset">Varsayılana dön</button></div>`;
+  if (G.styles && state.tel) {
+    const wrap = box.querySelector('[data-r=style]'), t = video.currentTime || 0;
+    for (const [st, name] of Object.entries(G.styles)) {
+      const b = document.createElement('button'); b.className = (g.style || Object.keys(G.styles)[0]) === st ? 'on' : '';
+      b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', b.className === 'on');
+      const c = document.createElement('canvas'), dpr = window.devicePixelRatio || 1, W = 104;
+      c.width = W * dpr * 2; c.height = W * dpr * 2;
+      const ctx = c.getContext('2d');
+      const h = drawGaugeThumb(ctx, id, st, c.width, t, data(), opts, state.meta);
+      c.height = Math.ceil(h); drawGaugeThumb(c.getContext('2d'), id, st, c.width, t, data(), opts, state.meta);
+      b.append(c); const sm = document.createElement('small'); sm.textContent = name; b.append(sm);
+      b.onclick = () => { g.style = st; save(); drawPreview(); renderGaugeList(); };
+      wrap.append(b);
+    }
+  }
   const r = box.querySelector('input[type=range]');
   r.oninput = () => { g.scale = Number(r.value); r.previousElementSibling.querySelector('b').textContent = `%${g.scale}`; save(); drawPreview(); };
   box.querySelector('[data-r=reset]').onclick = () => { g.x = G.def.x; g.y = G.def.y; g.scale = 100; save(); renderGaugeList(); drawPreview(); };
   box.querySelector('[data-r=edit]').onclick = () => { setEdit(true); $('stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
   return box;
+}
+function renderPresets() {
+  const el = $('presets'); el.innerHTML = '';
+  for (const [k, P] of Object.entries(PRESETS)) {
+    const b = document.createElement('button'); b.className = 'btn sm'; b.textContent = P.name;
+    b.onclick = () => { applyPreset(opts, k); save(); seg($('theme'), THEMES, () => opts.theme, v => { opts.theme = v; save(); drawPreview(); renderGaugeList(); }); renderGaugeList(); drawPreview(); };
+    el.append(b);
+  }
 }
 function select(id) { state.sel = id; renderGaugeList(); drawPreview(); }
 
@@ -105,7 +128,7 @@ video.addEventListener('error', () => setMsg('Bu tarayıcı videoyu önizlemede 
 // ---- sürükle-bırak ----
 function setEdit(on) {
   state.edit = on; $('stage').classList.toggle('editing', on);
-  $('editBtn').classList.toggle('on', on); $('editBtn').textContent = on ? 'Bitti' : 'Konumları düzenle';
+  $('editBtn').classList.toggle('on', on); $('editBtn').querySelector('span').textContent = on ? 'Bitti' : 'Konumları düzenle';
   $('editHint').classList.toggle('hidden', !on);
   if (on) video.pause();
   drawPreview();
@@ -173,7 +196,10 @@ function showInfo() {
   $('info').innerHTML = [
     [tel.device, 'Kamera'], [`${info.width}×${info.height}`, 'Çözünürlük'],
     [`${Math.round(info.fps)} fps`, 'Kare hızı'], [fmtDur(info.duration), 'Süre'], [sens, 'Sensörler'],
-  ].map(([b, s]) => `<div><b>${esc(b)}</b><small>${s}</small></div>`).join('');
+  ].map(([b, s]) => `<span>${s}: <b>${esc(b)}</b></span>`).join('');
+  const imu = tel.hasImu !== false;
+  for (const id of ['calBtn', 'calInfo']) $(id).classList.toggle('hidden', !imu);
+  $('calClr').classList.add('hidden');
   const short = Math.min(info.width, info.height), origBtn = $('res').querySelector('[data-v="orig"]');
   if (short <= 1080) { origBtn.disabled = true; $('origLbl').textContent = 'video zaten 1080p'; $('res').querySelector('[data-v="1080"]').click(); }
   else { origBtn.disabled = false; $('origLbl').textContent = `${short >= 2160 ? '4K' : short + 'p'} · daha yavaş`; }
@@ -373,7 +399,22 @@ $('again').onclick = () => fileEl.click();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.conv) keepAwake(true); });
 
 if (isApp) { $('recCard').remove(); document.querySelector('#gpsRecLink')?.remove(); document.querySelector('footer')?.remove(); }
-bindSettings(); renderGaugeList(); updateGpsUI();
+// ---- açı kalibrasyonu: motorun dik durduğu an ----
+$('calBtn').onclick = () => {
+  if (!state.tel?.raw) return;
+  const t = video.currentTime || 0; calibrateAt(state.tel, t);
+  $('calClr').classList.remove('hidden');
+  $('calInfo').innerHTML = `Yatış ve eğim, videonun <b>${t.toFixed(1).replace('.', ',')}. saniyesindeki</b> duruşa göre sıfırlandı. Yanlış anı seçtiysen başka bir ana gidip tekrar bas.`;
+  drawPreview(); renderGaugeList();
+};
+$('calClr').onclick = () => {
+  if (!state.tel?.raw) return; applyCalibration(state.tel, null); $('calClr').classList.add('hidden');
+  $('calInfo').innerHTML = 'Sıfırlama kaldırıldı; açılar kameranın kendi eksenine göre.'; drawPreview(); renderGaugeList();
+};
+$('goMobile').onclick = () => { $('exportCard').scrollIntoView({ behavior: 'smooth', block: 'center' }); if (!$('go').disabled) $('go').click(); };
+new MutationObserver(() => $('gobar').classList.toggle('hidden', $('work').classList.contains('hidden'))).observe($('work'), { attributes: true });
+
+bindSettings(); renderPresets(); renderGaugeList(); updateGpsUI();
 window.__tg = { state, opts, loadFile, setEdit, select, setOffset, // test için
   snap: (W = 1920, H = 1080) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
     x.drawImage(video, 0, 0, W, H); drawOverlay(x, W, H, video.currentTime, data(), opts, state.meta); return c.toDataURL('image/jpeg', 0.85); } };

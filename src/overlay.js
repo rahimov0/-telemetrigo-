@@ -3,14 +3,14 @@ import { sampleAt } from './gpmf.js';
 import { gpsAt } from './gpx.js';
 
 export const ACCENTS = { turuncu: '#FF7A1A', mavi: '#29D3FF', yesil: '#50E68C', kirmizi: '#FF4D5E', sari: '#FFD23F', beyaz: '#F2F4F8' };
-export const THEMES = { panel: 'Koyu panel', cam: 'Cam', minimal: 'Minimal' };
+export const THEMES = { panel: 'Koyu panel', yaris: 'Yarış', cam: 'Cam', minimal: 'Minimal' };
 
 // Göstergeler: x,y = 0..1 arası konum (0 sol/üst, 1 sağ/alt). needs: 'gps' | 'accel' | 'imu'
 export const GAUGES = {
-  lean:     { name: 'Yatış açısı', needs: 'imu', styles: { bike: 'Motor', arc: 'Yay' }, def: { on: true, x: 0, y: 1 } },
-  speed:    { name: 'Hız', needs: 'gps', styles: { dial: 'Kadran', digital: 'Dijital' }, def: { on: true, x: 0.5, y: 1 } },
-  gforce:   { name: 'G-kuvveti', needs: 'accel', def: { on: true, x: 1, y: 1 } },
-  map:      { name: 'Rota', needs: 'gps', def: { on: true, x: 1, y: 0.42 } },
+  lean:     { name: 'Yatış açısı', needs: 'imu', styles: { bike: 'Motor', arc: 'Yay', horizon: 'Ufuk bandı', mini: 'Sade' }, def: { on: true, x: 0, y: 1 } },
+  speed:    { name: 'Hız', needs: 'gps', styles: { dial: 'Kadran', needle: 'İbreli', bar: 'Yarış barı', digital: 'Dijital', mini: 'Sade' }, def: { on: true, x: 0.5, y: 1 } },
+  gforce:   { name: 'G-kuvveti', needs: 'accel', styles: { circle: 'Daire', bars: 'Çubuk' }, def: { on: true, x: 1, y: 1 } },
+  map:      { name: 'Rota', needs: 'gps', styles: { north: 'Kuzey yukarı', heading: 'Yön yukarı', heat: 'Hıza göre renkli' }, def: { on: true, x: 1, y: 0.42 } },
   alt:      { name: 'İrtifa', needs: 'gps', def: { on: false, x: 0, y: 0.5 } },
   compass:  { name: 'Pusula', needs: 'gps', def: { on: true, x: 0.5, y: 0 } },
   attitude: { name: 'Eğim / ufuk', needs: 'imu', def: { on: true, x: 0, y: 0 } },
@@ -18,8 +18,9 @@ export const GAUGES = {
   clock:    { name: 'Saat', def: { on: true, x: 1, y: 0 } },
 };
 const SIZES = {
-  lean: s => s === 'arc' ? [760, 500] : [760, 560], gforce: () => [760, 500], attitude: () => [760, 300], clock: () => [760, 150],
-  speed: s => s === 'digital' ? [600, 300] : [540, 540], map: () => [480, 480], alt: () => [600, 280],
+  lean: s => ({ arc: [760, 500], horizon: [900, 260], mini: [440, 230] }[s] || [760, 560]),
+  gforce: s => s === 'bars' ? [760, 320] : [760, 500], attitude: () => [760, 300], clock: () => [760, 150],
+  speed: s => ({ digital: [600, 300], bar: [900, 260], mini: [480, 240] }[s] || [540, 540]), map: () => [480, 480], alt: () => [600, 280],
   compass: () => [900, 180], chart: () => [1000, 300],
 };
 
@@ -44,8 +45,16 @@ function rr(ctx, x, y, w, h, r) {
   ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
-function panel(ctx, w, h, o) {
+let ITALIC = false;   // yarış temasında büyük rakamlar eğik
+function panel(ctx, w, h, o, A) {
   if (o.theme === 'minimal') { ctx.shadowColor = 'rgba(0,0,0,.75)'; ctx.shadowBlur = 14; return; }
+  if (o.theme === 'yaris') {
+    const c = 44; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(w - c, 0); ctx.lineTo(w, c); ctx.lineTo(w, h); ctx.lineTo(c, h); ctx.lineTo(0, h - c); ctx.closePath();
+    ctx.fillStyle = `rgba(8,9,12,${o.opacity / 100})`; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.stroke();
+    ctx.fillStyle = A || '#FF7A1A'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(10, 0); ctx.lineTo(10, h - c + 10); ctx.lineTo(0, h - c); ctx.closePath(); ctx.fill();
+    return;
+  }
   rr(ctx, 0, 0, w, h, 36);
   const a = o.opacity / 100;
   if (o.theme === 'cam') {
@@ -58,7 +67,7 @@ function panel(ctx, w, h, o) {
   }
 }
 function text(ctx, s, x, y, size, weight = 600, color = WHITE, align = 'left', base = 'alphabetic') {
-  ctx.font = `${weight} ${size}px ${FONT}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = base;
+  ctx.font = `${ITALIC && size >= 56 ? 'italic 800' : weight} ${size}px ${FONT}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = base;
   ctx.fillText(s, x, y);
 }
 const label = (ctx, s, x, y, align = 'left') => text(ctx, s.toLocaleUpperCase('tr-TR'), x, y, 30, 600, GREY, align);
@@ -343,10 +352,156 @@ function chart(ctx, d, o, A) {
   ctx.fillStyle = CYAN; ctx.fillRect(x1 - 130, 44, 26, 8); text(ctx, sec, x1 - 94, 56, 26, 600, GREY);
 }
 
+
+// ================= Ek gösterge stilleri =================
+// Yatış: ufuk bandı (geniş, ince; motorun ekseni yatay referansa göre)
+function leanHorizon(ctx, d, o, A) {
+  const s = d.s, W = 900, H = 260, cx = 560, cy = 150, L = 300;
+  label(ctx, 'Yatış', 40, 64);
+  text(ctx, `${fmt(s.roll)}°`, 40, 175, 110, 700);
+  text(ctx, side(s.roll), 44, 220, 30, 700, A);
+  ctx.strokeStyle = DIM; ctx.lineWidth = 2; ctx.setLineDash([10, 10]);
+  ctx.beginPath(); ctx.moveTo(cx - L, cy); ctx.lineTo(cx + L, cy); ctx.stroke(); ctx.setLineDash([]);
+  for (const a of [-45, -30, -15, 15, 30, 45]) {      // açı işaretleri
+    const t = rad(a), r = 120; ctx.strokeStyle = GREY; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(t) * r * 0.86, cy + Math.sin(t) * r * 0.86); ctx.lineTo(cx + Math.cos(t) * r, cy + Math.sin(t) * r); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - Math.cos(t) * r * 0.86, cy + Math.sin(t) * r * 0.86); ctx.lineTo(cx - Math.cos(t) * r, cy + Math.sin(t) * r); ctx.stroke();
+  }
+  ctx.save(); ctx.beginPath(); ctx.rect(300, 16, W - 316, H - 60); ctx.clip();
+  ctx.translate(cx, cy); ctx.rotate(rad(s.roll));
+  ctx.strokeStyle = A; ctx.lineWidth = 12; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-L * 0.8, 0); ctx.lineTo(-40, 0); ctx.moveTo(40, 0); ctx.lineTo(L * 0.8, 0); ctx.stroke();
+  ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(0, 0, 16, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(0, -70); ctx.lineWidth = 6; ctx.strokeStyle = WHITE; ctx.stroke();
+  ctx.restore();
+  text(ctx, `MAKS SOL ${fmt(s.maxL)}° · SAĞ ${fmt(s.maxR)}°`, W - 40, H - 22, 24, 500, GREY, 'right');
+}
+function leanMini(ctx, d, o, A) {
+  const s = d.s;
+  label(ctx, 'Yatış', 36, 58);
+  text(ctx, `${fmt(s.roll)}°`, 36, 190, 130, 700);
+  ctx.save(); ctx.translate(360, 120); ctx.rotate(rad(s.roll));
+  ctx.fillStyle = A; rr(ctx, -10, -60, 20, 120, 10); ctx.fill(); ctx.restore();
+  text(ctx, side(s.roll), 404, 58, 28, 700, A, 'right');
+}
+
+// Hız: klasik ibreli gösterge
+function speedNeedle(ctx, d, o, A) {
+  const { p, gps } = d, cx = 270, cy = 290, r = 220, MAX = speedScale(gps);
+  const ang = v => rad(150 + 240 * clamp(v, 0, MAX) / MAX);
+  ctx.lineWidth = 6; ctx.strokeStyle = GREY; ctx.beginPath(); ctx.arc(cx, cy, r, ang(0), ang(MAX)); ctx.stroke();
+  ctx.lineWidth = 14; ctx.strokeStyle = RED; ctx.beginPath(); ctx.arc(cx, cy, r - 8, ang(MAX * 0.85), ang(MAX)); ctx.stroke();
+  const major = MAX > 160 ? 40 : 20;
+  for (let k = 0; k <= MAX; k += 5) {
+    const a = ang(k), mj = k % major === 0, md = k % 10 === 0;
+    ctx.strokeStyle = mj ? WHITE : GREY; ctx.lineWidth = mj ? 5 : md ? 3 : 1.5;
+    const r2 = r - (mj ? 40 : md ? 28 : 20);
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * (r - 6), cy + Math.sin(a) * (r - 6)); ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); ctx.stroke();
+    if (mj) text(ctx, `${k}`, cx + Math.cos(a) * (r - 72), cy + Math.sin(a) * (r - 72), 30, 700, WHITE, 'center', 'middle');
+  }
+  const v = p.valid ? p.speed * 3.6 : 0, a = ang(v);
+  text(ctx, p.valid ? `${Math.round(v)}` : dash, cx, cy + 120, 64, 700, WHITE, 'center');
+  text(ctx, 'km/h', cx, cy + 158, 26, 600, GREY, 'center');
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(a);
+  ctx.fillStyle = A; ctx.beginPath(); ctx.moveTo(-30, -8); ctx.lineTo(r - 30, -2); ctx.lineTo(r - 30, 2); ctx.lineTo(-30, 8); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = '#1a1c22'; ctx.strokeStyle = A; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(cx, cy, 26, 0, 7); ctx.fill(); ctx.stroke();
+}
+// Hız: yarış barı (TFT ekran tarzı, segmentli)
+function speedBar(ctx, d, o, A) {
+  const { p, gps } = d, W = 900, MAX = speedScale(gps), v = p.valid ? p.speed * 3.6 : 0;
+  text(ctx, p.valid ? `${Math.round(v)}` : dash, 40, 190, 150, 700);
+  text(ctx, 'km/h', 40, 232, 30, 600, GREY);
+  const x0 = 330, x1 = W - 40, n = 24, gap = 6, sw = (x1 - x0 - gap * (n - 1)) / n, on = Math.round(clamp(v / MAX, 0, 1) * n);
+  for (let k = 0; k < n; k++) {
+    const hgt = 50 + 70 * k / (n - 1), y = 170 - hgt;
+    const c = k >= n * 0.85 ? RED : k >= n * 0.65 ? '#FFD23F' : A;
+    ctx.globalAlpha = k < on ? 1 : 0.15; ctx.fillStyle = c; ctx.fillRect(x0 + k * (sw + gap), y, sw, hgt); ctx.globalAlpha = 1;
+  }
+  text(ctx, '0', x0, 210, 24, 500, GREY); text(ctx, `${MAX}`, x1, 210, 24, 500, GREY, 'right');
+  text(ctx, `MAKS ${p.valid ? Math.round(p.maxSpeed * 3.6) : dash}  ·  ${p.valid ? fmt(p.dist / 1000, 1) : '0'} km`, x1, 248, 26, 500, GREY, 'right');
+}
+function speedMini(ctx, d) {
+  const { p } = d;
+  text(ctx, p.valid ? `${Math.round(p.speed * 3.6)}` : dash, 36, 180, 170, 700);
+  ctx.font = `700 170px ${FONT}`; const w = ctx.measureText(p.valid ? `${Math.round(p.speed * 3.6)}` : dash).width;
+  text(ctx, 'km/h', 52 + w, 180, 38, 600, GREY);
+}
+
+// G-kuvveti: çubuklar
+function gBars(ctx, d, o) {
+  const { s } = d, W = 760, RNG = o.gRange, x0 = 40, x1 = W - 40, mid = (x0 + x1) / 2;
+  label(ctx, 'G-kuvveti', 40, 60);
+  text(ctx, `MAKS ${fmt(s.maxG, 2)} G`, W - 40, 60, 26, 500, GREY, 'right');
+  const bar = (y, v, posCol, negCol, l, r) => {
+    rr(ctx, x0, y, x1 - x0, 34, 17); ctx.fillStyle = DIM; ctx.fill();
+    const w = clamp(Math.abs(v) / RNG, 0, 1) * (x1 - x0) / 2;
+    ctx.fillStyle = v >= 0 ? posCol : negCol;
+    if (w > 2) { rr(ctx, v >= 0 ? mid : mid - w, y, w, 34, 10); ctx.fill(); }
+    ctx.fillStyle = WHITE; ctx.fillRect(mid - 2, y - 6, 4, 46);
+    text(ctx, l, x0, y + 74, 26, 600, GREY); text(ctx, r, x1, y + 74, 26, 600, GREY, 'right');
+    text(ctx, `${fmt(v, 2)} G`, mid, y + 76, 34, 700, WHITE, 'center');
+  };
+  bar(96, s.lon, GREEN, RED, 'FREN', 'HIZLANMA');
+  bar(206, s.lat, CYAN, CYAN, 'SOL', 'SAĞ');
+}
+
+// Harita: yön yukarı (daire, araç navigasyonu gibi)
+function mapHeading(ctx, d, o, A) {
+  const { p, gps } = d, cx = 240, cy = 262, R = 196;
+  label(ctx, 'Rota', 40, 56);
+  const Rm = clamp(gps.total / 5, 150, 1500), sc = R / Rm;   // ekranda görünen yarıçap (m)
+  const crs = p.valid && isFinite(p.course) ? p.course : 0;
+  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,.05)'; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+  for (const f of [1 / 3, 2 / 3]) { ctx.strokeStyle = DIM; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, R * f, 0, 7); ctx.stroke(); }
+  if (p.valid) {
+    ctx.translate(cx, cy); ctx.rotate(-rad(crs));
+    const m = mapPts(gps), P = i => [(gps.x[i] - p.x) * sc, -(gps.y[i] - p.y) * sc];
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 7; ctx.beginPath(); m.idx.forEach((i, k) => { const [x, y] = P(i); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+    ctx.strokeStyle = A; ctx.lineWidth = 9; ctx.beginPath(); let first = true;
+    for (const i of m.idx) { if (i > p.i) break; const [x, y] = P(i); first ? ctx.moveTo(x, y) : ctx.lineTo(x, y); first = false; }
+    if (!first) ctx.lineTo(0, 0); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.stroke();
+  const na = rad(-crs - 90); text(ctx, 'K', cx + Math.cos(na) * (R - 22), cy + Math.sin(na) * (R - 22), 28, 800, A, 'center', 'middle');
+  ctx.fillStyle = WHITE; ctx.strokeStyle = '#111'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(cx, cy - 24); ctx.lineTo(cx + 17, cy + 18); ctx.lineTo(cx, cy + 9); ctx.lineTo(cx - 17, cy + 18); ctx.closePath(); ctx.fill(); ctx.stroke();
+  text(ctx, `${Math.round(Rm)} m`, 440, 56, 24, 500, GREY, 'right');
+}
+// Harita: hıza göre renkli iz (ısı haritası)
+const heat = (v, max) => `hsl(${Math.round(220 - 220 * clamp(v / max, 0, 1))},95%,55%)`;
+function mapHeat(ctx, d, o, A) {
+  const { p, gps } = d, W = 480, H = 480, pad = 50, top = 90, MAX = Math.max(10, gps.vMax * 3.6);
+  label(ctx, 'Rota · hız', 40, 64);
+  const m = mapPts(gps), bw = W - 2 * pad, bh = H - top - pad - 30;
+  const sc = Math.min(bw / Math.max(1, m.x1 - m.x0), bh / Math.max(1, m.y1 - m.y0));
+  const ox = pad + (bw - (m.x1 - m.x0) * sc) / 2, oy = top + (bh - (m.y1 - m.y0) * sc) / 2;
+  const P = (x, y) => [ox + (x - m.x0) * sc, oy + (m.y1 - y) * sc];
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 6; ctx.beginPath();
+  m.idx.forEach((i, k) => { const [x, y] = P(gps.x[i], gps.y[i]); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+  ctx.lineWidth = 8;
+  for (let k = 1; k < m.idx.length; k++) {
+    const i = m.idx[k], j = m.idx[k - 1]; if (p.valid && i > p.i) break; if (!p.valid) break;
+    const [x0, y0] = P(gps.x[j], gps.y[j]), [x1, y1] = P(gps.x[i], gps.y[i]);
+    ctx.strokeStyle = heat(gps.spd[i] * 3.6, MAX); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  }
+  if (p.valid) { const [cx, cy] = P(p.x, p.y); ctx.fillStyle = WHITE; ctx.strokeStyle = '#111'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx, cy, 13, 0, 7); ctx.fill(); ctx.stroke(); }
+  const gx = 50, gy = H - 52, gw = W - 100, grad = ctx.createLinearGradient(gx, 0, gx + gw, 0);
+  for (let k = 0; k <= 4; k++) grad.addColorStop(k / 4, heat(MAX * k / 4, MAX));
+  ctx.fillStyle = grad; rr(ctx, gx, gy, gw, 12, 6); ctx.fill();
+  text(ctx, '0', gx, gy + 40, 22, 500, GREY); text(ctx, `${Math.round(MAX)} km/h`, gx + gw, gy + 40, 22, 500, GREY, 'right');
+}
+
 const DRAW = {
-  lean: (c, d, o, A, st) => st === 'arc' ? leanArc(c, d, o, A) : leanBike(c, d, o, A),
-  speed: (c, d, o, A, st) => st === 'digital' ? speedDigital(c, d, o, A) : speedDial(c, d, o, A),
-  gforce, attitude, clock, map: mapGauge, alt: altGauge, compass, chart,
+  lean: (c, d, o, A, st) => ({ arc: leanArc, horizon: leanHorizon, mini: leanMini }[st] || leanBike)(c, d, o, A),
+  speed: (c, d, o, A, st) => ({ digital: speedDigital, needle: speedNeedle, bar: speedBar, mini: speedMini }[st] || speedDial)(c, d, o, A),
+  gforce: (c, d, o, A, st) => (st === 'bars' ? gBars : gforce)(c, d, o, A),
+  map: (c, d, o, A, st) => ({ heading: mapHeading, heat: mapHeat }[st] || mapGauge)(c, d, o, A),
+  attitude, clock, alt: altGauge, compass, chart,
 };
 
 export function gaugeAvailable(id, data) {
@@ -357,7 +512,7 @@ export function gaugeSize(id, style) { return SIZES[id](style); }
 
 // Ana çizim. data = { tel, gps, gbase, goff }. ui = { highlight, edit } (yalnızca önizleme). Dönüş: gösterge kutuları
 export function drawOverlay(ctx, W, H, t, data, o, meta = {}, ui = {}) {
-  const A = ACCENTS[o.accent] || ACCENTS.turuncu;
+  const A = ACCENTS[o.accent] || ACCENTS.turuncu; ITALIC = o.theme === 'yaris';
   const base = Math.min(W / 3840, H / 2160) * (W < H ? 1.6 : 1);
   const k0 = base * o.size / 100, m = 60 * base;
   const d = { s: sampleAt(data.tel, t), p: data.gps ? gpsAt(data.gps, data.gbase, data.goff, t) : { valid: false },
@@ -368,7 +523,7 @@ export function drawOverlay(ctx, W, H, t, data, o, meta = {}, ui = {}) {
     const [pw, ph] = SIZES[id](g.style), k = k0 * (g.scale || 100) / 100;
     const x = m + clamp(g.x, 0, 1) * Math.max(0, W - 2 * m - pw * k), y = m + clamp(g.y, 0, 1) * Math.max(0, H - 2 * m - ph * k);
     ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
-    ctx.save(); panel(ctx, pw, ph, o); DRAW[id](ctx, d, o, A, g.style); ctx.restore();
+    ctx.save(); panel(ctx, pw, ph, o, A); DRAW[id](ctx, d, o, A, g.style); ctx.restore();
     if (ui.highlight === id || ui.edit) {
       const sel = ui.highlight === id;
       ctx.setLineDash(sel ? [] : [16, 12]); ctx.lineWidth = (sel ? 8 : 4) / Math.max(0.15, k / base);
@@ -378,4 +533,32 @@ export function drawOverlay(ctx, W, H, t, data, o, meta = {}, ui = {}) {
     rects.push({ id, x, y, w: pw * k, h: ph * k, m });
   }
   return rects;
+}
+
+/** Tek göstergeyi küçük önizleme olarak çiz (stil seçici için). Genişlik w piksel. */
+export function drawGaugeThumb(ctx, id, style, w, t, data, o, meta = {}) {
+  const A = ACCENTS[o.accent] || ACCENTS.turuncu; ITALIC = o.theme === 'yaris';
+  const [pw, ph] = SIZES[id](style), k = w / pw;
+  const d = { s: sampleAt(data.tel, t), p: data.gps ? gpsAt(data.gps, data.gbase, data.goff, t) : { valid: false },
+    tel: data.tel, gps: data.gps, gbase: data.gbase, goff: data.goff, meta };
+  ctx.save(); ctx.scale(k, k); ctx.save(); panel(ctx, pw, ph, o, A); DRAW[id](ctx, d, o, A, style); ctx.restore(); ctx.restore();
+  return ph * k;
+}
+
+// Hazır yerleşimler
+export const PRESETS = {
+  yaris: { name: 'Yarış', theme: 'yaris', g: { lean: { on: true, style: 'bike', x: 0, y: 1 }, speed: { on: true, style: 'bar', x: 0.5, y: 1 }, gforce: { on: true, style: 'circle', x: 1, y: 1 },
+    map: { on: true, style: 'heading', x: 1, y: 0.4 }, compass: { on: false }, attitude: { on: false }, alt: { on: false }, chart: { on: false }, clock: { on: true, x: 1, y: 0 } } },
+  tur: { name: 'Tur', theme: 'panel', g: { lean: { on: true, style: 'arc', x: 0, y: 1 }, speed: { on: true, style: 'dial', x: 0.5, y: 1 }, gforce: { on: false },
+    map: { on: true, style: 'heat', x: 1, y: 0.42 }, compass: { on: true, x: 0.5, y: 0 }, attitude: { on: false }, alt: { on: true, x: 0, y: 0.5 }, chart: { on: false }, clock: { on: true, x: 1, y: 0 } } },
+  sade: { name: 'Sade', theme: 'minimal', g: { lean: { on: true, style: 'mini', x: 1, y: 1 }, speed: { on: true, style: 'mini', x: 0, y: 1 }, gforce: { on: false },
+    map: { on: false }, compass: { on: false }, attitude: { on: false }, alt: { on: false }, chart: { on: false }, clock: { on: false } } },
+  tam: { name: 'Tam', theme: 'panel', g: { lean: { on: true, style: 'bike', x: 0, y: 1 }, speed: { on: true, style: 'dial', x: 0.5, y: 1 }, gforce: { on: true, style: 'circle', x: 1, y: 1 },
+    map: { on: true, style: 'north', x: 1, y: 0.42 }, compass: { on: true, x: 0.5, y: 0 }, attitude: { on: true, x: 0, y: 0 }, alt: { on: false }, chart: { on: false }, clock: { on: true, x: 1, y: 0 } } },
+};
+export function applyPreset(o, key) {
+  const P = PRESETS[key]; if (!P) return o;
+  o.theme = P.theme;
+  for (const [id, v] of Object.entries(P.g)) o.g[id] = { ...o.g[id], scale: 100, ...v };
+  return o;
 }

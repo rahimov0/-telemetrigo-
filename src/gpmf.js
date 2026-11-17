@@ -190,21 +190,49 @@ function computeSeries(acc) {
     for (let i = 0; i < N; i++) { const m = Math.hypot(g0[i], g1[i], g2[i]) || 1; g0[i] /= m; g1[i] /= m; g2[i] /= m; }
   }
   const D = 180 / Math.PI;
-  const roll = new Float32Array(N), pitch = new Float32Array(N);
-  for (let i = 0; i < N; i++) { roll[i] = Math.atan2(g0[i], g1[i]) * D; pitch[i] = -Math.atan2(g2[i], g1[i]) * D; }
-  let lat = new Float32Array(N), lon = new Float32Array(N);
-  if (a0) for (let i = 0; i < N; i++) { lat[i] = -(a1[i] - g0[i]); lon[i] = -(a2[i] - g2[i]); }
-  lat = smooth(lat, 27); lon = smooth(lon, 27);
   let yaw = new Float32Array(N);
   if (acc.GYRO) yaw = smooth(resample(acc.GYRO, 0, grid).map(v => v * D), 13);
-  // birikimli maksimumlar
+  const tel = { hz: HZ, duration: end, yaw, hasAccel: !!a0, hasGyro: !!acc.GYRO, hasImu: true,
+    raw: { g0, g1, g2, ax: a1 || null, ay: a0 || null, az: a2 || null }, ref: null };
+  applyCalibration(tel, null);
+  return tel;
+}
+
+/** Kamera eğik takılmış olabilir: "motor düzken" ölçülen yerçekimi yönünü referans alarak
+ *  yatış/eğim ve G-kuvveti eksenlerini motora göre hesaplar. ref = null → kameranın kendi ekseni. */
+export function applyCalibration(tel, ref) {
+  const { g0, g1, g2, ax, ay, az } = tel.raw, N = g0.length, D = 180 / Math.PI;
+  const norm = v => { const m = Math.hypot(...v) || 1; return v.map(x => x / m); };
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const u = norm(ref || [0, 1, 0]);
+  const ex = [1, 0, 0], ez = [0, 0, 1];
+  const l = norm(ex.map((x, k) => x - dot(ex, u) * u[k]));
+  const f = norm(ez.map((x, k) => x - dot(ez, u) * u[k] - dot(ez, l) * l[k]));
+  const roll = new Float32Array(N), pitch = new Float32Array(N);
+  let lat = new Float32Array(N), lon = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const g = [g0[i], g1[i], g2[i]], gu = dot(g, u), gl = dot(g, l), gf = dot(g, f);
+    roll[i] = Math.atan2(gl, Math.hypot(gu, gf)) * D;       // + sağa yatış (eğik montajda da doğru)
+    pitch[i] = -Math.atan2(gf, Math.hypot(gu, gl)) * D;     // + burun yukarı
+    if (ax) { const lin = [ax[i] - g[0], ay[i] - g[1], az[i] - g[2]]; lat[i] = -dot(lin, l); lon[i] = -dot(lin, f); }
+  }
+  lat = smooth(lat, 27); lon = smooth(lon, 27);
   const maxL = new Float32Array(N), maxR = new Float32Array(N), maxG = new Float32Array(N);
   let mL = 0, mR = 0, mG = 0;
   for (let i = 0; i < N; i++) {
     mL = Math.max(mL, -roll[i]); mR = Math.max(mR, roll[i]); mG = Math.max(mG, Math.hypot(lat[i], lon[i]));
     maxL[i] = mL; maxR[i] = mR; maxG[i] = mG;
   }
-  return { hz: HZ, duration: end, roll, pitch, lat, lon, yaw, maxL, maxR, maxG, hasAccel: !!a0, hasGyro: !!acc.GYRO, hasImu: true };
+  Object.assign(tel, { roll, pitch, lat, lon, maxL, maxR, maxG, ref: ref ? u : null });
+  return tel;
+}
+
+/** t saniyesinde (±0,5 sn ortalama) motoru "düz" kabul et ve açıları buna göre sıfırla */
+export function calibrateAt(tel, t, win = 0.5) {
+  const { g0, g1, g2 } = tel.raw, N = g0.length;
+  const i0 = Math.max(0, Math.floor((t - win) * tel.hz)), i1 = Math.min(N - 1, Math.ceil((t + win) * tel.hz));
+  const v = [0, 0, 0]; for (let i = i0; i <= i1; i++) { v[0] += g0[i]; v[1] += g1[i]; v[2] += g2[i]; }
+  return applyCalibration(tel, v);
 }
 
 export function sampleAt(tel, t) {

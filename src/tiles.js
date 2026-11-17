@@ -2,9 +2,9 @@
 // döşemeler aynı koordinata afin dönüşümle oturtulur. Tarayıcıdan CORS ile çekilir, tuval kirlenmez.
 export const MAP_STYLES = {
   yok:    { name: 'Çizgi' },
-  koyu:   { name: 'Koyu', url: (z, x, y) => `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}@2x.png`, px: 512, max: 20, attr: '© OpenStreetMap © CARTO', dark: true },
-  acik:   { name: 'Açık', url: (z, x, y) => `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/light_all/${z}/${x}/${y}@2x.png`, px: 512, max: 20, attr: '© OpenStreetMap © CARTO', dark: false },
-  renkli: { name: 'Renkli', url: (z, x, y) => `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}@2x.png`, px: 512, max: 20, attr: '© OpenStreetMap © CARTO', dark: false },
+  koyu:   { name: 'Koyu', url: (z, x, y) => `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`, px: 256, max: 20, attr: '© OpenStreetMap © CARTO', dark: true },
+  acik:   { name: 'Açık', url: (z, x, y) => `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/light_all/${z}/${x}/${y}.png`, px: 256, max: 20, attr: '© OpenStreetMap © CARTO', dark: false },
+  renkli: { name: 'Renkli', url: (z, x, y) => `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`, px: 256, max: 20, attr: '© OpenStreetMap © CARTO', dark: false },
   uydu:   { name: 'Uydu', url: (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 19, attr: 'Görüntü © Esri', dark: true },
 };
 const C = 2 * Math.PI * 6371008.8;

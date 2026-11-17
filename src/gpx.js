@@ -38,7 +38,12 @@ export function parseGpx(text) {
   if (pts.length < 2) throw new Error('GPX dosyasında zaman bilgisi olan yeterli nokta yok.');
   pts.sort((a, b) => a.t - b.t);
   const name = doc.querySelector('trk > name, metadata > name')?.textContent?.trim() || '';
-  return buildTrack(pts, name);
+  const g = buildTrack(pts, name);
+  // TelemetriGo iOS: GoPro'nun kayda başladığı anlar (Bluetooth bildirimi, ms hassasiyetinde)
+  g.camStarts = [...doc.getElementsByTagName('wpt')]
+    .filter(w => [...w.children].some(c => c.localName === 'type' && c.textContent.trim() === 'tg:camstart'))
+    .map(w => Date.parse([...w.children].find(c => c.localName === 'time')?.textContent || '')).filter(isFinite);
+  return g;
 }
 
 // Temizlik kuralları (duruşta GPS kayması "hareket" gibi görünmesin diye)

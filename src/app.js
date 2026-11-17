@@ -157,10 +157,10 @@ async function loadFile(f) {
     if (state.url) URL.revokeObjectURL(state.url);
     state.url = URL.createObjectURL(f); video.src = state.url;
     showInfo(); renderGaugeList();
-    $('pickCard').classList.add('hidden'); $('recCard').classList.add('hidden'); $('work').classList.remove('hidden');
+    $('pickCard').classList.add('hidden'); $('recCard')?.classList.add('hidden'); $('work').classList.remove('hidden');
     setMsg(canDecode ? '' : 'Bu tarayıcı bu videonun formatını (' + (info.codec || '?') + ') çözemiyor; dışa aktarma çalışmayabilir. iPhone\'da Safari veya bilgisayarda güncel Chrome dene.', 'err');
     if (canDecode && !tel.hasAccel) setMsg('Bu videoda ivmeölçer verisi yok; G-kuvveti göstergesi gizlendi.', 'warn');
-    drawPreview();
+    drawPreview(); autoLast();
   } catch (e) { console.error(e); setMsg('Video okunamadı: ' + esc(e.message || e)); }
 }
 
@@ -177,18 +177,50 @@ function showInfo() {
 }
 
 // ---- GPX ----
-const gpsBase = () => state.meta?.created ? state.meta.created.getTime() : state.gps.start;
+const isApp = /TelemetriGoApp/.test(navigator.userAgent);
+// Zaman tabanı: GoPro bu GPS kaydı sırasında uygulamadan başlatıldıysa o an (en hassas), yoksa kameranın saati
+function gpsBase(g = state.gps) {
+  const created = state.meta?.created?.getTime();
+  state.syncSrc = created ? 'saat' : 'gpx';
+  if (!created) return g.start;
+  const cs = (g.camStarts || []).map(t => [Math.abs(t - created), t]).sort((a, b) => a[0] - b[0])[0];
+  if (cs && cs[0] < 10000) { state.syncSrc = 'kamera'; return cs[1]; }
+  return created;
+}
 $('gpxBtn').onclick = () => gpxEl.click();
 gpxEl.addEventListener('change', async () => {
   const f = gpxEl.files[0]; if (!f) return; gpxEl.value = '';
   useGpx(await f.text(), f.name);
 });
 let last = null; try { last = JSON.parse(localStorage.getItem('tg-last-gpx') || 'null'); } catch {}
-if (last?.gpx) {
+function showLast() {
+  if (!last?.gpx) return;
   const b = $('lastGpx'); b.classList.remove('hidden');
   b.textContent = `Son GPS kaydını kullan (${new Date(last.start).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})`;
   b.onclick = () => useGpx(last.gpx, last.name);
 }
+showLast();
+// Video seçilince: son GPS kaydı bu videonun zamanını kapsıyorsa kendiliğinden ekle
+function autoLast() {
+  if (state.gps || !last?.gpx || !state.info) return;
+  try {
+    const g = parseGpx(last.gpx), base = gpsBase(g);
+    if (coverage(g, base, 0, state.info.duration) > 0.3) { useGpx(last.gpx, last.name); setMsg('Bu videonun zamanına denk gelen GPS kaydı otomatik eklendi.', 'ok'); }
+  } catch {}
+}
+// iOS uygulaması GPX'i buraya verir
+window.TelemetriGo = {
+  receiveGpx({ name, gpx }) {
+    try {
+      const g = parseGpx(gpx);
+      last = { name, gpx, start: g.start, end: g.end, saved: Date.now() };
+      try { localStorage.setItem('tg-last-gpx', JSON.stringify(last)); } catch {}
+      showLast();
+      if (state.info) useGpx(gpx, name);
+      else setMsg('GPS kaydı hazır. Şimdi aynı sürüşün GoPro videosunu seç; kayıt videoya otomatik eklenecek.', 'ok');
+    } catch (e) { setMsg('GPS kaydı okunamadı: ' + esc(e.message || e)); }
+  },
+};
 function useGpx(text, name) {
   try {
     const g = parseGpx(text);
@@ -196,7 +228,7 @@ function useGpx(text, name) {
     for (const id of ['speed', 'map', 'compass']) if (!saved?.g?.[id]) opts.g[id].on = true;
     updateGpsUI(); renderGaugeList(); drawPreview();
     const cov = coverage(g, state.gbase, 0, state.info.duration);
-    if (cov < 0.5 && state.tel?.hasAccel) runAutoSync(true);
+    if (cov < 0.5 && state.tel?.hasAccel && state.syncSrc !== 'kamera') runAutoSync(true);
   } catch (e) { setMsg('GPX okunamadı: ' + esc(e.message || e)); }
 }
 function updateGpsUI() {
@@ -208,6 +240,7 @@ function updateGpsUI() {
   const durMin = Math.round((g.end - g.start) / 60000);
   $('gpsInfo').innerHTML = `<b>${esc(state.gpxName)}</b><br>${g.n} nokta · ${(g.total / 1000).toFixed(1).replace('.', ',')} km · ${durMin} dk · ${hhmm(g.start)}–${hhmm(g.end)}`
     + `<br>Hız verisi: ${g.unit === 'konum' ? 'konumdan hesaplandı' : 'GPX içinden (' + g.unit + ')'} · Maks ${Math.round(g.vMax * 3.6)} km/h`
+    + `<br>Zamanlama: ${state.syncSrc === 'kamera' ? '<b>GoPro kayıt başlangıcıyla eşleşti</b> (uygulamadan başlatıldı)' : state.syncSrc === 'saat' ? 'GoPro saatine göre' : 'GPX başlangıcına göre (videoda saat bilgisi yok)'}`
     + (g.stillCount || g.dropped ? `<br>Temizlik: ${g.stillCount ? g.stillCount + ' duruş noktasındaki GPS kayması sıfırlandı' : ''}${g.stillCount && g.dropped ? ', ' : ''}${g.dropped ? g.dropped + ' hatalı nokta atıldı' : ''}` : '');
   const vStart = state.gbase - state.goff * 1000;
   const status = cov >= 0.95 ? ['ok', 'GPX bu videonun tamamını kapsıyor.']
@@ -312,6 +345,7 @@ $('go').onclick = async () => {
 $('cancel').onclick = () => state.conv?.cancel();
 $('share').onclick = async () => {
   const f = state.outFile; if (!f) return;
+  if (isApp) { $('dl').click(); return; }   // uygulama indirmeyi yakalayıp paylaşım ekranını açar
   try { if (navigator.canShare?.({ files: [f] })) await navigator.share({ files: [f], title: f.name }); else $('dl').click(); }
   catch (e) { if (e.name !== 'AbortError') $('dl').click(); }
 };
@@ -323,6 +357,7 @@ function resetResult() {
 $('again').onclick = () => fileEl.click();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.conv) keepAwake(true); });
 
+if (isApp) { $('recCard').remove(); document.querySelector('#gpsRecLink')?.remove(); document.querySelector('footer')?.remove(); }
 bindSettings(); renderGaugeList(); updateGpsUI();
 window.__tg = { state, opts, loadFile, setEdit, select, setOffset, // test için
   snap: (W = 1920, H = 1080) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');

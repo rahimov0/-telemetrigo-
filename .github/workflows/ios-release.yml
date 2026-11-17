@@ -1,0 +1,70 @@
+name: iOS TestFlight yüklemesi
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Sürüm (ör. 1.0.0)"
+        required: true
+        default: "1.0.0"
+jobs:
+  upload:
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults: { run: { working-directory: ios } }
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gizli anahtarları kontrol et
+        run: |
+          for v in ASC_KEY_ID ASC_ISSUER_ID TEAM_ID; do [ -n "${!v}" ] || { echo "::error::$v GitHub secret olarak eklenmemiş"; exit 1; }; done
+      - name: Xcode sürümü
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | grep -v beta | sort -V | tail -1)" && xcodebuild -version
+      - name: API anahtarı
+        env: { ASC_PRIVATE_KEY: "${{ secrets.ASC_PRIVATE_KEY }}" }
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s\n' "$ASC_PRIVATE_KEY" > ~/private_keys/AuthKey_$ASC_KEY_ID.p8
+          grep -q "BEGIN PRIVATE KEY" ~/private_keys/AuthKey_$ASC_KEY_ID.p8 || { echo "::error::ASC_PRIVATE_KEY .p8 dosyasının tam içeriği olmalı"; exit 1; }
+      - name: Eski CI sertifikalarını temizle
+        run: |
+          pip3 install --break-system-packages -q pyjwt cryptography || pip3 install -q pyjwt cryptography
+          python3 ../.github/scripts/asc_clean_certs.py
+      - name: Proje
+        run: brew install xcodegen && xcodegen generate
+      - name: Arşivle
+        run: |
+          set -o pipefail
+          xcodebuild -project TelemetriGo.xcodeproj -scheme TelemetriGo -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath $RUNNER_TEMP/TelemetriGo.xcarchive \
+            -allowProvisioningUpdates -skipPackagePluginValidation \
+            -authenticationKeyPath ~/private_keys/AuthKey_$ASC_KEY_ID.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="${{ inputs.version }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            archive | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          grep -q "ARCHIVE SUCCEEDED" archive.log
+      - name: App Store Connect'e yükle
+        run: |
+          cat > ExportOptions.plist <<PL
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PL
+          xcodebuild -exportArchive -archivePath $RUNNER_TEMP/TelemetriGo.xcarchive \
+            -exportOptionsPlist ExportOptions.plist -exportPath $RUNNER_TEMP/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_$ASC_KEY_ID.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+      - name: Günlükler
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: logs, path: "ios/*.log" }

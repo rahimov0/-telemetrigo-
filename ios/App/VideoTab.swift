@@ -33,7 +33,7 @@ struct WebView: UIViewRepresentable {
         rc.addTarget(context.coordinator, action: #selector(Coordinator.reload(_:)), for: .valueChanged)
         wv.scrollView.refreshControl = rc
         context.coordinator.web = wv
-        wv.load(URLRequest(url: Self.home))
+        wv.load(URLRequest(url: Self.home, cachePolicy: .reloadRevalidatingCacheData))  // her açılışta güncel sürümü kontrol et
         return wv
     }
 
@@ -50,7 +50,7 @@ struct WebView: UIViewRepresentable {
         private var queued: (name: String, text: String)?
         private var dest: URL?
 
-        @objc func reload(_ rc: UIRefreshControl) { web?.reload(); rc.endRefreshing() }
+        @objc func reload(_ rc: UIRefreshControl) { web?.reloadFromOrigin(); rc.endRefreshing() }
 
         /// GPX'i web uygulamasına ver (sayfa yüklenmediyse yüklenince)
         func deliver(_ p: (name: String, text: String)) {

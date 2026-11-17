@@ -1,13 +1,15 @@
 import {
   Input, Output, Conversion, BlobSource, BufferTarget, StreamTarget, Mp4OutputFormat,
   ALL_FORMATS, QUALITY_HIGH, canEncodeVideo,
-} from 'mediabunny';
+} from './mediabunny.min.mjs';
 import { readGoProTelemetry, emptyTelemetry, calibrateAt, applyCalibration } from './gpmf.js';
 import { parseGpx, coverage, autoSync } from './gpx.js';
+import { MAP_STYLES, onTile, prefetchRoute, tilesIdle, lastZoom } from './tiles.js';
 import { drawOverlay, drawGaugeThumb, mergeOpts, applyPreset, PRESETS, ACCENTS, THEMES, GAUGES, gaugeAvailable } from './overlay.js';
 
 const $ = id => document.getElementById(id);
 const fileEl = $('file'), gpxEl = $('gpxFile'), video = $('video'), ov = $('ov'), msgEl = $('msg');
+onTile(() => { if (typeof drawPreview === 'function') requestAnimationFrame(() => drawPreview()); });
 const state = { file: null, tel: null, meta: null, info: null, url: null, conv: null, outFile: null, res: '1080',
   gps: null, gbase: 0, goff: 0, gpxName: '', sel: null, edit: false, rects: [] };
 
@@ -81,6 +83,7 @@ function renderGaugeList() {
 function editorFor(id) {
   const G = GAUGES[id], g = opts.g[id], box = document.createElement('div'); box.className = 'geditor';
   box.innerHTML = `${G.styles ? '<div class="styles" data-r="style" role="radiogroup" aria-label="Stil"></div>' : ''}
+    ${id === 'map' ? '<div class="field-l" style="font-size:12.5px;color:var(--text-3);margin:var(--s3) 0 6px">Harita arka planı</div><div class="seg" data-r="tiles"></div>' : ''}
     <div class="slider"><label>Bu göstergenin boyutu <b class="num">%${g.scale}</b></label><input type="range" min="50" max="200" step="5" value="${g.scale}" aria-label="Gösterge boyutu"></div>
     <div class="row" style="margin-top:var(--s2)"><button class="btn sm grow" data-r="edit">Önizlemede taşı</button><button class="btn sm ghost" data-r="reset">Varsayılana dön</button></div>`;
   if (G.styles && state.tel) {
@@ -97,6 +100,12 @@ function editorFor(id) {
       b.onclick = () => { g.style = st; save(); drawPreview(); renderGaugeList(); };
       wrap.append(b);
     }
+  }
+  const tw = box.querySelector('[data-r=tiles]');
+  if (tw) for (const [k, v] of Object.entries(MAP_STYLES)) {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = v.name; b.className = (g.tiles || 'yok') === k ? 'on' : '';
+    b.onclick = () => { g.tiles = k; save(); tw.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); drawPreview(); };
+    tw.append(b);
   }
   const r = box.querySelector('input[type=range]');
   r.oninput = () => { g.scale = Number(r.value); r.previousElementSibling.querySelector('b').textContent = `%${g.scale}`; save(); drawPreview(); };
@@ -166,6 +175,12 @@ ov.addEventListener('pointerup', endDrag); ov.addEventListener('pointercancel', 
 
 // ---- dosya yükleme ----
 fileEl.addEventListener('change', async () => { const f = fileEl.files[0]; if (!f) return; fileEl.value = ''; await loadFile(f); });
+{ const dz = $('dropZone');
+  if (dz) {
+    ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, () => dz.classList.remove('over')));
+    dz.addEventListener('drop', e => { e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) loadFile(f); });
+  } }
 
 async function loadFile(f) {
   resetResult(); setMsg(`<span class="spinner"></span>Sensör verisi okunuyor…`, 'warn');
@@ -364,6 +379,17 @@ $('go').onclick = async () => {
   video.pause(); await keepAwake(true);
   const t0 = performance.now();
   try {
+    // haritalı rota: gereken döşemeleri önceden indir (dışa aktarma sırasında eksik kalmasın)
+    const ts = O.g.map?.tiles;
+    if (D.gps && O.g.map?.on && ts && ts !== 'yok') {
+      $('progT').textContent = 'Harita indiriliyor…';
+      const oc = new OffscreenCanvas(W, H), octx = oc.getContext('2d'), dur = video.duration || 1;
+      const zs = new Set();
+      for (const f of [0.05, 0.5, 0.95]) { drawOverlay(octx, W, H, dur * f, D, O, meta); if (lastZoom) zs.add(lastZoom); }
+      await tilesIdle(6000);
+      const Rm = Math.max(150, Math.min(1500, D.gps.total / 5));
+      await prefetchRoute(ts, D.gps, [...zs], Rm * 1.6, f => { $('progT').textContent = `Harita indiriliyor… %${Math.round(f * 100)}`; });
+    }
     let codec = 'avc';
     if (!(await canEncodeVideo('avc', { width: W, height: H }))) {
       if (await canEncodeVideo('hevc', { width: W, height: H })) codec = 'hevc';
@@ -437,3 +463,4 @@ bindSettings(); renderPresets(); renderGaugeList(); updateGpsUI();
 window.__tg = { state, opts, loadFile, setEdit, select, setOffset, // test için
   snap: (W = 1920, H = 1080) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
     x.drawImage(video, 0, 0, W, H); drawOverlay(x, W, H, video.currentTime, data(), opts, state.meta); return c.toDataURL('image/jpeg', 0.85); } };
+if (new URLSearchParams(location.search).get('gpx') === 'son' && last?.gpx) setMsg(`Aktivitenin GPS kaydı hazır (<b>${esc(last.name || 'GPX')}</b>). Şimdi o sırada çektiğin videoyu seç; zamanı eşleşirse otomatik eklenir.`, 'ok');

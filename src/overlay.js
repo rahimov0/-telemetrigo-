@@ -1,8 +1,9 @@
 // Telemetri göstergeleri. Tasarım birimleri 4K (3840x2160) içindir; k ölçeğiyle her çözünürlüğe uyar.
 import { sampleAt } from './gpmf.js';
 import { gpsAt } from './gpx.js';
+import { drawTiles, MAP_STYLES } from './tiles.js';
 
-export const ACCENTS = { turuncu: '#FF7A1A', mavi: '#29D3FF', yesil: '#50E68C', kirmizi: '#FF4D5E', sari: '#FFD23F', beyaz: '#F2F4F8' };
+export const ACCENTS = { beyaz: '#F2F4F8', sari: '#FFD23F', yesil: '#50E68C', mavi: '#29D3FF', kirmizi: '#FF4D5E', turuncu: '#FF7A1A' };
 export const THEMES = { panel: 'Koyu panel', yaris: 'Yarış', cam: 'Cam', minimal: 'Minimal' };
 
 // Göstergeler: x,y = 0..1 arası konum (0 sol/üst, 1 sağ/alt). needs: 'gps' | 'accel' | 'imu'
@@ -16,16 +17,17 @@ export const GAUGES = {
   attitude: { name: 'Eğim / ufuk', needs: 'imu', def: { on: true, x: 0, y: 0 } },
   chart:    { name: 'Grafik (10 sn)', needs: 'imu', def: { on: false, x: 0.5, y: 0.55 } },
   clock:    { name: 'Saat', def: { on: true, x: 1, y: 0 } },
+  stats:    { name: 'Aktivite', needs: 'gps', styles: { band: 'Şerit', stack: 'Dikey' }, def: { on: false, x: 0.5, y: 0.18 } },
 };
 const SIZES = {
   lean: s => ({ arc: [760, 500], horizon: [900, 260], mini: [440, 230] }[s] || [760, 560]),
   gforce: s => s === 'bars' ? [760, 320] : [760, 500], attitude: () => [760, 300], clock: () => [760, 150],
   speed: s => ({ digital: [600, 300], bar: [900, 260], mini: [480, 240] }[s] || [540, 540]), map: () => [480, 480], alt: () => [600, 280],
-  compass: () => [900, 180], chart: () => [1000, 300],
+  compass: () => [900, 180], chart: () => [1000, 300], stats: s => s === 'stack' ? [520, 470] : [1320, 200],
 };
 
 export const DEFAULTS = {
-  size: 100, opacity: 78, accent: 'turuncu', theme: 'panel', leanRange: 45, gRange: 0.5,
+  size: 100, opacity: 78, accent: 'beyaz', theme: 'panel', leanRange: 45, gRange: 0.5,
   g: Object.fromEntries(Object.entries(GAUGES).map(([k, v]) => [k, { scale: 100, style: v.styles ? Object.keys(v.styles)[0] : null, ...v.def }])),
 };
 export function mergeOpts(saved) {
@@ -260,6 +262,17 @@ function mapPts(g) {
   for (const i of idx) { x0 = Math.min(x0, g.x[i]); x1 = Math.max(x1, g.x[i]); y0 = Math.min(y0, g.y[i]); y1 = Math.max(y1, g.y[i]); }
   return (g._map = { idx, x0, x1, y0, y1 });
 }
+// Rota göstergesi altına harita döşemesi (o.g.map.tiles). M: yerel metre → gösterge koordinatı
+function mapBg(ctx, o, gps, M, clip) {
+  const st = o.g?.map?.tiles; if (!st || st === 'yok' || !MAP_STYLES[st]?.url || !gps.lat0) return false;
+  ctx.save(); clip(); ctx.clip();
+  const inv = M.inverse(), b = ctx._tgBox, pts = [[b[0], b[1]], [b[2], b[1]], [b[0], b[3]], [b[2], b[3]]].map(([x, y]) => inv.transformPoint(new DOMPoint(x, y)));
+  const view = [Math.min(...pts.map(p => p.x)), Math.min(...pts.map(p => p.y)), Math.max(...pts.map(p => p.x)), Math.max(...pts.map(p => p.y))];
+  ctx.shadowColor = 'transparent'; ctx.globalAlpha = 0.92; drawTiles(ctx, st, gps, M, view);
+  ctx.restore();
+  return true;
+}
+const mtx = (a, b, c, d, e, f) => { const M = new DOMMatrix(); M.a = a; M.b = b; M.c = c; M.d = d; M.e = e; M.f = f; return M; };
 function mapGauge(ctx, d, o, A) {
   const { p, gps } = d, W = 480, H = 480, pad = 50, top = 90;
   label(ctx, 'Rota', 40, 64);
@@ -269,8 +282,11 @@ function mapGauge(ctx, d, o, A) {
   const sc = Math.min(bw / Math.max(1, m.x1 - m.x0), bh / Math.max(1, m.y1 - m.y0));
   const ox = pad + (bw - (m.x1 - m.x0) * sc) / 2, oy = top + (bh - (m.y1 - m.y0) * sc) / 2;
   const P = (x, y) => [ox + (x - m.x0) * sc, oy + (m.y1 - y) * sc];
+  ctx._tgBox = [20, top - 10, W - 20, H - 20];
+  const tiled = mapBg(ctx, o, gps, mtx(sc, 0, 0, -sc, ox - m.x0 * sc, oy + m.y1 * sc), () => rr(ctx, 20, top - 10, W - 40, H - top - 10, 24));
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 5; ctx.beginPath();
+  if (tiled) { ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 11; ctx.beginPath(); m.idx.forEach((i, k) => { const [x, y] = P(gps.x[i], gps.y[i]); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); }
+  ctx.strokeStyle = tiled ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.35)'; ctx.lineWidth = 5; ctx.beginPath();
   m.idx.forEach((i, k) => { const [x, y] = P(gps.x[i], gps.y[i]); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
   if (!p.valid) return;
   ctx.strokeStyle = A; ctx.lineWidth = 7; ctx.beginPath(); let first = true;
@@ -457,6 +473,8 @@ function mapHeading(ctx, d, o, A) {
   for (const f of [1 / 3, 2 / 3]) { ctx.strokeStyle = DIM; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, R * f, 0, 7); ctx.stroke(); }
   if (p.valid) {
     ctx.translate(cx, cy); ctx.rotate(-rad(crs));
+    const q = R * 1.45; ctx._tgBox = [-q, -q, q, q];
+    if (mapBg(ctx, o, gps, mtx(sc, 0, 0, -sc, -p.x * sc, p.y * sc), () => { ctx.beginPath(); ctx.rect(-q, -q, 2 * q, 2 * q); })) { ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(-q, -q, 2 * q, 2 * q); }
     const m = mapPts(gps), P = i => [(gps.x[i] - p.x) * sc, -(gps.y[i] - p.y) * sc];
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 7; ctx.beginPath(); m.idx.forEach((i, k) => { const [x, y] = P(i); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
@@ -480,6 +498,8 @@ function mapHeat(ctx, d, o, A) {
   const sc = Math.min(bw / Math.max(1, m.x1 - m.x0), bh / Math.max(1, m.y1 - m.y0));
   const ox = pad + (bw - (m.x1 - m.x0) * sc) / 2, oy = top + (bh - (m.y1 - m.y0) * sc) / 2;
   const P = (x, y) => [ox + (x - m.x0) * sc, oy + (m.y1 - y) * sc];
+  ctx._tgBox = [20, top - 10, W - 20, H - 70];
+  mapBg(ctx, o, gps, mtx(sc, 0, 0, -sc, ox - m.x0 * sc, oy + m.y1 * sc), () => rr(ctx, 20, top - 10, W - 40, H - top - 60, 24));
   ctx.lineCap = 'round';
   ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 6; ctx.beginPath();
   m.idx.forEach((i, k) => { const [x, y] = P(gps.x[i], gps.y[i]); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
@@ -496,12 +516,39 @@ function mapHeat(ctx, d, o, A) {
   text(ctx, '0', gx, gy + 40, 22, 500, GREY); text(ctx, `${Math.round(MAX)} km/h`, gx + gw, gy + 40, 22, 500, GREY, 'right');
 }
 
+// ---------- Aktivite: mesafe, süre, ortalama ----------
+function statsGauge(ctx, d, o, A, st) {
+  const { p, gps } = d, pace = /yuruyus|kosu|walk|run/i.test(gps.type || '');
+  const el = p.valid ? Math.max(0, (p.T - gps.start) / 1000) : 0, dist = p.valid ? p.dist : 0, v = el > 5 ? dist / el : 0;
+  const dur = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+  const pc = v => { if (v < 0.5) return dash; const s = Math.round(1000 / v); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const items = [['MESAFE', p.valid ? fmt(dist / 1000, dist >= 100000 ? 1 : 2) : dash, 'km'], ['SÜRE', p.valid ? dur(el) : dash, ''],
+    pace ? ['ORT. TEMPO', p.valid ? pc(v) : dash, '/km'] : ['ORT. HIZ', p.valid ? fmt(v * 3.6, 1) : dash, 'km/h']];
+  if (st === 'stack') {
+    items.forEach(([l, val, u], k) => {
+      const y = 40 + k * 140; label(ctx, l, 40, y + 34);
+      ctx.font = `${ITALIC ? 'italic ' : ''}800 74px ${FONT}`; const w = ctx.measureText(val).width;
+      text(ctx, val, 40, y + 116, 74, 800, WHITE); if (u) text(ctx, u, 52 + w, y + 116, 30, 600, GREY);
+      if (k) { ctx.fillStyle = DIM; ctx.fillRect(40, y + 2, 440, 2); }
+    });
+    return;
+  }
+  const cw = 1320 / 3;
+  items.forEach(([l, val, u], k) => {
+    const x = cw * k + 50; label(ctx, l, x, 64);
+    ctx.font = `${ITALIC ? 'italic ' : ''}800 84px ${FONT}`; const w = ctx.measureText(val).width;
+    text(ctx, val, x, 162, 84, 800, k === 0 ? WHITE : WHITE); if (u) text(ctx, u, x + w + 12, 162, 32, 600, GREY);
+    if (k) { ctx.fillStyle = DIM; ctx.fillRect(cw * k, 36, 2, 130); }
+  });
+  ctx.fillStyle = A; ctx.fillRect(50, 182, Math.max(0, (cw - 100) * clamp(gps.total ? dist / gps.total : 0, 0, 1)), 5);
+}
+
 const DRAW = {
   lean: (c, d, o, A, st) => ({ arc: leanArc, horizon: leanHorizon, mini: leanMini }[st] || leanBike)(c, d, o, A),
   speed: (c, d, o, A, st) => ({ digital: speedDigital, needle: speedNeedle, bar: speedBar, mini: speedMini }[st] || speedDial)(c, d, o, A),
   gforce: (c, d, o, A, st) => (st === 'bars' ? gBars : gforce)(c, d, o, A),
   map: (c, d, o, A, st) => ({ heading: mapHeading, heat: mapHeat }[st] || mapGauge)(c, d, o, A),
-  attitude, clock, alt: altGauge, compass, chart,
+  attitude, clock, alt: altGauge, compass, chart, stats: statsGauge,
 };
 
 export function gaugeAvailable(id, data) {
@@ -512,7 +559,7 @@ export function gaugeSize(id, style) { return SIZES[id](style); }
 
 // Ana çizim. data = { tel, gps, gbase, goff }. ui = { highlight, edit } (yalnızca önizleme). Dönüş: gösterge kutuları
 export function drawOverlay(ctx, W, H, t, data, o, meta = {}, ui = {}) {
-  const A = ACCENTS[o.accent] || ACCENTS.turuncu; ITALIC = o.theme === 'yaris';
+  const A = ACCENTS[o.accent] || ACCENTS.beyaz; ITALIC = o.theme === 'yaris';
   const base = Math.min(W / 3840, H / 2160) * (W < H ? 1.6 : 1);
   const k0 = base * o.size / 100, m = 60 * base;
   const d = { s: sampleAt(data.tel, t), p: data.gps ? gpsAt(data.gps, data.gbase, data.goff, t) : { valid: false },
@@ -537,7 +584,7 @@ export function drawOverlay(ctx, W, H, t, data, o, meta = {}, ui = {}) {
 
 /** Tek göstergeyi küçük önizleme olarak çiz (stil seçici için). Genişlik w piksel. */
 export function drawGaugeThumb(ctx, id, style, w, t, data, o, meta = {}) {
-  const A = ACCENTS[o.accent] || ACCENTS.turuncu; ITALIC = o.theme === 'yaris';
+  const A = ACCENTS[o.accent] || ACCENTS.beyaz; ITALIC = o.theme === 'yaris';
   const [pw, ph] = SIZES[id](style), k = w / pw;
   const d = { s: sampleAt(data.tel, t), p: data.gps ? gpsAt(data.gps, data.gbase, data.goff, t) : { valid: false },
     tel: data.tel, gps: data.gps, gbase: data.gbase, goff: data.goff, meta };

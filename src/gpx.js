@@ -14,7 +14,7 @@ function bearing(aLat, aLon, bLat, bLon) {
 }
 const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : NaN; };
 
-export function parseGpx(text) {
+export function parseGpx(text, { type: forceType } = {}) {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) throw new Error('GPX dosyası okunamadı (bozuk XML).');
   const nodes = [...doc.getElementsByTagName('trkpt')];
@@ -41,7 +41,9 @@ export function parseGpx(text) {
   const name = doc.querySelector('trk > name, metadata > name')?.textContent?.trim() || '';
   // TelemetriGo kayıtlarındaki hız iPhone'un Doppler ölçümüdür: güvenilir, duruş testine gerek yok
   const trusted = /TelemetriGo/i.test(doc.documentElement.getAttribute('creator') || '');
-  const g = buildTrack(pts, name, { trustedSpeed: trusted });
+  const type = forceType || doc.querySelector('trk > type')?.textContent?.trim() || '';
+  const g = buildTrack(pts, name, { trustedSpeed: trusted, stopSpeed: /yuruyus|walk|hik/i.test(type) ? 0.45 : /kosu|run/i.test(type) ? 0.7 : STOP_SPEED });
+  g.type = type; g.creator = doc.documentElement.getAttribute('creator') || '';
   // TelemetriGo iOS: GoPro'nun kayda başladığı anlar (Bluetooth bildirimi, ms hassasiyetinde)
   g.camStarts = [...doc.getElementsByTagName('wpt')]
     .filter(w => [...w.children].some(c => c.localName === 'type' && c.textContent.trim() === 'tg:camstart'))
@@ -55,7 +57,7 @@ const MAX_JUMP = 90;     // m/s (~324 km/h): bundan hızlı sıçramalar hatalı
 const STOP_SPEED = 0.9;  // m/s (~3 km/h): altı duruş
 const WIN = 5;           // sn: duruş tespiti penceresi
 
-export function buildTrack(raw, name, { trustedSpeed = false } = {}) {
+export function buildTrack(raw, name, { trustedSpeed = false, stopSpeed = STOP_SPEED } = {}) {
   // 1) kötü doğruluk ve imkânsız sıçramaları ayıkla
   const pts = []; let dropped = 0;
   for (const p of raw) {
@@ -98,8 +100,8 @@ export function buildTrack(raw, name, { trustedSpeed = false } = {}) {
     const D = haversine(lat[j0], lon[j0], lat[j1], lon[j1]), dt = (t[j1] - t[j0]) / 1000;
     const noise = Math.max(6, 1.5 * Math.max(acc[j0], acc[j1]));
     const doppler = pts[i].spd !== null && (trustedSpeed || pts[i].sacc != null);
-    if (doppler) { if (spd[i] < STOP_SPEED) still[i] = 1; continue; }   // Doppler hızı doğrudan ölçüm
-    if (spd[i] < STOP_SPEED || (dt >= 2 && D < noise && spd[i] < Math.max(4, noise / dt))) still[i] = 1;
+    if (doppler) { if (spd[i] < stopSpeed) still[i] = 1; continue; }   // Doppler hızı doğrudan ölçüm
+    if (spd[i] < stopSpeed || (dt >= 2 && D < noise && spd[i] < Math.max(stopSpeed * 4.4, noise / dt))) still[i] = 1;
   }
   // 5) duruşta konumu sabitle (haritada titreme, mesafede şişme olmasın), hızı sıfırla
   let stillCount = 0;
@@ -127,7 +129,7 @@ export function buildTrack(raw, name, { trustedSpeed = false } = {}) {
   const hasEle = [...ele].filter(isFinite).length > n * 0.5;
   let eMin = Infinity, eMax = -Infinity; for (const e of ele) if (isFinite(e)) { eMin = Math.min(eMin, e); eMax = Math.max(eMax, e); }
   let vMax = 0; for (const v of spd) vMax = Math.max(vMax, v);
-  return { name, n, t, lat, lon, ele, spd, course, dist, x, y, hasEle, eMin, eMax, vMax, unit, dropped, stillCount,
+  return { name, n, t, lat, lon, ele, spd, course, dist, x, y, hasEle, eMin, eMax, vMax, unit, dropped, stillCount, lat0, lon0, still,
     start: t[0], end: t[n - 1], total: dist[n - 1] };
 }
 

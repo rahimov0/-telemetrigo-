@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#09090B" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TG GPS">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>GPS Kaydedici · TelemetriGo</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  main { max-width: 560px; }
+  .hero { text-align: center; padding: var(--s5) var(--s4) var(--s4); }
+  .hero .big { font-size: 104px; line-height: 1; font-weight: 600; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
+  .hero .unit { color: var(--text-2); font-size: 15px; margin-top: 6px; }
+  .clock { font: 600 40px/1.1 var(--font); text-align: center; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .clock small { font-size: 26px; color: var(--text-3); }
+  .rec-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #fff; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+  ul.tips { margin: 0; padding-left: 18px; color: var(--text-2); font-size: 14px; } ul.tips li { margin: 6px 0; } ul.tips b { color: var(--text); font-weight: 550; }
+  #nosleep { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .stats { margin-top: var(--s3); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></symbol>
+</svg>
+<header class="topbar"><div class="in">
+  <a class="brand" href="./"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17a8 8 0 0 1 16 0"/><path d="M12 17l4.5-5.5"/></svg></span>TelemetriGo</a>
+  <nav class="nav" aria-label="Sayfalar">
+    <a href="./"><svg class="i"><use href="#i-video"/></svg><span>Video</span></a>
+    <a href="aktivite.html"><svg class="i"><use href="#i-route"/></svg><span>Aktivite</span></a>
+    <a href="kayit.html" aria-current="page"><svg class="i"><use href="#i-pin"/></svg><span>GPS Kayıt</span></a>
+  </nav>
+</div></header>
+<main>
+  <div class="ph" style="margin-bottom:var(--s4)">
+    <div class="eyebrow">GPS Kayıt</div>
+    <h1>Kaydı başlat</h1>
+    <p>Sürüş, yürüyüş, koşu veya bisiklet: telefonun GPS'iyle hız ve rota kaydı.</p>
+  </div>
+
+  <div class="seg" id="type" role="group" aria-label="Aktivite türü" style="margin-bottom:var(--s3)">
+    <button data-v="motor" class="on">Motor</button><button data-v="bisiklet">Bisiklet</button><button data-v="kosu">Koşu</button><button data-v="yuruyus">Yürüyüş</button>
+  </div>
+
+  <div id="msg"></div>
+
+  <section class="card flush">
+    <div class="hero">
+      <span class="badge" id="acc"><span class="dot"></span><span>Konum bekleniyor</span></span>
+      <div class="big" id="spd" style="margin-top:var(--s4)">—</div>
+      <div class="unit" id="spdUnit">km/h</div>
+    </div>
+    <div class="stats" style="border-radius:0;border-left:0;border-right:0;border-bottom:0">
+      <div class="stat"><div class="k">Süre</div><div class="v" id="dur">0:00</div></div>
+      <div class="stat"><div class="k">Mesafe</div><div class="v"><span id="dist">0,00</span><small>km</small></div></div>
+      <div class="stat"><div class="k" id="maxK">Maks hız</div><div class="v" id="max">0</div></div>
+      <div class="stat"><div class="k">Nokta</div><div class="v" id="cnt">0</div></div>
+    </div>
+  </section>
+
+  <button id="start" class="btn primary lg block">Kaydı başlat</button>
+  <button id="stop" class="btn danger lg block hidden"><span class="rec-dot"></span>Kaydı durdur</button>
+  <div id="after" class="hidden">
+    <a id="toAct" class="btn primary lg block" href="aktivite.html#son">Özeti ve paylaşımı aç</a>
+    <div class="row" style="margin-top:var(--s2)"><button id="share" class="btn grow">GPX'i kaydet / paylaş</button><a id="dl" class="btn grow">İndir</a><button id="new" class="btn grow">Yeni kayıt</button></div>
+    <p class="muted small" style="margin:var(--s3) 2px 0">Kayıt bu cihazda saklandı. Video sayfasında <b>Son GPS kaydını kullan</b> diyebilir, Aktivite sayfasında fotoğrafa ekleyebilirsin.</p>
+  </div>
+
+  <section class="card" style="margin-top:var(--s5)">
+    <h2 class="sec-h">Saat eşitleme <span class="opt">video için</span></h2>
+    <div class="clock" id="clock">--:--:--<small>,-</small></div>
+    <p class="muted small" style="margin:var(--s2) 0 0;text-align:center">Kayda başlarken GoPro'yu birkaç saniye bu saate tut: video ile GPS'i saniyenin onda biri hassasiyetle eşleştirebilirsin.</p>
+  </section>
+
+  <section class="card">
+    <h2 class="sec-h">Doğru kayıt için</h2>
+    <ul class="tips">
+      <li>Telefon <b>gökyüzünü görecek</b> şekilde dursun; cepte veya kapalı alanda GPS sapar.</li>
+      <li>Kayıt sürerken <b>bu sayfa ve ekran açık kalmalı</b>. Uzun kayıtta telefonu şarja tak. Ekran kapalıyken kayıt için iPhone uygulamasını kullan.</li>
+      <li>Başlamadan 20–30 saniye açık alanda bekle; sinyal "iyi" olunca başlat.</li>
+    </ul>
+  </section>
+  <video id="nosleep" src="nosleep.mp4" muted playsinline loop></video>
+</main>
+<script type="module" src="kayit.js"></script>
+</body>
+</html>

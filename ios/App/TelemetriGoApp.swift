@@ -11,10 +11,11 @@ struct TelemetriGoApp: App {
 }
 
 enum Theme {
-    static let accent = Color(red: 1, green: 0.478, blue: 0.102)
-    static let bg = Color(red: 0.043, green: 0.051, blue: 0.071)
-    static let card = Color(red: 0.082, green: 0.094, blue: 0.129)
-    static let card2 = Color(red: 0.11, green: 0.125, blue: 0.188)
+    static let accent = Color(white: 0.98)
+    static let bg = Color(red: 0.035, green: 0.035, blue: 0.043)       // #09090B
+    static let card = Color(red: 0.067, green: 0.067, blue: 0.075)     // #111113
+    static let card2 = Color(red: 0.094, green: 0.094, blue: 0.106)   // #18181B
+    static let line = Color(red: 0.137, green: 0.137, blue: 0.153)    // #232327
     static let ok = Color(red: 0.31, green: 0.9, blue: 0.55)
     static let mid = Color(red: 1, green: 0.82, blue: 0.25)
     static let err = Color(red: 1, green: 0.3, blue: 0.37)
@@ -24,6 +25,7 @@ enum Theme {
 final class AppModel: ObservableObject {
     let gopro = GoProManager()
     let rec = Recorder()
+    let activity = ActivityRecorder()
     @Published var tab = 0
     @Published var useGoPro = true
     @Published var pendingGpx: (name: String, text: String)?
@@ -75,6 +77,8 @@ struct RootView: View {
         TabView(selection: $model.tab) {
             RecordView()
                 .tabItem { Label("Kayıt", systemImage: "record.circle") }.tag(0)
+            ActivityTab(act: model.activity)
+                .tabItem { Label("Aktivite", systemImage: "figure.run") }.tag(2)
             VideoTab()
                 .ignoresSafeArea(edges: .bottom)
                 .tabItem { Label("Video", systemImage: "film") }.tag(1)

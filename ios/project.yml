@@ -6,7 +6,7 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "1.0.0"
+    MARKETING_VERSION: "1.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: "$(DEVELOPMENT_TEAM)"
@@ -29,8 +29,8 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIRequiresFullScreen: true
         ITSAppUsesNonExemptEncryption: false
-        UIBackgroundModes: [location, bluetooth-central]
-        NSLocationWhenInUseUsageDescription: "Sürüş boyunca hızını ve rotanı kaydedip GoPro videona eklemek için konumun kullanılır. Kayıt sırasında ekran kilitliyken de devam eder."
+        UIBackgroundModes: [location, bluetooth-central, audio]
+        NSLocationWhenInUseUsageDescription: "Sürüş, yürüyüş, koşu ve bisiklet sırasında hızını ve rotanı kaydetmek için konumun kullanılır. Kayıt sırasında ekran kilitliyken de devam eder."
         NSLocationAlwaysAndWhenInUseUsageDescription: "Ekran kilitliyken de sürüş kaydının kesilmemesi için konumun kullanılır."
         NSBluetoothAlwaysUsageDescription: "GoPro kameraya bağlanmak, kaydı başlatıp durdurmak ve saatini eşitlemek için Bluetooth kullanılır."
         NSPhotoLibraryAddUsageDescription: "Göstergeli videoyu Fotoğraflar'a kaydetmek için kullanılır."

@@ -2,7 +2,7 @@ import {
   Input, Output, Conversion, BlobSource, BufferTarget, StreamTarget, Mp4OutputFormat,
   ALL_FORMATS, QUALITY_HIGH, canEncodeVideo,
 } from 'mediabunny';
-import { readGoProTelemetry } from './gpmf.js';
+import { readGoProTelemetry, emptyTelemetry } from './gpmf.js';
 import { parseGpx, coverage, autoSync } from './gpx.js';
 import { drawOverlay, mergeOpts, ACCENTS, THEMES, GAUGES, gaugeAvailable } from './overlay.js';
 
@@ -139,11 +139,7 @@ fileEl.addEventListener('change', async () => { const f = fileEl.files[0]; if (!
 async function loadFile(f) {
   resetResult(); setMsg(`<span class="spinner"></span>Sensör verisi okunuyor…`, 'warn');
   try {
-    const tel = await readGoProTelemetry(f);
-    if (!tel.found) {
-      setMsg('Bu videoda GoPro sensör verisi bulunamadı.<br>• Dosya WhatsApp, Instagram veya bir düzenleme uygulamasından geçtiyse veri silinmiş olur.<br>• iPhone\'da Fotoğraf Arşivi\'nden seçince iPhone videoyu sıkıştırıp veriyi silebilir: videoyu önce <b>Dosyalara Kaydet</b>, sonra burada <b>Gözat</b>\'tan seç.<br>• En garantisi: SD karttan veya Quik ile indirilen orijinal dosya.');
-      return;
-    }
+    let tel = await readGoProTelemetry(f);
     const input = new Input({ source: new BlobSource(f), formats: ALL_FORMATS });
     const vt = await input.getPrimaryVideoTrack();
     if (!vt) throw new Error('Videoda görüntü izi yok.');
@@ -152,21 +148,28 @@ async function loadFile(f) {
     const canDecode = await vt.canDecode();
     const info = { width: vt.displayWidth, height: vt.displayHeight, fps: stats.averagePacketRate, duration, codec: vt.codec, canDecode };
     input.dispose?.();
-    Object.assign(state, { file: f, tel, info, meta: { created: tel.created, device: tel.device } });
+    // Sensör verisi yoksa (DJI, telefon videosu ya da verisi silinmiş GoPro) sadece GPS göstergeleriyle devam
+    const noImu = !tel.found;
+    if (noImu) {
+      const device = /^DJI_/i.test(f.name) ? 'DJI' : /^G[HXL]\d/i.test(f.name) ? 'GoPro' : 'Kamera';
+      tel = { ...emptyTelemetry(duration), created: tel.created, device };
+    }
+    Object.assign(state, { file: f, tel, info, meta: { created: tel.created, device: tel.device }, tzNote: 0 });
     if (state.gps) { state.gbase = gpsBase(); updateGpsUI(); }
     if (state.url) URL.revokeObjectURL(state.url);
     state.url = URL.createObjectURL(f); video.src = state.url;
     showInfo(); renderGaugeList();
     $('pickCard').classList.add('hidden'); $('recCard')?.classList.add('hidden'); $('work').classList.remove('hidden');
     setMsg(canDecode ? '' : 'Bu tarayıcı bu videonun formatını (' + (info.codec || '?') + ') çözemiyor; dışa aktarma çalışmayabilir. iPhone\'da Safari veya bilgisayarda güncel Chrome dene.', 'err');
-    if (canDecode && !tel.hasAccel) setMsg('Bu videoda ivmeölçer verisi yok; G-kuvveti göstergesi gizlendi.', 'warn');
+    if (canDecode && noImu) setMsg('Bu videoda yatış/eğim sensör verisi yok' + (tel.device === 'GoPro' ? ' (WhatsApp vb. ile gönderilen GoPro videolarında silinir; orijinal dosyayı kullan)' : '') + '. <b>GPX ekleyerek hız, rota, pusula ve irtifa göstergeleri ekleyebilirsin.</b>', 'warn');
+    else if (canDecode && !tel.hasAccel) setMsg('Bu videoda ivmeölçer verisi yok; G-kuvveti göstergesi gizlendi.', 'warn');
     drawPreview(); autoLast();
   } catch (e) { console.error(e); setMsg('Video okunamadı: ' + esc(e.message || e)); }
 }
 
 function showInfo() {
   const { info, tel } = state;
-  const sens = ['Yerçekimi', tel.hasAccel && 'İvme', tel.hasGyro && 'Jiroskop'].filter(Boolean).join(' · ');
+  const sens = tel.hasImu === false ? 'Yok (yalnızca GPS)' : ['Yerçekimi', tel.hasAccel && 'İvme', tel.hasGyro && 'Jiroskop'].filter(Boolean).join(' · ');
   $('info').innerHTML = [
     [tel.device, 'Kamera'], [`${info.width}×${info.height}`, 'Çözünürlük'],
     [`${Math.round(info.fps)} fps`, 'Kare hızı'], [fmtDur(info.duration), 'Süre'], [sens, 'Sensörler'],
@@ -185,6 +188,13 @@ function gpsBase(g = state.gps) {
   if (!created) return g.start;
   const cs = (g.camStarts || []).map(t => [Math.abs(t - created), t]).sort((a, b) => a[0] - b[0])[0];
   if (cs && cs[0] < 10000) { state.syncSrc = 'kamera'; return cs[1]; }
+  // Bazı kameralar (ör. DJI) yerel saati UTC gibi yazar: örtüşme yoksa tam/yarım saatlik farkları dene
+  state.tzFix = 0;
+  const dur = state.info?.duration || 60;
+  if (coverage(g, created, 0, dur) === 0) {
+    for (const h of [3, -3, 1, -1, 2, -2, 4, -4, 5, -5, 6, -6, 7, -7, 8, -8, 9, -9, 10, -10, 11, -11, 12, -12, 3.5, 4.5, 5.5, 5.75, 6.5, 9.5, -3.5, 13, 14])
+      if (coverage(g, created - h * 3600000, 0, dur) > 0.5) { state.tzFix = h; return created - h * 3600000; }
+  }
   return created;
 }
 $('gpxBtn').onclick = () => gpxEl.click();
@@ -225,6 +235,10 @@ function useGpx(text, name) {
   try {
     const g = parseGpx(text);
     state.gps = g; state.gpxName = name; state.goff = 0; state.gbase = gpsBase();
+    if (state.tzFix && state.meta?.created) {   // saat göstergesi de doğru saati göstersin
+      state.meta.created = new Date(state.meta.created.getTime() - state.tzFix * 3600000);
+      state.tzNote = state.tzFix; state.tzFix = 0;
+    }
     for (const id of ['speed', 'map', 'compass']) if (!saved?.g?.[id]) opts.g[id].on = true;
     updateGpsUI(); renderGaugeList(); drawPreview();
     const cov = coverage(g, state.gbase, 0, state.info.duration);
@@ -240,7 +254,7 @@ function updateGpsUI() {
   const durMin = Math.round((g.end - g.start) / 60000);
   $('gpsInfo').innerHTML = `<b>${esc(state.gpxName)}</b><br>${g.n} nokta · ${(g.total / 1000).toFixed(1).replace('.', ',')} km · ${durMin} dk · ${hhmm(g.start)}–${hhmm(g.end)}`
     + `<br>Hız verisi: ${g.unit === 'konum' ? 'konumdan hesaplandı' : 'GPX içinden (' + g.unit + ')'} · Maks ${Math.round(g.vMax * 3.6)} km/h`
-    + `<br>Zamanlama: ${state.syncSrc === 'kamera' ? '<b>GoPro kayıt başlangıcıyla eşleşti</b> (uygulamadan başlatıldı)' : state.syncSrc === 'saat' ? 'GoPro saatine göre' : 'GPX başlangıcına göre (videoda saat bilgisi yok)'}`
+    + `<br>Zamanlama: ${state.syncSrc === 'kamera' ? '<b>GoPro kayıt başlangıcıyla eşleşti</b> (uygulamadan başlatıldı)' : state.syncSrc === 'saat' ? 'kameranın saatine göre' + (state.tzNote ? ` (kamera saati ${Math.abs(state.tzNote)} saat ${state.tzNote > 0 ? 'ileri' : 'geri'} yazılmış, düzeltildi)` : '') : 'GPX başlangıcına göre (videoda saat bilgisi yok; kaydırmayı elle ayarla)'}`
     + (g.stillCount || g.dropped ? `<br>Temizlik: ${g.stillCount ? g.stillCount + ' duruş noktasındaki GPS kayması sıfırlandı' : ''}${g.stillCount && g.dropped ? ', ' : ''}${g.dropped ? g.dropped + ' hatalı nokta atıldı' : ''}` : '');
   const vStart = state.gbase - state.goff * 1000;
   const status = cov >= 0.95 ? ['ok', 'GPX bu videonun tamamını kapsıyor.']

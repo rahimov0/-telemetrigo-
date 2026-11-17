@@ -204,7 +204,7 @@ function computeSeries(acc) {
     mL = Math.max(mL, -roll[i]); mR = Math.max(mR, roll[i]); mG = Math.max(mG, Math.hypot(lat[i], lon[i]));
     maxL[i] = mL; maxR[i] = mR; maxG[i] = mG;
   }
-  return { hz: HZ, duration: end, roll, pitch, lat, lon, yaw, maxL, maxR, maxG, hasAccel: !!a0, hasGyro: !!acc.GYRO };
+  return { hz: HZ, duration: end, roll, pitch, lat, lon, yaw, maxL, maxR, maxG, hasAccel: !!a0, hasGyro: !!acc.GYRO, hasImu: true };
 }
 
 export function sampleAt(tel, t) {
@@ -212,4 +212,10 @@ export function sampleAt(tel, t) {
   const i = Math.floor(x), j = Math.min(N - 1, i + 1), a = x - i;
   const L = arr => arr[i] * (1 - a) + arr[j] * a;
   return { t, roll: L(tel.roll), pitch: L(tel.pitch), lat: L(tel.lat), lon: L(tel.lon), yaw: L(tel.yaw), maxL: tel.maxL[i], maxR: tel.maxR[i], maxG: tel.maxG[i], i };
+}
+
+// Sensör verisi olmayan videolar (DJI, telefon vb.) için boş seri: yalnızca GPS göstergeleri kullanılır
+export function emptyTelemetry(duration) {
+  const N = Math.max(2, Math.ceil(duration * HZ) + 1), z = () => new Float32Array(N);
+  return { hz: HZ, duration, roll: z(), pitch: z(), lat: z(), lon: z(), yaw: z(), maxL: z(), maxR: z(), maxG: z(), hasAccel: false, hasGyro: false, hasImu: false };
 }

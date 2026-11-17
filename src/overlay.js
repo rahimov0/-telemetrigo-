@@ -5,16 +5,16 @@ import { gpsAt } from './gpx.js';
 export const ACCENTS = { turuncu: '#FF7A1A', mavi: '#29D3FF', yesil: '#50E68C', kirmizi: '#FF4D5E', sari: '#FFD23F', beyaz: '#F2F4F8' };
 export const THEMES = { panel: 'Koyu panel', cam: 'Cam', minimal: 'Minimal' };
 
-// Göstergeler: x,y = 0..1 arası konum (0 sol/üst, 1 sağ/alt). needs: 'gps' | 'accel'
+// Göstergeler: x,y = 0..1 arası konum (0 sol/üst, 1 sağ/alt). needs: 'gps' | 'accel' | 'imu'
 export const GAUGES = {
-  lean:     { name: 'Yatış açısı', styles: { bike: 'Motor', arc: 'Yay' }, def: { on: true, x: 0, y: 1 } },
+  lean:     { name: 'Yatış açısı', needs: 'imu', styles: { bike: 'Motor', arc: 'Yay' }, def: { on: true, x: 0, y: 1 } },
   speed:    { name: 'Hız', needs: 'gps', styles: { dial: 'Kadran', digital: 'Dijital' }, def: { on: true, x: 0.5, y: 1 } },
   gforce:   { name: 'G-kuvveti', needs: 'accel', def: { on: true, x: 1, y: 1 } },
   map:      { name: 'Rota', needs: 'gps', def: { on: true, x: 1, y: 0.42 } },
   alt:      { name: 'İrtifa', needs: 'gps', def: { on: false, x: 0, y: 0.5 } },
   compass:  { name: 'Pusula', needs: 'gps', def: { on: true, x: 0.5, y: 0 } },
-  attitude: { name: 'Eğim / ufuk', def: { on: true, x: 0, y: 0 } },
-  chart:    { name: 'Grafik (10 sn)', def: { on: false, x: 0.5, y: 0.55 } },
+  attitude: { name: 'Eğim / ufuk', needs: 'imu', def: { on: true, x: 0, y: 0 } },
+  chart:    { name: 'Grafik (10 sn)', needs: 'imu', def: { on: false, x: 0.5, y: 0.55 } },
   clock:    { name: 'Saat', def: { on: true, x: 1, y: 0 } },
 };
 const SIZES = {
@@ -194,7 +194,7 @@ function clock(ctx, d) {
   const { s, meta } = d, W = 760;
   ctx.fillStyle = (Math.floor(s.t * 2) % 2 === 0) ? RED : 'rgba(255,77,94,.35)'; ctx.beginPath(); ctx.arc(51, 63, 11, 0, 7); ctx.fill();
   text(ctx, 'TELEMETRİ', 80, 74, 30, 700);
-  text(ctx, `${meta.device || 'GoPro'}${d.gps ? ' · GPS' : ''}`, 80, 116, 26, 500, GREY);
+  text(ctx, `${meta.device || 'Kamera'}${d.gps ? ' · GPS' : ''}`, 80, 116, 26, 500, GREY);
   if (meta.created) {
     const dt = new Date(meta.created.getTime() + s.t * 1000);
     text(ctx, dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), W - 40, 92, 64, 600, WHITE, 'right');
@@ -351,7 +351,7 @@ const DRAW = {
 
 export function gaugeAvailable(id, data) {
   const need = GAUGES[id].needs;
-  return !(need === 'gps' && !data.gps) && !(need === 'accel' && !data.tel.hasAccel);
+  return !(need === 'gps' && !data.gps) && !(need === 'accel' && !data.tel.hasAccel) && !(need === 'imu' && data.tel.hasImu === false);
 }
 export function gaugeSize(id, style) { return SIZES[id](style); }
 

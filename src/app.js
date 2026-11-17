@@ -260,6 +260,7 @@ function updateGpsUI() {
   const status = cov >= 0.95 ? ['ok', 'GPX bu videonun tamamını kapsıyor.']
     : cov > 0 ? ['warn', `GPX videonun %${Math.round(cov * 100)}'ini kapsıyor; kalan kısımda GPS göstergeleri "—" gösterir.`]
     : ['err', `GPX bu videonun zamanıyla örtüşmüyor. Video ${hhmm(vStart)}'de başlıyor, GPX ${hhmm(g.start)}–${hhmm(g.end)} arası. Doğru GPX'i seçtiğinden emin ol ya da "Otomatik eşitle"yi dene.`];
+  if (g.total < 20) status[0] = 'err', status[1] = `Bu GPS kaydında neredeyse hiç hareket yok (${Math.round(g.total)} m). Telefon kayıt sırasında gerçek GPS almamış olabilir (kapalı alan ya da "Kesin Konum" kapalı). ` + (cov > 0 ? 'Hız 0 ve rota tek nokta görünecek.' : status[1]);
   $('gpsCov').className = 'msg ' + status[0]; $('gpsCov').textContent = status[1];
   $('off').value = state.goff; $('offV').textContent = `${state.goff > 0 ? '+' : ''}${state.goff.toFixed(1).replace('.', ',')} sn`;
 }

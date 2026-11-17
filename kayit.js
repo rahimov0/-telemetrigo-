@@ -6,7 +6,7 @@ const hav = (a, b) => { const dLa = rad(b[1] - a[1]), dLo = rad(b[2] - a[2]); co
 const num = (v, d) => v.toFixed(d).replace('.', ',');
 
 // nokta: [t(ms), lat, lon, alt, acc, spd(m/s|null), course|null, altAcc]
-let rec = null, watchId = null, lastFix = null, recent = [], geoErr = false, wake = null, tick = 0, hiddenAt = 0, gpxFile = null;
+let rec = null, watchId = null, lastFix = null, recent = [], geoErr = false, staleSince = 0, wake = null, tick = 0, hiddenAt = 0, gpxFile = null;
 
 function setMsg(html, kind = 'warn') { $('msg').innerHTML = html ? `<div class="msg ${kind}">${html}</div>` : ''; }
 function store() { try { localStorage.setItem(KEY, JSON.stringify(rec)); } catch {} }
@@ -32,7 +32,7 @@ function onFix(pos) {
     (c.speed != null && isFinite(c.speed) && c.speed >= 0) ? c.speed : null,
     (c.heading != null && isFinite(c.heading) && c.heading >= 0) ? c.heading : null, c.altitudeAccuracy ?? null];
   // canlı hız: cihaz hızı (Doppler) varsa o, yoksa son iki noktadan; duruş eşiği altı 0
-  if (geoErr) { geoErr = false; setMsg(''); }
+  if (geoErr && (!lastFix || lastFix[1] !== p[1] || lastFix[2] !== p[2])) { geoErr = false; setMsg(''); }
   recent.push(p); while (recent.length > 2 && p[0] - recent[0][0] > 4000) recent.shift();
   let v = p[5];
   if (v === null && recent.length > 1) {
@@ -41,6 +41,10 @@ function onFix(pos) {
     v = dt >= 1 ? (D > Math.max(a[4], p[4]) ? D / dt : 0) : null;
   }
   if (p[4] > 50) v = null; else if (v !== null && v < 0.9) v = 0;
+  // Konum hiç değişmiyorsa telefon gerçek GPS almıyor (kapalı alan, ya da "Kesin Konum" kapalı)
+  if (!lastFix || lastFix[1] !== p[1] || lastFix[2] !== p[2]) staleSince = p[0];
+  const stale = p[0] - staleSince > 20000 && p[5] === null;
+  if (stale && !geoErr) { geoErr = true; setMsg('Konum 20 saniyedir hiç değişmiyor: telefon gerçek GPS sinyali almıyor olabilir. Açık alana çık. iPhone\'da Ayarlar → Gizlilik ve Güvenlik → Konum Servisleri → Safari Web Siteleri → <b>Kesin Konum</b> açık olsun.'); }
   lastFix = p;
   const [txt, col] = quality(p[4]);
   $('acc').querySelector('span').textContent = txt; $('acc').querySelector('i').style.background = col;

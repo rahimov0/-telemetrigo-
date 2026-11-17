@@ -1,11 +1,11 @@
-// Harita döşemeleri (web mercator). Rota yerel metre koordinatında (x doğu, y kuzey) çizilir;
+// Harita döşemeleri (web mercator, Esri anahtarsız servisleri). Rota yerel metre koordinatında (x doğu, y kuzey) çizilir;
 // döşemeler aynı koordinata afin dönüşümle oturtulur. Tarayıcıdan CORS ile çekilir, tuval kirlenmez.
 export const MAP_STYLES = {
   yok:    { name: 'Çizgi' },
-  koyu:   { name: 'Koyu', url: (z, x, y) => `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`, px: 256, max: 20, attr: '© OpenStreetMap © CARTO', dark: true },
-  acik:   { name: 'Açık', url: (z, x, y) => `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/light_all/${z}/${x}/${y}.png`, px: 256, max: 20, attr: '© OpenStreetMap © CARTO', dark: false },
-  renkli: { name: 'Renkli', url: (z, x, y) => `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`, px: 256, max: 20, attr: '© OpenStreetMap © CARTO', dark: false },
-  uydu:   { name: 'Uydu', url: (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 19, attr: 'Görüntü © Esri', dark: true },
+  koyu:   { name: 'Koyu', url: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 16, attr: '© Esri, HERE, Garmin, © OpenStreetMap', dark: true },
+  acik:   { name: 'Açık', url: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 16, attr: '© Esri, HERE, Garmin, © OpenStreetMap', dark: false },
+  renkli: { name: 'Renkli', url: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 19, attr: '© Esri, HERE, Garmin, © OpenStreetMap', dark: false },
+  uydu:   { name: 'Uydu', url: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 19, attr: 'Görüntü © Esri, Maxar', dark: true },
 };
 const C = 2 * Math.PI * 6371008.8;
 const cache = new Map();          // anahtar → ImageBitmap | Promise | 'err'

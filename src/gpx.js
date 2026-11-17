@@ -93,10 +93,12 @@ export function buildTrack(raw, name, { trustedSpeed = false, stopSpeed = STOP_S
     for (let i = 0; i < n; i++) spd[i] = pts[i].spd !== null ? pts[i].spd * k : dSpd[i];
   } else spd.set(dSpd);
   // 4) duruş tespiti: ±WIN/2 sn içinde net yer değiştirme, GPS'in hata payından küçükse araç duruyordur
+  // yürüyüş/koşuda pencere daha uzun: yavaş yürüyüşte 5 sn'deki yer değiştirme GPS hata payından küçük kalabilir
+  const win = stopSpeed < 0.9 ? 15 : WIN;
   const still = new Uint8Array(n); let j0 = 0, j1 = 0;
   for (let i = 0; i < n; i++) {
-    while (j0 < i && t[i] - t[j0] > WIN * 500) j0++;
-    while (j1 < n - 1 && t[j1 + 1] - t[i] <= WIN * 500) j1++;
+    while (j0 < i && t[i] - t[j0] > win * 500) j0++;
+    while (j1 < n - 1 && t[j1 + 1] - t[i] <= win * 500) j1++;
     const D = haversine(lat[j0], lon[j0], lat[j1], lon[j1]), dt = (t[j1] - t[j0]) / 1000;
     const noise = Math.max(6, 1.5 * Math.max(acc[j0], acc[j1]));
     const doppler = pts[i].spd !== null && (trustedSpeed || pts[i].sacc != null);

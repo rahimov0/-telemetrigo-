@@ -264,6 +264,8 @@ function renderFields() {
 $('hide').onchange = () => { ed.hide = prefs.hide = $('hide').checked; savePrefs(); scheduleEd(); };
 $('sign').onchange = () => { ed.sign = prefs.sign = $('sign').checked; savePrefs(); scheduleEd(); };
 $('photoBtn').onclick = () => $('photoIn').click();
+// Boş durumda yalnızca önizlemedeki büyük "Fotoğraf seç" görünsün; ikinci düğme tekrar olmasın
+{ const sync = () => $('photoCard').classList.toggle('hidden', !$('addPh').classList.contains('hidden')); new MutationObserver(sync).observe($('addPh'), { attributes: true, attributeFilter: ['class'] }); sync(); }
 $('addPhBtn').onclick = () => $('photoIn').click();
 $('addPhSkip').onclick = () => $('addPh').classList.add('hidden');
 $('photoIn').onchange = async () => {

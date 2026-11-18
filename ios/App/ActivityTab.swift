@@ -538,7 +538,7 @@ struct PhotoEditorSheet: View {
             ZStack {
                 Text("Fotoğrafa ekle").font(.headline).foregroundStyle(Theme.text)
                 HStack {
-                    Button { dismiss() } label: { Text("Kapat").font(.body.weight(.medium)).foregroundStyle(Theme.text).padding(.horizontal, 14).frame(height: 36).background(Theme.card2, in: Capsule()) }
+                    Button { dismiss() } label: { Text("Kapat").font(.body.weight(.medium)).foregroundStyle(Theme.text).padding(.horizontal, 14).frame(height: 36).background(Theme.card2, in: Capsule()) }.buttonStyle(.plain)
                     Spacer()
                 }
             }.padding(.horizontal, 16).frame(height: 56).background(Theme.bg)

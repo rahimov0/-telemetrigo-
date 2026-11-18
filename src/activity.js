@@ -73,6 +73,7 @@ export function analyze(g, type) {
 // Gizlilik: başlangıç ve bitişe yakın noktaları gizle (rota çizilirken)
 export function visibleRange(g, hideM) {
   if (!hideM) return [0, g.n - 1];
+  hideM = Math.min(hideM, g.total * 0.2);   // kısa rotada tamamı gizlenmesin
   let a = 0, b = g.n - 1;
   while (a < g.n - 1 && g.dist[a] < hideM) a++;
   while (b > 0 && g.total - g.dist[b] < hideM) b--;

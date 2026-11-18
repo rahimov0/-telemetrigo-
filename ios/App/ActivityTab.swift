@@ -110,6 +110,7 @@ struct ActivityTab: View {
     @AppStorage("goalSteps") private var goalSteps = 8000.0
     @State private var selDay = Calendar.current.startOfDay(for: Date())
     @State private var daySteps = 0
+    @State private var weekBack = 0
 
     private var dayList: [Activity] { act.activities.filter { Calendar.current.isDate($0.start, inSameDayAs: selDay) } }
 
@@ -117,7 +118,7 @@ struct ActivityTab: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    dayStrip
+                    weekCard
                     todayCard
                     if !dayList.isEmpty {
                         ForEach(dayList) { a in
@@ -126,7 +127,6 @@ struct ActivityTab: View {
                     } else if !act.activities.isEmpty {
                         Panel { Text("Bu gün kayıtlı aktivite yok.").font(.subheadline).foregroundStyle(Theme.text2).frame(maxWidth: .infinity) }
                     }
-                    weekCard
                     if HealthManager.available && showSteps { stepsCard }
                     if act.activities.isEmpty {
                         Panel {
@@ -181,35 +181,6 @@ struct ActivityTab: View {
         health.steps(from: selDay, to: end) { daySteps = $0 ?? 0 }
     }
 
-    // Son 30 gün: bir güne dokununca o günün halkaları ve aktiviteleri görünür
-    private var dayStrip: some View {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        let days = (0..<30).reversed().compactMap { cal.date(byAdding: .day, value: -$0, to: today) }
-        return ScrollViewReader { sp in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(days, id: \.self) { d in
-                        let sel = d == selDay
-                        let has = act.activities.contains { cal.isDate($0.start, inSameDayAs: d) }
-                        Button { withAnimation(.easeOut(duration: 0.15)) { selDay = d } } label: {
-                            VStack(spacing: 4) {
-                                Text(d.formatted(.dateTime.weekday(.abbreviated))).font(.caption2.weight(.semibold))
-                                Text(d.formatted(.dateTime.day())).font(.system(size: 18, weight: .bold, design: .rounded))
-                                Circle().fill(has ? (sel ? Theme.onAcc : Theme.acc) : .clear).frame(width: 5, height: 5)
-                            }
-                            .foregroundStyle(sel ? Theme.onAcc : Theme.text)
-                            .frame(width: 48, height: 68)
-                            .background(sel ? Theme.acc : Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }.buttonStyle(.plain).id(d)
-                    }
-                }.padding(.horizontal, 16)
-            }
-            .padding(.horizontal, -16)
-            .onAppear { sp.scrollTo(today, anchor: .trailing) }
-        }
-    }
-
     // Bugün: kalori, süre, adım hedefleri
     private var todayCard: some View {
         let list = dayList
@@ -247,32 +218,64 @@ struct ActivityTab: View {
         }.frame(maxWidth: .infinity)
     }
 
-    // Haftalık özet + günlük çubuklar
+    // Haftalık özet: günlere dokununca aşağıdaki özet ve liste o güne geçer; oklarla önceki haftalar
     private var weekCard: some View {
-        let cal = Calendar(identifier: .iso8601)
-        let wk = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
-        let w = act.activities.filter { $0.start >= wk }
-        let days = (0..<7).map { i -> (String, Double) in
+        var cal = Calendar(identifier: .iso8601); cal.locale = Locale(identifier: "tr_TR")
+        let thisWk = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        let wk = cal.date(byAdding: .weekOfYear, value: -weekBack, to: thisWk) ?? thisWk
+        let wkEnd = cal.date(byAdding: .day, value: 7, to: wk) ?? wk
+        let w = act.activities.filter { $0.start >= wk && $0.start < wkEnd }
+        let days = (0..<7).map { i -> (date: Date, km: Double) in
             let d0 = cal.date(byAdding: .day, value: i, to: wk) ?? wk, d1 = cal.date(byAdding: .day, value: 1, to: d0) ?? d0
-            return (["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"][i], w.filter { $0.start >= d0 && $0.start < d1 }.reduce(0) { $0 + $1.distance } / 1000)
+            return (d0, w.filter { $0.start >= d0 && $0.start < d1 }.reduce(0) { $0 + $1.distance } / 1000)
         }
+        let mx = max(days.map { $0.km }.max() ?? 0, 0.1)
+        let title = weekBack == 0 ? "Bu hafta" : weekBack == 1 ? "Geçen hafta" : wk.formatted(.dateTime.day().month(.abbreviated)) + " haftası"
         return Panel {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Bu hafta").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                HStack {
+                    Text(title).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Spacer()
+                    Button { shiftWeek(1) } label: { Image(systemName: "chevron.left").font(.system(size: 14, weight: .bold)).frame(width: 36, height: 36).background(Theme.card2, in: Circle()) }.buttonStyle(.plain)
+                    Button { shiftWeek(-1) } label: { Image(systemName: "chevron.right").font(.system(size: 14, weight: .bold)).frame(width: 36, height: 36).background(Theme.card2, in: Circle()) }.buttonStyle(.plain).opacity(weekBack == 0 ? 0.3 : 1).disabled(weekBack == 0)
+                }.foregroundStyle(Theme.text)
                 HStack(alignment: .top) {
                     StatCell(label: "Mesafe", value: Fmt.km(w.reduce(0) { $0 + $1.distance }), unit: "km", tint: Theme.cDist, big: true)
                     StatCell(label: "Süre", value: Fmt.dur(w.reduce(0) { $0 + $1.moving }), tint: Theme.cTime, big: true)
                     StatCell(label: "Aktivite", value: "\(w.count)", big: true)
                 }
-                Chart(days.indices, id: \.self) { i in
-                    BarMark(x: .value("Gün", days[i].0), y: .value("km", max(days[i].1, 0.05)), width: .ratio(0.55))
-                        .foregroundStyle(days[i].1 > 0 ? Theme.cDist : Color.white.opacity(0.10)).cornerRadius(5)
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach(days.indices, id: \.self) { i in
+                        let d = days[i].date
+                        let sel = cal.isDate(d, inSameDayAs: selDay)
+                        let future = d > Date()
+                        Button { withAnimation(.easeOut(duration: 0.15)) { selDay = cal.startOfDay(for: d) } } label: {
+                            VStack(spacing: 6) {
+                                ZStack(alignment: .bottom) {
+                                    Capsule().fill(Color.white.opacity(0.07)).frame(height: 64)
+                                    Capsule().fill(sel ? Theme.acc : Theme.cDist).frame(height: days[i].km > 0 ? max(8, 64 * days[i].km / mx) : 0)
+                                }.frame(width: 26)
+                                Text(d.formatted(.dateTime.weekday(.abbreviated))).font(.caption2.weight(.semibold)).foregroundStyle(sel ? Theme.onAcc : Theme.text2)
+                                    .padding(.horizontal, 6).padding(.vertical, 3).background(sel ? Theme.acc : .clear, in: Capsule())
+                                Text(d.formatted(.dateTime.day())).font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(future ? Theme.text3 : Theme.text)
+                            }.frame(maxWidth: .infinity).contentShape(Rectangle())
+                        }.buttonStyle(.plain).disabled(future)
+                    }
                 }
-                .chartYAxis(.hidden)
-                .chartXAxis { AxisMarks { _ in AxisValueLabel().foregroundStyle(Theme.text2) } }
-                .frame(height: 72)
             }
         }
+    }
+
+    private func shiftWeek(_ by: Int) {
+        let nb = max(0, weekBack + by)
+        guard nb != weekBack else { return }
+        var cal = Calendar(identifier: .iso8601); cal.locale = Locale(identifier: "tr_TR")
+        let off = cal.dateComponents([.day], from: cal.dateInterval(of: .weekOfYear, for: selDay)?.start ?? selDay, to: selDay).day ?? 0
+        let thisWk = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        let wk = cal.date(byAdding: .weekOfYear, value: -nb, to: thisWk) ?? thisWk
+        let d = cal.date(byAdding: .day, value: off, to: wk) ?? wk
+        weekBack = nb
+        selDay = min(cal.startOfDay(for: d), cal.startOfDay(for: Date()))
     }
 
     // Apple Sağlık adımları

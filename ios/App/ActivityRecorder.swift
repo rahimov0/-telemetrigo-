@@ -10,6 +10,8 @@ enum ActType: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
     var name: String { ["yuruyus": "Yürüyüş", "kosu": "Koşu", "bisiklet": "Bisiklet", "motor": "Motor"][rawValue]! }
     var icon: String { ["yuruyus": "figure.walk", "kosu": "figure.run", "bisiklet": "bicycle", "motor": "motorcycle"][rawValue]! }
+    /// Makul üst hız (m/s): GPS sıçramalarını "en iyi tempo"dan ayıklar
+    var maxPlausible: Double { switch self { case .yuruyus: return 3.0; case .kosu: return 7.0; case .bisiklet: return 20; case .motor: return 75 } }
     var pace: Bool { self == .yuruyus || self == .kosu }
     /// bunun altı "duruyor" (otomatik duraklatma), m/s
     var stopSpeed: Double { ["yuruyus": 0.3, "kosu": 0.7, "bisiklet": 1.0, "motor": 1.5][rawValue]! }
@@ -226,7 +228,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
             let moved = (v ?? 0) >= type.stopSpeed || d > max(8, l.horizontalAccuracy * 1.5)
             if moved && !autoPaused {
                 a.distance += d
-                if let x = v { a.maxSpeed = max(a.maxSpeed, x) }
+                if let x = v, x <= type.maxPlausible, d / max(l.timestamp.timeIntervalSince(p.timestamp), 1) <= type.maxPlausible * 1.3 { a.maxSpeed = max(a.maxSpeed, x) }
                 lastGood = l
                 route.append(l.coordinate)
             } else if !moved { /* titreme: konumu ilerletme */ } else { lastGood = l }

@@ -600,8 +600,8 @@ struct ActivityDetail: View {
                     if a.type.pace { StatCell(label: "Ort. tempo", value: Fmt.pace(avg), unit: "/km", tint: Theme.cPace, big: true) }
                     else { StatCell(label: "Ort. hız", value: Fmt.num(avg * 3.6, 1), unit: "km/h", tint: Theme.cPace, big: true) }
                     StatCell(label: "Yükseliş", value: Fmt.num(a.gain), unit: "m", tint: Theme.cElev, big: true)
-                    if a.type.pace { StatCell(label: "En iyi tempo", value: Fmt.pace(a.maxSpeed), unit: "/km", tint: Theme.cMax, big: true) }
-                    else { StatCell(label: "Maks hız", value: Fmt.num(a.maxSpeed * 3.6), unit: "km/h", tint: Theme.cMax, big: true) }
+                    if a.type.pace { StatCell(label: "En iyi tempo", value: Fmt.pace(min(a.maxSpeed, a.type.maxPlausible)), unit: "/km", tint: Theme.cMax, big: true) }
+                    else { StatCell(label: "Maks hız", value: Fmt.num(min(a.maxSpeed, a.type.maxPlausible) * 3.6), unit: "km/h", tint: Theme.cMax, big: true) }
                     if let s = steps, s > 0 { StatCell(label: "Adım", value: s.formatted(), tint: Theme.cSteps, big: true) }
                     else { StatCell(label: "Geçen süre", value: Fmt.dur((a.end ?? a.start).timeIntervalSince(a.start)), big: true) }
                 }

@@ -28,9 +28,9 @@ private struct RecordContent: View {
                     if !rec.sessions.isEmpty { sessionsList }
                     help
                 }
-                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 24)
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 130)
             }
-            .background(Theme.bg.ignoresSafeArea())
+            .background(Glow(color: Theme.mid))
             .navigationTitle("Sürüş")
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
@@ -46,8 +46,8 @@ private struct RecordContent: View {
         Panel {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
-                    Image(systemName: "camera.fill").font(.system(size: 18)).foregroundStyle(goproColor).frame(width: 42, height: 42)
-                        .background(Theme.card2, in: RoundedRectangle(cornerRadius: 11))
+                    Image(systemName: "camera.fill").font(.system(size: 18, weight: .bold)).foregroundStyle(goproColor).frame(width: 42, height: 42)
+                        .background(goproColor.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(goproTitle).font(.headline).foregroundStyle(Theme.text)
                         Text(goproSub).font(.footnote).foregroundStyle(Theme.text2).fixedSize(horizontal: false, vertical: true)
@@ -115,15 +115,15 @@ private struct RecordContent: View {
                     }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(rec.speed.map { "\(Int(($0 * 3.6).rounded()))" } ?? "—").font(.system(size: 76, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(Theme.text)
-                    Text("km/h").font(.title3).foregroundStyle(Theme.text2)
+                    Text(rec.speed.map { "\(Int(($0 * 3.6).rounded()))" } ?? "—").font(.system(size: 84, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Theme.cPace)
+                    Text("km/h").font(.title3.weight(.bold)).foregroundStyle(Theme.cPace.opacity(0.75))
                 }.frame(maxWidth: .infinity)
                 if let s = rec.current {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         HStack(spacing: 8) {
-                            stat(clock(Int(ctx.date.timeIntervalSince(s.start))), "Süre")
-                            stat(String(format: "%.2f", s.distance / 1000).replacingOccurrences(of: ".", with: ","), "Mesafe km")
-                            stat("\(Int((s.maxSpeed * 3.6).rounded()))", "Maks km/h")
+                            stat(clock(Int(ctx.date.timeIntervalSince(s.start))), "Süre", Theme.cTime)
+                            stat(String(format: "%.2f", s.distance / 1000).replacingOccurrences(of: ".", with: ","), "Mesafe km", Theme.cDist)
+                            stat("\(Int((s.maxSpeed * 3.6).rounded()))", "Maks km/h", Theme.cMax)
                         }
                     }
                 }
@@ -194,9 +194,9 @@ private struct RecordContent: View {
             .tint(Theme.text2).padding(.horizontal, 4)
     }
 
-    private func stat(_ v: String, _ l: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) { Text(v).font(.title3.weight(.bold)).monospacedDigit().foregroundStyle(Theme.text); Text(l).font(.caption).foregroundStyle(Theme.text2) }
-            .frame(maxWidth: .infinity, alignment: .leading).padding(10).background(Theme.card2, in: RoundedRectangle(cornerRadius: 12))
+    private func stat(_ v: String, _ l: String, _ c: Color = Theme.text) -> some View {
+        VStack(alignment: .leading, spacing: 2) { Text(v).font(.title3.weight(.bold)).monospacedDigit().foregroundStyle(c); Text(l).font(.caption).foregroundStyle(Theme.text2) }
+            .frame(maxWidth: .infinity, alignment: .leading).padding(10).background(Theme.card2, in: RoundedRectangle(cornerRadius: 14))
     }
     private func clock(_ s: Int) -> String { s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60) }
 }
@@ -214,8 +214,7 @@ struct Card<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) { content }
             .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.08)))
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 

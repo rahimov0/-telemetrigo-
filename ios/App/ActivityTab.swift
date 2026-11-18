@@ -108,12 +108,24 @@ struct ActivityTab: View {
     @AppStorage("goalKcal") private var goalKcal = 300.0
     @AppStorage("goalMin") private var goalMin = 30.0
     @AppStorage("goalSteps") private var goalSteps = 8000.0
+    @State private var selDay = Calendar.current.startOfDay(for: Date())
+    @State private var daySteps = 0
+
+    private var dayList: [Activity] { act.activities.filter { Calendar.current.isDate($0.start, inSameDayAs: selDay) } }
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    dayStrip
                     todayCard
+                    if !dayList.isEmpty {
+                        ForEach(dayList) { a in
+                            NavigationLink(value: a) { ActivityCard(act: act, a: a) }.buttonStyle(.plain)
+                        }
+                    } else if !act.activities.isEmpty {
+                        Panel { Text("Bu gün kayıtlı aktivite yok.").font(.subheadline).foregroundStyle(Theme.text2).frame(maxWidth: .infinity) }
+                    }
                     weekCard
                     if HealthManager.available && showSteps { stepsCard }
                     if act.activities.isEmpty {
@@ -125,12 +137,12 @@ struct ActivityTab: View {
                             }.frame(maxWidth: .infinity).padding(.vertical, 10)
                         }
                     } else {
-                        Text("Aktiviteler").font(.title2.weight(.bold)).foregroundStyle(Theme.text).padding(.top, 6)
+                        Text("Tüm aktiviteler").font(.title2.weight(.bold)).foregroundStyle(Theme.text).padding(.top, 6)
                         ForEach(act.activities) { a in
                             NavigationLink(value: a) { ActivityCard(act: act, a: a) }.buttonStyle(.plain)
                         }
                     }
-                }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 24)
+                }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 130)
             }
             .background(Glow())
             .navigationTitle("Aktivite")
@@ -158,21 +170,59 @@ struct ActivityTab: View {
             }
         }
         .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
-        .onAppear { health.refresh(); if act.state != .idle { showRecord = true } }
+        .onAppear { health.refresh(); loadDaySteps(); if act.state != .idle { showRecord = true } }
+        .onChange(of: selDay) { _, _ in loadDaySteps() }
+        .onChange(of: health.connected) { _, _ in loadDaySteps() }
+    }
+
+    private func loadDaySteps() {
+        guard health.connected else { daySteps = 0; return }
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: selDay) ?? selDay
+        health.steps(from: selDay, to: end) { daySteps = $0 ?? 0 }
+    }
+
+    // Son 30 gün: bir güne dokununca o günün halkaları ve aktiviteleri görünür
+    private var dayStrip: some View {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let days = (0..<30).reversed().compactMap { cal.date(byAdding: .day, value: -$0, to: today) }
+        return ScrollViewReader { sp in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(days, id: \.self) { d in
+                        let sel = d == selDay
+                        let has = act.activities.contains { cal.isDate($0.start, inSameDayAs: d) }
+                        Button { withAnimation(.easeOut(duration: 0.15)) { selDay = d } } label: {
+                            VStack(spacing: 4) {
+                                Text(d.formatted(.dateTime.weekday(.abbreviated))).font(.caption2.weight(.semibold))
+                                Text(d.formatted(.dateTime.day())).font(.system(size: 18, weight: .bold, design: .rounded))
+                                Circle().fill(has ? (sel ? Theme.onAcc : Theme.acc) : .clear).frame(width: 5, height: 5)
+                            }
+                            .foregroundStyle(sel ? Theme.onAcc : Theme.text)
+                            .frame(width: 48, height: 68)
+                            .background(sel ? Theme.acc : Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }.buttonStyle(.plain).id(d)
+                    }
+                }.padding(.horizontal, 16)
+            }
+            .padding(.horizontal, -16)
+            .onAppear { sp.scrollTo(today, anchor: .trailing) }
+        }
     }
 
     // Bugün: kalori, süre, adım hedefleri
     private var todayCard: some View {
-        let list = act.activities.filter { Calendar.current.isDateInToday($0.start) }
+        let list = dayList
         let kcal = list.reduce(0.0) { $0 + (Cal.active($1) ?? 0) }
         let mins = list.reduce(0.0) { $0 + $1.moving } / 60
-        let steps = Double(health.stepsToday)
+        let steps = Double(daySteps)
+        let isToday = Calendar.current.isDateInToday(selDay)
         return Panel {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text("Bugün").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Text(isToday ? "Bugün" : "Özet").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                     Spacer()
-                    Text(Date().formatted(.dateTime.weekday(.wide).day().month(.abbreviated))).font(.subheadline).foregroundStyle(Theme.text2)
+                    Text(selDay.formatted(.dateTime.weekday(.wide).day().month(.wide))).font(.subheadline).foregroundStyle(Theme.text2)
                 }
                 HStack(alignment: .top, spacing: 0) {
                     goal(kcal, goalKcal, Theme.cKcal, "flame.fill", Cal.ready ? Fmt.num(kcal) : "—", "kcal")
@@ -710,6 +760,7 @@ struct ActivitySettings: View {
     @AppStorage("goalMin") private var goalMin = 30.0
     @AppStorage("goalSteps") private var goalSteps = 8000.0
     @Environment(\.dismiss) private var dismiss
+    @State private var profMsg: String?
     @State private var apW = ActivityRecorder.autoPauseSetting(.yuruyus)
     @State private var apR = ActivityRecorder.autoPauseSetting(.kosu)
     @State private var apB = ActivityRecorder.autoPauseSetting(.bisiklet)
@@ -725,8 +776,9 @@ struct ActivitySettings: View {
                     HStack { Text("Kilo"); Spacer(); TextField("0", value: $kg, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("kg").foregroundStyle(Theme.text2) }
                     HStack { Text("Boy"); Spacer(); TextField("0", value: $cm, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("cm").foregroundStyle(Theme.text2) }
                     if HealthManager.available && health.connected {
-                        Button { health.loadProfile { w, h in if let w { kg = w }; if let h { cm = h } } } label: { Label("Sağlık'tan al", systemImage: "heart.fill").foregroundStyle(Theme.cKcal) }
+                        Button { health.fetchProfile { w, h, msg in if let w { kg = w }; if let h { cm = h }; profMsg = msg } } label: { Label("Sağlık'tan al", systemImage: "heart.fill").foregroundStyle(Theme.cKcal) }
                     }
+                    if let m = profMsg { Text(m).font(.footnote).foregroundStyle(Theme.text2) }
                 } header: { head("Profil") } footer: { foot("Kalori hesabı için kullanılır; yalnızca bu cihazda tutulur. Aktif kalori = hareketle yakılan enerji (dinlenme enerjisi çıkarılmış), Apple Fitness'taki gibi.") }
                 .listRowBackground(Theme.card)
 
@@ -777,9 +829,13 @@ struct ActivitySettings: View {
             .tint(Theme.acc)
             .scrollContentBackground(.hidden)
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("Aktivite ayarları").navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Bitti") { dismiss() }.foregroundStyle(Theme.text) } }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                ZStack {
+                    Text("Aktivite ayarları").font(.headline).foregroundStyle(Theme.text)
+                    HStack { Spacer(); Button { dismiss() } label: { Text("Bitti").font(.body.weight(.semibold)).foregroundStyle(Theme.onAcc).padding(.horizontal, 16).frame(height: 36).background(Theme.acc, in: Capsule()) }.buttonStyle(.plain) }
+                }.padding(.horizontal, 16).frame(height: 56).background(Theme.bg)
+            }
+            .toolbar(.hidden, for: .navigationBar)
         }
         .presentationDragIndicator(.visible)
     }

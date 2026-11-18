@@ -33,6 +33,20 @@ final class HealthManager: ObservableObject {
     private var massType: HKQuantityType { HKQuantityType(.bodyMass) }
     private var heightType: HKQuantityType { HKQuantityType(.height) }
 
+    /// İzinleri (yeni türler dahil) yeniden ister, sonra kilo/boyu okur
+    func fetchProfile(_ done: @escaping (Double?, Double?, String?) -> Void) {
+        let read: Set<HKObjectType> = [stepType, walkDist, massType, heightType]
+        let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
+        store.requestAuthorization(toShare: share, read: read) { [weak self] _, err in
+            guard let self else { return }
+            if let err { DispatchQueue.main.async { done(nil, nil, err.localizedDescription) }; return }
+            self.loadProfile { w, h in
+                if w == nil && h == nil { done(nil, nil, "Sağlık'ta kilo/boy bulunamadı ya da erişim kapalı. iPhone Ayarlar > Sağlık > Veri Erişimi > TelemetriGo'dan aç; ya da elle gir.") }
+                else { done(w, h, "Sağlık'tan alındı.") }
+            }
+        }
+    }
+
     /// Sağlık'taki en son kilo ve boy
     func loadProfile(_ done: @escaping (Double?, Double?) -> Void) {
         func latest(_ t: HKQuantityType, _ unit: HKUnit, _ cb: @escaping (Double?) -> Void) {

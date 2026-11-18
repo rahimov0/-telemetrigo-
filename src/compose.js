@@ -9,7 +9,7 @@ export const TEMPLATES = {
 export const FORMATS = { '9:16': [1080, 1920], '4:5': [1080, 1350], '1:1': [1080, 1080], 'orij': null };
 export const ROUTE_COLORS = { turuncu: '#FF5A1F', beyaz: '#FFFFFF', sari: '#FFD23F', yesil: '#4ADE80', mavi: '#38BDF8', kirmizi: '#FB4D4D', siyah: '#0A0A0A' };
 export const FIELDS = {
-  dist: 'Mesafe', time: 'Süre', pace: 'Tempo / hız', gain: 'Yükseliş', max: 'Maks hız', elapsed: 'Geçen süre',
+  dist: 'Mesafe', time: 'Süre', pace: 'Tempo / hız', gain: 'Yükseliş', max: 'Maks hız', elapsed: 'Geçen süre', steps: 'Adım',
 };
 const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, Roboto, Arial, sans-serif';
 
@@ -17,6 +17,7 @@ export function fieldValue(k, A) {
   switch (k) {
     case 'dist': return ['Mesafe', fmtKm(A.dist), 'km'];
     case 'time': return ['Süre', fmtDur(A.movingTime), ''];
+    case 'steps': return ['Adım', fmtNum(A.steps || 0), ''];
     case 'elapsed': return ['Geçen süre', fmtDur(A.elapsed), ''];
     case 'pace': return A.pace ? ['Tempo', fmtPace(A.avg), '/km'] : ['Ort. hız', fmtNum(A.avg * 3.6, 1), 'km/h'];
     case 'gain': return ['Yükseliş', isFinite(A.gain) ? fmtNum(A.gain) : '—', 'm'];
@@ -50,6 +51,7 @@ function layout(tpl, W, H) {
 /** Çiz. s = { tpl, W, H, photo, pan:{x,y,z}, mapStyle, color, fields[], hide, sign, pos:{id:{cx,cy}}, scale:{id} }
  *  data = { g, A, title }  Dönüş: blok kutuları (sürükleme için, piksel) */
 export function compose(ctx, s, data, { fetchTiles = true } = {}) {
+  if (s.fields && !(data.A?.steps > 0)) s = { ...s, fields: s.fields.filter(k => k !== 'steps') };
   const { W, H } = s, u = W / 1080, { g, A } = data;
   ctx.clearRect(0, 0, W, H);
   // arka plan fotoğraf

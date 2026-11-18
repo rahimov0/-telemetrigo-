@@ -32,7 +32,7 @@ final class AppModel: ObservableObject {
     let rec = Recorder()
     let activity = ActivityRecorder()
     let health = HealthManager()
-    @Published var tab = 0
+    @Published var tab = 2
     @Published var useGoPro = true
     @Published var pendingGpx: (name: String, text: String)?
     @Published var busy = false
@@ -81,10 +81,10 @@ struct RootView: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
         TabView(selection: $model.tab) {
-            RecordView()
-                .tabItem { Label("Kayıt", systemImage: "record.circle") }.tag(0)
             ActivityTab(act: model.activity, health: model.health)
                 .tabItem { Label("Aktivite", systemImage: "figure.run") }.tag(2)
+            RecordView()
+                .tabItem { Label("Sürüş", systemImage: "gauge.with.dots.needle.67percent") }.tag(0)
             VideoTab()
                 .ignoresSafeArea(edges: .bottom)
                 .tabItem { Label("Video", systemImage: "film") }.tag(1)

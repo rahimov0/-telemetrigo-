@@ -20,6 +20,7 @@ final class HealthManager: ObservableObject {
 
     /// Kullanıcı bağlanmayı seçti mi (okuma izni sistemden sorgulanamaz, bu yüzden kendimiz tutuyoruz)
     @Published var connected = UserDefaults.standard.bool(forKey: "healthOn")
+    @Published var write = UserDefaults.standard.object(forKey: "healthWrite") as? Bool ?? true { didSet { UserDefaults.standard.set(write, forKey: "healthWrite") } }
     @Published var stepsToday: Int = 0
     @Published var distToday: Double = 0
     @Published var week: [(day: Date, steps: Int)] = []
@@ -84,7 +85,7 @@ final class HealthManager: ObservableObject {
 
     /// Bitmiş aktiviteyi Sağlık'a antrenman ve rota olarak yaz
     func save(_ a: Activity, points: [TrackPoint]) {
-        guard connected, Self.available, let end = a.end else { return }
+        guard connected, write, Self.available, let end = a.end else { return }
         let cfg = HKWorkoutConfiguration()
         cfg.activityType = a.type.hkType
         cfg.locationType = .outdoor

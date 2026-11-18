@@ -30,7 +30,7 @@ async function importGpx(text, name, extra = {}) {
   const type = extra.type || (TYPES[g.type] ? g.type : guessType(g));
   const id = extra.id || 'g' + g.start;
   const A = analyze(g, type);
-  const rec = { id, name: name || g.name || 'GPX', type, start: g.start, end: g.end, dist: A.dist, moving: A.movingTime, gpx: text, src: extra.src || 'gpx' };
+  const rec = { id, name: name || g.name || 'GPX', type, start: g.start, end: g.end, dist: A.dist, moving: A.movingTime, gpx: text, src: extra.src || 'gpx', steps: extra.steps || null };
   await putAct(rec);
   return rec;
 }
@@ -51,13 +51,16 @@ async function syncLast() {
     return id;
   } catch { return null; }
 }
-// iOS uygulaması aktiviteyi buradan verir
+// iOS uygulaması aktiviteyi buradan verir (sayfa açılırken window.__TG_PENDING ile, ya da çağrıyla)
+async function openPending(P) {
+  const rec = await importGpx(P.gpx, P.name, { type: P.type, src: 'app', steps: P.steps, id: 'a' + Date.parse((P.gpx.match(/<time>([^<]+)<\/time>/) || [])[1] || '') || undefined });
+  const h = rec.id + (P.view === 'photo' ? '/foto' : '');
+  history.replaceState(null, '', '#' + h);
+  await openDetail(rec.id, P.view === 'photo');
+  return true;
+}
 window.TelemetriGo = Object.assign(window.TelemetriGo || {}, {
-  async receiveActivity(gpx, name, type, view) {
-    const rec = await importGpx(gpx, name, { type, src: 'app', id: 'a' + Date.parse((gpx.match(/<time>([^<]+)<\/time>/) || [])[1] || '') || undefined });
-    location.hash = rec.id + (view === 'photo' ? '/foto' : '');
-    return true;
-  },
+  async receiveActivity(gpx, name, type, view, steps) { return openPending({ gpx, name, type, view, steps }); },
 });
 
 // ---------- liste ----------
@@ -90,7 +93,7 @@ async function openDetail(id, edit) {
   if (!rec) { setMsg('Aktivite bulunamadı.'); location.hash = ''; return; }
   if (cur?.rec.id !== id) {
     const g = parseGpx(rec.gpx, { type: rec.type });
-    cur = { rec, g, A: analyze(g, rec.type), pins: [] };
+    cur = { rec, g, A: analyze(g, rec.type), pins: [] }; cur.A.steps = rec.steps || 0;
   }
   const { g, A } = cur, T = TYPES[A.type] || {};
   $('dType').textContent = T.name || ''; $('dTitle').textContent = titleFor(A.type, g.start); $('dSub').textContent = dateStr(g.start);
@@ -119,7 +122,7 @@ async function openDetail(id, edit) {
 }
 $('dTypeSel').onchange = async () => {
   const t = $('dTypeSel').value; cur.rec.type = t; const g = parseGpx(cur.rec.gpx, { type: t });
-  cur.g = g; cur.A = analyze(g, t); cur.rec.dist = cur.A.dist; cur.rec.moving = cur.A.movingTime; await putAct(cur.rec); openDetail(cur.rec.id);
+  cur.g = g; cur.A = analyze(g, t); cur.A.steps = cur.rec.steps || 0; cur.rec.dist = cur.A.dist; cur.rec.moving = cur.A.movingTime; await putAct(cur.rec); openDetail(cur.rec.id);
 };
 $('delAct').onclick = async () => {
   if (!confirm('Bu aktivite bu cihazdan silinsin mi? Bu işlem geri alınamaz.')) return;
@@ -247,6 +250,7 @@ function openEditor() {
 function renderFields() {
   const el = $('fields'); el.innerHTML = '';
   for (const [k, name] of Object.entries(FIELDS)) {
+    if (k === 'steps' && !(cur.A.steps > 0)) continue;
     const b = document.createElement('button'); b.type = 'button';
     b.textContent = k === 'pace' ? (cur.A.pace ? 'Tempo' : 'Ort. hız') : k === 'max' ? (cur.A.pace ? 'En iyi tempo' : 'Maks hız') : name;
     b.className = ed.fields.includes(k) ? 'on' : '';
@@ -359,6 +363,8 @@ $('expDl').onclick = async e => {
 // ---------- yönlendirme ----------
 function show(v) { for (const id of ['vList', 'vDetail', 'vEdit']) $(id).classList.toggle('hidden', id !== v); scrollTo(0, 0); }
 async function route() {
+  const P = window.__TG_PENDING;
+  if (P) { window.__TG_PENDING = null; try { await openPending(P); } catch (e) { setMsg('Aktivite açılamadı: ' + esc(e.message)); show('vList'); renderList(); } return; }
   let h = decodeURIComponent(location.hash.slice(1));
   if (h === 'son') { const id = await syncLast(); if (id) { location.replace('#' + id); return; } h = ''; }
   if (!h) { show('vList'); renderList(); return; }
@@ -366,5 +372,5 @@ async function route() {
   try { await openDetail(id, sub === 'foto'); } catch (e) { setMsg('Aktivite açılamadı: ' + esc(e.message)); show('vList'); renderList(); }
 }
 addEventListener('hashchange', route);
-syncLast().finally(route);
+(isApp ? route() : syncLast().finally(route));
 window.__act = { get cur() { return cur; }, ed, importGpx, compose };

@@ -4,6 +4,8 @@ import AVFoundation
 
 /// Aktivite türleri (web tarafıyla aynı anahtarlar)
 enum ActType: String, Codable, CaseIterable, Identifiable {
+    /// Aktivite sekmesinde kaydedilebilen türler (motor sürüşü Sürüş sekmesinde)
+    static var sport: [ActType] { [.yuruyus, .kosu, .bisiklet] }
     case yuruyus, kosu, bisiklet, motor
     var id: String { rawValue }
     var name: String { ["yuruyus": "Yürüyüş", "kosu": "Koşu", "bisiklet": "Bisiklet", "motor": "Motor"][rawValue]! }
@@ -77,6 +79,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     static func autoPauseSetting(_ t: ActType) -> Bool {
         UserDefaults.standard.object(forKey: "autoPause2_" + t.rawValue) as? Bool ?? (t != .yuruyus)
     }
+    @Published var voiceEvery: Int = max(1, UserDefaults.standard.integer(forKey: "voiceEvery")) { didSet { UserDefaults.standard.set(voiceEvery, forKey: "voiceEvery") } }
     @Published var voice = UserDefaults.standard.object(forKey: "voice") as? Bool ?? true { didSet { UserDefaults.standard.set(voice, forKey: "voice") } }
     @Published var autoPaused = false
     @Published var current: Activity?
@@ -230,8 +233,11 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         } else { lastGood = l; route.append(l.coordinate) }
         current = a
         if a.distance >= Double(nextKm) * 1000 {
-            let lap = moving - kmMoving; kmMoving = moving
-            announce(km: nextKm, lap: lap, a: a)
+            let ev = max(1, voiceEvery)
+            if nextKm % ev == 0 {
+                let lap = (moving - kmMoving) / Double(ev); kmMoving = moving
+                announce(km: nextKm, lap: lap, a: a)
+            }
             nextKm += 1
             saveMeta(a)
         }

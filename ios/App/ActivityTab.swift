@@ -90,13 +90,15 @@ struct ActivityTab: View {
     @ObservedObject var health: HealthManager
     @State private var path: [Activity] = []
     @State private var showRecord = false
+    @State private var showSettings = false
+    @AppStorage("showSteps") private var showSteps = true
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     weekCard
-                    if HealthManager.available { stepsCard }
+                    if HealthManager.available && showSteps { stepsCard }
                     if act.activities.isEmpty {
                         Panel {
                             VStack(spacing: 8) {
@@ -116,6 +118,11 @@ struct ActivityTab: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Aktivite")
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3").foregroundStyle(Theme.text) }.accessibilityLabel("Aktivite ayarları")
+                }
+            }
             .navigationDestination(for: Activity.self) { ActivityDetail(act: act, health: health, a: $0) }
             .safeAreaInset(edge: .bottom) {
                 Button { showRecord = true } label: {
@@ -133,6 +140,7 @@ struct ActivityTab: View {
                 if let a { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { path = [a] } }
             }
         }
+        .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
         .onAppear { health.refresh(); if act.state != .idle { showRecord = true } }
     }
 
@@ -232,6 +240,7 @@ struct RecordScreen: View {
     let done: (Activity?) -> Void
     @State private var cam: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var confirmEnd = false
+    @AppStorage("keepAwake") private var keepAwake = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -266,7 +275,8 @@ struct RecordScreen: View {
         }
         .background(Theme.bg)
         .onAppear { act.preview() }
-        .onDisappear { act.stopPreview() }
+        .onDisappear { act.stopPreview(); UIApplication.shared.isIdleTimerDisabled = false }
+        .onChange(of: act.state) { _, st in UIApplication.shared.isIdleTimerDisabled = keepAwake && st != .idle }
         .confirmationDialog("Aktivite bitirilsin mi?", isPresented: $confirmEnd, titleVisibility: .visible) {
             Button("Bitir ve kaydet") {
                 if let a = act.finish() { health.save(a, points: act.readPoints(a.id)); done(a) } else { done(nil) }
@@ -300,7 +310,7 @@ struct RecordScreen: View {
     private var idlePanel: some View {
         VStack(spacing: 16) {
             HStack(spacing: 8) {
-                ForEach(ActType.allCases) { t in
+                ForEach(ActType.sport) { t in
                     Button { act.type = t } label: {
                         VStack(spacing: 4) {
                             Image(systemName: t.icon).font(.system(size: 20, weight: .semibold))
@@ -483,7 +493,7 @@ struct ActivityDetail: View {
             }
         }
         .task { compute() }
-        .sheet(isPresented: $photo) { PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue).environmentObject(model) }
+        .sheet(isPresented: $photo) { PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue, steps: steps).environmentObject(model) }
         .confirmationDialog("Aktivite silinsin mi? Bu işlem geri alınamaz.", isPresented: $confirmDel, titleVisibility: .visible) {
             Button("Sil", role: .destructive) { act.delete(a); dismiss() }
         }
@@ -522,20 +532,29 @@ struct PhotoEditorSheet: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     let gpx: String, name: String, type: String
+    var steps: Int? = nil
     var body: some View {
-        NavigationStack {
-            ActivityWeb(gpx: gpx, name: name, type: type) { g, n in
+        VStack(spacing: 0) {
+            ZStack {
+                Text("Fotoğrafa ekle").font(.headline).foregroundStyle(Theme.text)
+                HStack {
+                    Button { dismiss() } label: { Text("Kapat").font(.body.weight(.medium)).foregroundStyle(Theme.text).padding(.horizontal, 14).frame(height: 36).background(Theme.card2, in: Capsule()) }
+                    Spacer()
+                }
+            }.padding(.horizontal, 16).frame(height: 56).background(Theme.bg)
+            Divider().overlay(Theme.line)
+            ActivityWeb(gpx: gpx, name: name, type: type, steps: steps) { g, n in
                 model.pendingGpx = (n, g); model.tab = 1; dismiss()
             }
-            .ignoresSafeArea(edges: .bottom)
-            .navigationTitle("Fotoğrafa ekle").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Kapat") { dismiss() } } }
         }
+        .background(Theme.bg.ignoresSafeArea())
+        .presentationDragIndicator(.visible)
     }
 }
 
 struct ActivityWeb: UIViewRepresentable {
     let gpx: String, name: String, type: String
+    var steps: Int? = nil
     let toVideo: (String, String) -> Void
     static let url = URL(string: "https://telemetrigo.rahimov.tr/aktivite.html?app=1")!
 
@@ -545,24 +564,25 @@ struct ActivityWeb: UIViewRepresentable {
         cfg.applicationNameForUserAgent = "TelemetriGoApp/1.0"
         cfg.websiteDataStore = .default()
         cfg.userContentController.add(context.coordinator, name: "tg")
+        // Aktivite, sayfa açılmadan önce verilir: yükleme sırasına bağlı kalmaz (editör her seferinde açılır)
+        var payload: [String: Any] = ["gpx": gpx, "name": name, "type": type, "view": "photo"]
+        payload["steps"] = steps ?? NSNull()
+        if let d = try? JSONSerialization.data(withJSONObject: payload), let j = String(data: d, encoding: .utf8) {
+            cfg.userContentController.addUserScript(WKUserScript(source: "window.__TG_PENDING = \(j);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
         let wv = WKWebView(frame: .zero, configuration: cfg)
         wv.navigationDelegate = context.coordinator
         wv.isOpaque = false; wv.backgroundColor = UIColor(Theme.bg); wv.scrollView.backgroundColor = UIColor(Theme.bg)
         context.coordinator.web = wv
-        wv.load(URLRequest(url: Self.url, cachePolicy: .reloadRevalidatingCacheData))
+        wv.load(URLRequest(url: Self.url, cachePolicy: .reloadIgnoringLocalCacheData))
         return wv
     }
     func updateUIView(_ wv: WKWebView, context: Context) {}
     static func dismantleUIView(_ wv: WKWebView, coordinator: C) { wv.configuration.userContentController.removeScriptMessageHandler(forName: "tg") }
 
     final class C: NSObject, WKNavigationDelegate, WKScriptMessageHandler, WKDownloadDelegate {
-        let p: ActivityWeb; weak var web: WKWebView?; private var sent = false; private var dest: URL?
+        let p: ActivityWeb; weak var web: WKWebView?; private var dest: URL?
         init(_ p: ActivityWeb) { self.p = p }
-        func webView(_ w: WKWebView, didFinish n: WKNavigation!) {
-            guard !sent else { return }; sent = true
-            guard let d = try? JSONSerialization.data(withJSONObject: [p.gpx, p.name, p.type]), let j = String(data: d, encoding: .utf8) else { return }
-            w.evaluateJavaScript("(function(a){ window.TelemetriGo && window.TelemetriGo.receiveActivity(a[0], a[1], a[2], 'photo'); })(\(j));")
-        }
         func userContentController(_ u: WKUserContentController, didReceive m: WKScriptMessage) {
             guard let b = m.body as? [String: Any], b["action"] as? String == "video", let g = b["gpx"] as? String else { return }
             p.toVideo(g, b["name"] as? String ?? "aktivite.gpx")
@@ -584,4 +604,73 @@ struct ActivityWeb: UIViewRepresentable {
             web.window?.rootViewController?.topMost.present(vc, animated: true)
         }
     }
+}
+
+
+// MARK: Aktivite ayarları
+struct ActivitySettings: View {
+    @ObservedObject var act: ActivityRecorder
+    @ObservedObject var health: HealthManager
+    @AppStorage("showSteps") private var showSteps = true
+    @AppStorage("keepAwake") private var keepAwake = false
+    @Environment(\.dismiss) private var dismiss
+    @State private var apW = ActivityRecorder.autoPauseSetting(.yuruyus)
+    @State private var apR = ActivityRecorder.autoPauseSetting(.kosu)
+    @State private var apB = ActivityRecorder.autoPauseSetting(.bisiklet)
+
+    private func save(_ t: ActType, _ v: Bool) {
+        if act.type == t { act.autoPause = v } else { UserDefaults.standard.set(v, forKey: "autoPause2_" + t.rawValue) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Toggle("Yürüyüş", isOn: $apW).onChange(of: apW) { _, v in save(.yuruyus, v) }
+                    Toggle("Koşu", isOn: $apR).onChange(of: apR) { _, v in save(.kosu, v) }
+                    Toggle("Bisiklet", isOn: $apB).onChange(of: apB) { _, v in save(.bisiklet, v) }
+                } header: { head("Otomatik duraklat") } footer: { foot("Yaklaşık 10 saniye yerinde durursan kayıt kendiliğinden bekler, yürümeye başlayınca devam eder. Yürüyüşte varsayılan kapalıdır.") }
+                .listRowBackground(Theme.card)
+
+                Section {
+                    Toggle("Sesli bildirim", isOn: $act.voice)
+                    if act.voice {
+                        Picker("Sıklık", selection: $act.voiceEvery) {
+                            Text("Her 1 km").tag(1); Text("Her 2 km").tag(2); Text("Her 5 km").tag(5)
+                        }.pickerStyle(.menu)
+                    }
+                    Toggle("Ekran açık kalsın", isOn: $keepAwake)
+                } header: { head("Kayıt sırasında") } footer: { foot("Ekran açık kalırsa pil daha hızlı biter. Kapalıyken de kayıt sürer.") }
+                .listRowBackground(Theme.card)
+
+                if HealthManager.available {
+                    Section {
+                        if health.connected {
+                            Toggle("Adım kartını göster", isOn: $showSteps)
+                            Toggle("Aktiviteyi Sağlık'a kaydet", isOn: $health.write)
+                            Button("Bağlantıyı kes", role: .destructive) { health.disconnect() }
+                        } else {
+                            Button { health.connect() } label: { Label("Apple Sağlık'a bağlan", systemImage: "heart.fill").foregroundStyle(Theme.acc) }
+                        }
+                    } header: { head("Apple Sağlık") } footer: { foot("Adımlar yalnızca bu cihazda gösterilir. İstersen fotoğrafa ekleyeceğin değerler arasından \"Adım\"ı seçebilirsin. Erişimi iPhone Ayarlar > Sağlık > Veri Erişimi bölümünden de değiştirebilirsin.") }
+                    .listRowBackground(Theme.card)
+                }
+
+                Section {
+                    Button { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) } } label: { Label("Konum izni ayarları", systemImage: "location") }
+                } header: { head("İzinler") } footer: { foot("Kayıt ekran kilitliyken de sürsün diye konum izni \"Her zaman\" olmalı.") }
+                .listRowBackground(Theme.card)
+            }
+            .foregroundStyle(Theme.text)
+            .tint(Theme.acc)
+            .scrollContentBackground(.hidden)
+            .background(Theme.bg.ignoresSafeArea())
+            .navigationTitle("Aktivite ayarları").navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Bitti") { dismiss() }.foregroundStyle(Theme.text) } }
+        }
+        .presentationDragIndicator(.visible)
+    }
+    private func head(_ t: String) -> some View { Text(t).foregroundStyle(Theme.text2) }
+    private func foot(_ t: String) -> some View { Text(t).foregroundStyle(Theme.text3) }
 }

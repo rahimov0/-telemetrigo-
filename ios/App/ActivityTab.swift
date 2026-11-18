@@ -136,11 +136,6 @@ struct ActivityTab: View {
                                 Text("Yürüyüş, koşu, bisiklet ya da motor sürüşünü başlat; rota ve değerler burada birikir.").font(.subheadline).multilineTextAlignment(.center).foregroundStyle(Theme.text2)
                             }.frame(maxWidth: .infinity).padding(.vertical, 10)
                         }
-                    } else {
-                        Text("Tüm aktiviteler").font(.title2.weight(.bold)).foregroundStyle(Theme.text).padding(.top, 6)
-                        ForEach(act.activities) { a in
-                            NavigationLink(value: a) { ActivityCard(act: act, a: a) }.buttonStyle(.plain)
-                        }
                     }
                 }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 130)
             }

@@ -2,7 +2,7 @@
    Esinlenme: shadcn/21st.dev kart dili + İsviçre minimalizmi. Gölge ve gradyan yok, 1px çizgiler. */
 :root {
   color-scheme: dark light;
-  --bg: #09090B; --panel: #111113; --raised: #18181B; --hover: #202024; --press: #26262B;
+  --bg: #000000; --panel: #1C1C1E; --raised: #2C2C2E; --hover: #3A3A3C; --press: #48484A;
   --line: #232327; --line-2: #2F2F35;
   --text: #FAFAFA; --text-2: #B4B4BC; --text-3: #92929B;
   --inv: #FAFAFA; --on-inv: #09090B;          /* birincil düğme: açık zemin, koyu yazı */
@@ -167,3 +167,8 @@ footer.foot { color: var(--text-3); font-size: 12px; text-align: center; margin-
 
 .btn.acc { background: var(--acc); color: var(--on-acc); border-color: transparent; }
 .btn.acc:hover { background: color-mix(in srgb, var(--acc) 90%, #fff); }
+
+/* Uygulama hissi: yakınlaştırma, seçim ve dokunma gecikmesi kapalı */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+.inapp, .inapp * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.inapp input, .inapp textarea { -webkit-user-select: text; user-select: text; }

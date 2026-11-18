@@ -31,8 +31,12 @@ struct RouteThumb: View {
     @State private var pts: [CLLocationCoordinate2D] = []
     var body: some View {
         ZStack {
-            Theme.card2
-            RouteShape(pts: pts).stroke(Theme.acc, style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)).padding(22)
+            LinearGradient(colors: [a.type.color.opacity(0.28), a.type.color.opacity(0.06)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            RouteShape(pts: pts)
+                .stroke(LinearGradient(colors: [Theme.cPace, Theme.cTime, Theme.cKcal], startPoint: .bottomLeading, endPoint: .topTrailing),
+                        style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+                .shadow(color: a.type.color.opacity(0.6), radius: 8)
+                .padding(24)
         }
         .task(id: a.id) {
             var raw = a.preview ?? []
@@ -45,13 +49,14 @@ struct RouteThumb: View {
 struct StatCell: View {
     let label: String, value: String
     var unit: String = ""
+    var tint: Color = Theme.text
     var big = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.caption).foregroundStyle(Theme.text2)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption.weight(.semibold)).foregroundStyle(Theme.text2)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value).font(.system(size: big ? 34 : 24, weight: .bold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6).foregroundStyle(Theme.text)
-                if !unit.isEmpty { Text(unit).font(.footnote.weight(.medium)).foregroundStyle(Theme.text2) }
+                Text(value).font(.system(size: big ? 34 : 24, weight: .bold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6).foregroundStyle(tint)
+                if !unit.isEmpty { Text(unit).font(.footnote.weight(.semibold)).foregroundStyle(tint.opacity(0.75)) }
             }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -61,24 +66,32 @@ struct Panel<C: View>: View {
     @ViewBuilder var content: () -> C
     var body: some View {
         content().padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line))
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 
 struct AccButton: ButtonStyle {
     var height: CGFloat = 52
+    var color: Color = Theme.acc
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.font(.headline).foregroundStyle(Theme.onAcc).frame(maxWidth: .infinity, minHeight: height)
-            .background(Theme.acc.opacity(configuration.isPressed ? 0.8 : 1), in: RoundedRectangle(cornerRadius: 14))
+            .background(color.opacity(configuration.isPressed ? 0.8 : 1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 struct GhostButton: ButtonStyle {
     var height: CGFloat = 52
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.font(.headline).foregroundStyle(Theme.text).frame(maxWidth: .infinity, minHeight: height)
-            .background(Theme.card2.opacity(configuration.isPressed ? 0.7 : 1), in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.line))
+            .background(Theme.card2.opacity(configuration.isPressed ? 0.7 : 1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+struct TypeIcon: View {
+    let t: ActType
+    var size: CGFloat = 38
+    var body: some View {
+        Image(systemName: t.icon).font(.system(size: size * 0.45, weight: .bold)).foregroundStyle(t.color)
+            .frame(width: size, height: size).background(t.color.opacity(0.18), in: Circle())
     }
 }
 
@@ -92,30 +105,34 @@ struct ActivityTab: View {
     @State private var showRecord = false
     @State private var showSettings = false
     @AppStorage("showSteps") private var showSteps = true
+    @AppStorage("goalKcal") private var goalKcal = 300.0
+    @AppStorage("goalMin") private var goalMin = 30.0
+    @AppStorage("goalSteps") private var goalSteps = 8000.0
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    todayCard
                     weekCard
                     if HealthManager.available && showSteps { stepsCard }
                     if act.activities.isEmpty {
                         Panel {
                             VStack(spacing: 8) {
-                                Image(systemName: "figure.run").font(.system(size: 30)).foregroundStyle(Theme.acc)
+                                Image(systemName: "figure.run").font(.system(size: 32, weight: .bold)).foregroundStyle(Theme.acc)
                                 Text("İlk aktiviteni kaydet").font(.headline).foregroundStyle(Theme.text)
                                 Text("Yürüyüş, koşu, bisiklet ya da motor sürüşünü başlat; rota ve değerler burada birikir.").font(.subheadline).multilineTextAlignment(.center).foregroundStyle(Theme.text2)
                             }.frame(maxWidth: .infinity).padding(.vertical, 10)
                         }
                     } else {
-                        Text("Aktiviteler").font(.title3.weight(.bold)).foregroundStyle(Theme.text).padding(.top, 4)
+                        Text("Aktiviteler").font(.title2.weight(.bold)).foregroundStyle(Theme.text).padding(.top, 6)
                         ForEach(act.activities) { a in
                             NavigationLink(value: a) { ActivityCard(act: act, a: a) }.buttonStyle(.plain)
                         }
                     }
-                }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 20)
+                }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 24)
             }
-            .background(Theme.bg.ignoresSafeArea())
+            .background(Glow())
             .navigationTitle("Aktivite")
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
@@ -129,8 +146,8 @@ struct ActivityTab: View {
                     HStack(spacing: 8) {
                         Image(systemName: act.state == .idle ? "record.circle" : "waveform.path.ecg")
                         Text(act.state == .idle ? "Kayda başla" : "Kayda dön · \(Fmt.dur(act.moving))").monospacedDigit()
-                    }.font(.headline).foregroundStyle(Theme.onAcc).padding(.horizontal, 26).frame(height: 54)
-                        .background(Theme.acc, in: Capsule())
+                    }.font(.headline).foregroundStyle(Theme.onAcc).padding(.horizontal, 28).frame(height: 56)
+                        .background(Theme.acc, in: Capsule()).shadow(color: Theme.acc.opacity(0.45), radius: 16, y: 4)
                 }.padding(.bottom, 10)
             }
         }
@@ -144,6 +161,42 @@ struct ActivityTab: View {
         .onAppear { health.refresh(); if act.state != .idle { showRecord = true } }
     }
 
+    // Bugün: kalori, süre, adım hedefleri
+    private var todayCard: some View {
+        let list = act.activities.filter { Calendar.current.isDateInToday($0.start) }
+        let kcal = list.reduce(0.0) { $0 + (Cal.active($1) ?? 0) }
+        let mins = list.reduce(0.0) { $0 + $1.moving } / 60
+        let steps = Double(health.stepsToday)
+        return Panel {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("Bugün").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Spacer()
+                    Text(Date().formatted(.dateTime.weekday(.wide).day().month(.abbreviated))).font(.subheadline).foregroundStyle(Theme.text2)
+                }
+                HStack(alignment: .top, spacing: 0) {
+                    goal(kcal, goalKcal, Theme.cKcal, "flame.fill", Cal.ready ? Fmt.num(kcal) : "—", "kcal")
+                    goal(mins, goalMin, Theme.cElev, "timer", Fmt.num(mins), "dakika")
+                    goal(steps, goalSteps, Theme.cSteps, "figure.walk", health.connected ? Int(steps).formatted() : "—", "adım")
+                }
+                if !Cal.ready {
+                    Button { showSettings = true } label: {
+                        Label("Kalori için boy ve kilonu gir", systemImage: "person.crop.circle.badge.plus").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.acc)
+                    }
+                }
+            }
+        }
+    }
+    private func goal(_ v: Double, _ g: Double, _ c: Color, _ icon: String, _ text: String, _ unit: String) -> some View {
+        VStack(spacing: 8) {
+            GoalRing(value: v, goal: g, color: c, icon: icon)
+            VStack(spacing: 0) {
+                Text(text).font(.system(size: 20, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(c)
+                Text(unit).font(.caption).foregroundStyle(Theme.text2)
+            }
+        }.frame(maxWidth: .infinity)
+    }
+
     // Haftalık özet + günlük çubuklar
     private var weekCard: some View {
         let cal = Calendar(identifier: .iso8601)
@@ -155,19 +208,19 @@ struct ActivityTab: View {
         }
         return Panel {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Bu hafta").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text2)
+                Text("Bu hafta").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                 HStack(alignment: .top) {
-                    StatCell(label: "Mesafe", value: Fmt.km(w.reduce(0) { $0 + $1.distance }), unit: "km", big: true)
-                    StatCell(label: "Süre", value: Fmt.dur(w.reduce(0) { $0 + $1.moving }), big: true)
+                    StatCell(label: "Mesafe", value: Fmt.km(w.reduce(0) { $0 + $1.distance }), unit: "km", tint: Theme.cDist, big: true)
+                    StatCell(label: "Süre", value: Fmt.dur(w.reduce(0) { $0 + $1.moving }), tint: Theme.cTime, big: true)
                     StatCell(label: "Aktivite", value: "\(w.count)", big: true)
                 }
                 Chart(days.indices, id: \.self) { i in
                     BarMark(x: .value("Gün", days[i].0), y: .value("km", max(days[i].1, 0.05)), width: .ratio(0.55))
-                        .foregroundStyle(days[i].1 > 0 ? Theme.acc : Color.white.opacity(0.12)).cornerRadius(4)
+                        .foregroundStyle(days[i].1 > 0 ? Theme.cDist : Color.white.opacity(0.10)).cornerRadius(5)
                 }
                 .chartYAxis(.hidden)
                 .chartXAxis { AxisMarks { _ in AxisValueLabel().foregroundStyle(Theme.text2) } }
-                .frame(height: 70)
+                .frame(height: 72)
             }
         }
     }
@@ -177,25 +230,25 @@ struct ActivityTab: View {
         Panel {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Label("Adımlar", systemImage: "figure.walk").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text2)
+                    Label("Adımlar", systemImage: "figure.walk").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                     Spacer()
-                    Text("Apple Sağlık").font(.caption).foregroundStyle(Theme.text3)
+                    Label("Apple Sağlık", systemImage: "heart.fill").font(.caption.weight(.semibold)).foregroundStyle(Theme.cKcal)
                 }
                 if health.connected {
                     HStack(alignment: .top) {
-                        StatCell(label: "Bugün", value: health.stepsToday.formatted(), unit: "adım", big: true)
-                        StatCell(label: "Yürünen", value: Fmt.km(health.distToday), unit: "km", big: true)
+                        StatCell(label: "Bugün", value: health.stepsToday.formatted(), unit: "adım", tint: Theme.cSteps, big: true)
+                        StatCell(label: "Yürünen", value: Fmt.km(health.distToday), unit: "km", tint: Theme.cDist, big: true)
                     }
                     Chart(health.week, id: \.day) { d in
                         BarMark(x: .value("Gün", d.day, unit: .day), y: .value("Adım", d.steps), width: .ratio(0.55))
-                            .foregroundStyle(Calendar.current.isDateInToday(d.day) ? Theme.acc : Color.white.opacity(0.25)).cornerRadius(4)
+                            .foregroundStyle(Calendar.current.isDateInToday(d.day) ? Theme.cSteps : Theme.cSteps.opacity(0.35)).cornerRadius(5)
                     }
                     .chartYAxis(.hidden)
                     .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.abbreviated)).foregroundStyle(Theme.text2) } }
-                    .frame(height: 70)
+                    .frame(height: 72)
                 } else {
                     Text("Günlük adımların ve yürüyüşlerin burada görünsün. Bitirdiğin aktiviteler de Sağlık uygulamasına antrenman olarak yazılır.").font(.subheadline).foregroundStyle(Theme.text2)
-                    Button { health.connect() } label: { Label("Apple Sağlık'a bağlan", systemImage: "heart.fill") }.buttonStyle(GhostButton(height: 46))
+                    Button { health.connect() } label: { Label("Apple Sağlık'a bağlan", systemImage: "heart.fill") }.buttonStyle(AccButton(height: 46, color: Theme.cKcal))
                     if let e = health.lastError { Text(e).font(.caption).foregroundStyle(Theme.err) }
                 }
             }
@@ -210,25 +263,24 @@ struct ActivityCard: View {
         let avg = a.distance / max(1, a.moving)
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: a.type.icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.text)
-                    .frame(width: 34, height: 34).background(Theme.card2, in: Circle())
+                TypeIcon(t: a.type)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(a.type.title(a.start)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
                     Text(a.start.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(Theme.text2)
                 }
                 Spacer()
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Theme.text3)
+                Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.text3)
             }.padding(14)
             HStack(alignment: .top, spacing: 8) {
-                StatCell(label: "Mesafe", value: Fmt.km(a.distance), unit: "km")
-                StatCell(label: a.type.pace ? "Tempo" : "Hız", value: a.type.pace ? Fmt.pace(avg) : Fmt.num(avg * 3.6, 1), unit: a.type.pace ? "/km" : "km/h")
-                StatCell(label: "Süre", value: Fmt.dur(a.moving))
+                StatCell(label: "Mesafe", value: Fmt.km(a.distance), unit: "km", tint: Theme.cDist)
+                StatCell(label: "Süre", value: Fmt.dur(a.moving), tint: Theme.cTime)
+                if a.type.pace { StatCell(label: "Tempo", value: Fmt.pace(avg), unit: "/km", tint: Theme.cPace) }
+                else { StatCell(label: "Hız", value: Fmt.num(avg * 3.6, 1), unit: "km/h", tint: Theme.cPace) }
             }.padding(.horizontal, 14).padding(.bottom, 12)
             RouteThumb(act: act, a: a).frame(height: 150)
         }
-        .background(Theme.card).clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line))
-        .contentShape(RoundedRectangle(cornerRadius: 16))
+        .background(Theme.card).clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 
@@ -247,7 +299,8 @@ struct RecordScreen: View {
             Map(position: $cam) {
                 UserAnnotation()
                 if act.route.count > 1 {
-                    MapPolyline(coordinates: act.route).stroke(Theme.acc, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                    MapPolyline(coordinates: act.route).stroke(.black.opacity(0.5), style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
+                    MapPolyline(coordinates: act.route).stroke(act.type.color, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
                 }
             }
             .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
@@ -260,7 +313,7 @@ struct RecordScreen: View {
                         Button { done(nil) } label: {
                             Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.text)
                                 .frame(width: 40, height: 40).background(Theme.bg.opacity(0.85), in: Circle())
-                        }
+                        }.buttonStyle(.plain)
                         Spacer()
                         signal
                     }.padding(.horizontal, 16).padding(.top, 8)
@@ -287,7 +340,7 @@ struct RecordScreen: View {
     }
 
     private func badge(_ t: String, _ c: Color) -> some View {
-        Text(t).font(.footnote.weight(.semibold)).foregroundStyle(c).padding(.horizontal, 12).padding(.vertical, 6)
+        Text(t).font(.footnote.weight(.bold)).foregroundStyle(c).padding(.horizontal, 14).padding(.vertical, 7)
             .background(Theme.bg.opacity(0.9), in: Capsule()).padding(.top, 10)
     }
 
@@ -304,36 +357,37 @@ struct RecordScreen: View {
         }
         .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 16)
         .frame(maxWidth: .infinity)
-        .background(Theme.bg.opacity(0.96).clipShape(UnevenRoundedRectangle(topLeadingRadius: 26, topTrailingRadius: 26)).ignoresSafeArea(edges: .bottom))
+        .background(Theme.bg.opacity(0.96).clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)).ignoresSafeArea(edges: .bottom))
     }
 
     private var idlePanel: some View {
         VStack(spacing: 16) {
             HStack(spacing: 8) {
-                ForEach(ActType.sport) { t in
+                ForEach(ActType.allCases) { t in
                     Button { act.type = t } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: t.icon).font(.system(size: 20, weight: .semibold))
+                        VStack(spacing: 5) {
+                            Image(systemName: t.icon).font(.system(size: 20, weight: .bold))
                             Text(t.name).font(.caption.weight(.semibold))
                         }
-                        .foregroundStyle(act.type == t ? Theme.onAcc : Theme.text)
-                        .frame(maxWidth: .infinity, minHeight: 58)
-                        .background(act.type == t ? Theme.acc : Theme.card2, in: RoundedRectangle(cornerRadius: 12))
+                        .foregroundStyle(act.type == t ? Theme.onAcc : t.color)
+                        .frame(maxWidth: .infinity, minHeight: 62)
+                        .background(act.type == t ? t.color : t.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }.buttonStyle(.plain)
                 }
             }
             Button { act.start() } label: {
                 Text("BAŞLA").font(.system(size: 20, weight: .heavy, design: .rounded)).foregroundStyle(Theme.onAcc)
-                    .frame(width: 104, height: 104).background(Theme.acc, in: Circle())
-                    .overlay(Circle().stroke(Theme.acc.opacity(0.35), lineWidth: 8))
-            }.buttonStyle(.plain).padding(.vertical, 4)
+                    .frame(width: 108, height: 108).background(act.type.color, in: Circle())
+                    .overlay(Circle().stroke(act.type.color.opacity(0.35), lineWidth: 9))
+                    .shadow(color: act.type.color.opacity(0.5), radius: 22)
+            }.buttonStyle(.plain).padding(.vertical, 6)
             VStack(spacing: 0) {
                 Toggle("Otomatik duraklat", isOn: $act.autoPause).padding(.vertical, 8)
                 Divider().overlay(Theme.line)
                 Toggle("Her kilometrede sesli bildirim", isOn: $act.voice).padding(.vertical, 8)
             }
-            .tint(Theme.acc).foregroundStyle(Theme.text).font(.subheadline)
-            .padding(.horizontal, 14).background(Theme.card, in: RoundedRectangle(cornerRadius: 12))
+            .tint(act.type.color).foregroundStyle(Theme.text).font(.subheadline)
+            .padding(.horizontal, 14).background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 
@@ -341,22 +395,24 @@ struct RecordScreen: View {
         let a = act.current
         let avg = (a?.distance ?? 0) / max(1, act.moving)
         let pace = act.type.pace
+        let kcal = a.flatMap { Cal.active(act.type, dist: $0.distance, moving: act.moving) }
         return VStack(spacing: 14) {
             VStack(spacing: 0) {
-                Text(Fmt.dur(act.moving)).font(.system(size: 64, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(Theme.text)
-                Text("Süre").font(.footnote).foregroundStyle(Theme.text2)
+                Text(Fmt.dur(act.moving)).font(.system(size: 68, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(Theme.cTime)
+                Text("Süre").font(.footnote.weight(.semibold)).foregroundStyle(Theme.text2)
             }
             HStack(alignment: .top, spacing: 0) {
-                big(Fmt.km(a?.distance ?? 0), "Mesafe (km)")
-                big(pace ? Fmt.pace(act.speed ?? 0) : (act.speed.map { Fmt.num($0 * 3.6, 1) } ?? "—"), pace ? "Anlık tempo" : "Hız (km/h)")
-                big(pace ? Fmt.pace(avg) : Fmt.num(avg * 3.6, 1), pace ? "Ort. tempo" : "Ort. hız")
+                big(Fmt.km(a?.distance ?? 0), "Mesafe (km)", Theme.cDist)
+                big(pace ? Fmt.pace(act.speed ?? 0) : (act.speed.map { Fmt.num($0 * 3.6, 1) } ?? "—"), pace ? "Anlık tempo" : "Hız (km/h)", Theme.cPace)
+                if let k = kcal { big(Fmt.num(k), "Kalori", Theme.cKcal) }
+                else { big(pace ? Fmt.pace(avg) : Fmt.num(avg * 3.6, 1), pace ? "Ort. tempo" : "Ort. hız", Theme.text) }
             }
             HStack(spacing: 28) {
                 if act.state == .running {
-                    Button { act.pause() } label: { circle("pause.fill", fg: Theme.onAcc, bg: Theme.acc, size: 84) }
+                    Button { act.pause() } label: { circle("pause.fill", fg: Theme.onAcc, bg: act.type.color, size: 88) }.buttonStyle(.plain)
                 } else {
-                    Button { confirmEnd = true } label: { circle("stop.fill", fg: Theme.text, bg: Theme.card2, size: 72, ring: true) }
-                    Button { act.resume() } label: { circle("play.fill", fg: Theme.onAcc, bg: Theme.acc, size: 84) }
+                    Button { confirmEnd = true } label: { circle("stop.fill", fg: Theme.text, bg: Theme.card2, size: 72) }.buttonStyle(.plain)
+                    Button { act.resume() } label: { circle("play.fill", fg: Theme.onAcc, bg: act.type.color, size: 88) }.buttonStyle(.plain)
                 }
             }.padding(.top, 4)
             if act.state == .running {
@@ -365,15 +421,15 @@ struct RecordScreen: View {
         }
     }
 
-    private func big(_ v: String, _ k: String) -> some View {
+    private func big(_ v: String, _ k: String, _ c: Color) -> some View {
         VStack(spacing: 2) {
-            Text(v).font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6).foregroundStyle(Theme.text)
+            Text(v).font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6).foregroundStyle(c)
             Text(k).font(.caption).foregroundStyle(Theme.text2)
         }.frame(maxWidth: .infinity)
     }
-    private func circle(_ icon: String, fg: Color, bg: Color, size: CGFloat, ring: Bool = false) -> some View {
+    private func circle(_ icon: String, fg: Color, bg: Color, size: CGFloat) -> some View {
         Image(systemName: icon).font(.system(size: size * 0.34, weight: .bold)).foregroundStyle(fg)
-            .frame(width: size, height: size).background(bg, in: Circle()).overlay(Circle().stroke(Theme.line, lineWidth: ring ? 1 : 0))
+            .frame(width: size, height: size).background(bg, in: Circle()).shadow(color: bg.opacity(0.4), radius: 14)
     }
 }
 
@@ -386,102 +442,49 @@ struct ActivityDetail: View {
     @ObservedObject var health: HealthManager
     let a: Activity
     @State private var coords: [CLLocationCoordinate2D] = []
+    @State private var segs: [RouteSeg] = []
     @State private var splits: [Split] = []
     @State private var elev: [(Double, Double)] = []
     @State private var steps: Int?
     @State private var cam: MapCameraPosition = .automatic
     @State private var photo = false
+    @State private var showSettings = false
     @State private var confirmDel = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if coords.count > 1 {
-                    Map(position: $cam, interactionModes: [.pan, .zoom]) {
-                        MapPolyline(coordinates: coords).stroke(.black.opacity(0.55), style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
-                        MapPolyline(coordinates: coords).stroke(Theme.acc, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
-                        Annotation("", coordinate: coords[0]) { Circle().fill(Theme.ok).frame(width: 14, height: 14).overlay(Circle().stroke(.white, lineWidth: 2)) }
-                        Annotation("", coordinate: coords[coords.count - 1]) { Circle().fill(Theme.err).frame(width: 14, height: 14).overlay(Circle().stroke(.white, lineWidth: 2)) }
-                    }
-                    .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
-                    .environment(\.colorScheme, .dark)
-                    .frame(height: 320)
-                } else {
-                    Theme.card2.frame(height: 200).overlay(ProgressView())
-                }
+                mapHero
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(spacing: 12) {
-                        Image(systemName: a.type.icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(Theme.text)
-                            .frame(width: 44, height: 44).background(Theme.card2, in: Circle())
+                        TypeIcon(t: a.type, size: 46)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(a.type.title(a.start)).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                             Text(a.start.formatted(date: .long, time: .shortened)).font(.subheadline).foregroundStyle(Theme.text2)
                         }
                     }
-                    let avg = a.distance / max(1, a.moving)
-                    Panel {
-                        VStack(spacing: 18) {
-                            HStack(alignment: .top, spacing: 8) {
-                                StatCell(label: "Mesafe", value: Fmt.km(a.distance), unit: "km", big: true)
-                                StatCell(label: "Süre", value: Fmt.dur(a.moving), big: true)
-                                StatCell(label: a.type.pace ? "Tempo" : "Ort. hız", value: a.type.pace ? Fmt.pace(avg) : Fmt.num(avg * 3.6, 1), unit: a.type.pace ? "/km" : "km/h", big: true)
-                            }
-                            Divider().overlay(Theme.line)
-                            HStack(alignment: .top, spacing: 8) {
-                                StatCell(label: "Yükseliş", value: Fmt.num(a.gain), unit: "m")
-                                StatCell(label: a.type.pace ? "En iyi tempo" : "Maks hız", value: a.type.pace ? Fmt.pace(a.maxSpeed) : Fmt.num(a.maxSpeed * 3.6), unit: a.type.pace ? "/km" : "km/h")
-                                if let s = steps, s > 0 { StatCell(label: "Adım", value: s.formatted()) }
-                                else { StatCell(label: "Geçen süre", value: Fmt.dur((a.end ?? a.start).timeIntervalSince(a.start))) }
-                            }
-                        }
-                    }
+                    statsPanel
                     VStack(spacing: 10) {
-                        Button { photo = true } label: { Label("Fotoğrafa ekle", systemImage: "photo") }.buttonStyle(AccButton(height: 50))
-                        Button { model.pendingGpx = (a.gpxName, act.gpxText(a)); model.tab = 1 } label: { Label("Videoya ekle", systemImage: "film") }.buttonStyle(GhostButton(height: 50))
+                        Button { photo = true } label: { Label("Fotoğrafa ekle", systemImage: "photo") }.buttonStyle(AccButton(height: 52))
+                        Button { model.pendingGpx = (a.gpxName, act.gpxText(a)); model.tab = 1 } label: { Label("Videoya ekle", systemImage: "film") }.buttonStyle(GhostButton(height: 52))
                     }
                     if elev.count > 2 {
                         Panel {
                             VStack(alignment: .leading, spacing: 10) {
-                                Text("Yükseklik").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                                Label("Yükseklik", systemImage: "mountain.2.fill").font(.subheadline.weight(.bold)).foregroundStyle(Theme.cElev)
                                 Chart(elev.indices, id: \.self) { i in
-                                    AreaMark(x: .value("km", elev[i].0), y: .value("m", elev[i].1)).foregroundStyle(Theme.acc.opacity(0.18))
-                                    LineMark(x: .value("km", elev[i].0), y: .value("m", elev[i].1)).foregroundStyle(Theme.acc)
+                                    AreaMark(x: .value("km", elev[i].0), y: .value("m", elev[i].1)).foregroundStyle(LinearGradient(colors: [Theme.cElev.opacity(0.35), Theme.cElev.opacity(0.02)], startPoint: .top, endPoint: .bottom))
+                                    LineMark(x: .value("km", elev[i].0), y: .value("m", elev[i].1)).foregroundStyle(Theme.cElev)
                                 }.chartYScale(domain: .automatic(includesZero: false)).frame(height: 140)
                             }
                         }
                     }
-                    if !splits.isEmpty {
-                        Panel {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Kilometre bölümleri").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text).padding(.bottom, 6)
-                                let rates = splits.map { $0.time / max($0.len, 1) }
-                                let best = rates.min() ?? 1, worst = rates.max() ?? 1
-                                HStack {
-                                    Text("Km").frame(width: 40, alignment: .leading)
-                                    Text(a.type.pace ? "Tempo" : "Hız").frame(width: 84, alignment: .leading)
-                                    Text("Yükseklik").frame(width: 70, alignment: .leading)
-                                    Spacer()
-                                }.font(.caption).foregroundStyle(Theme.text3)
-                                ForEach(splits) { s in
-                                    let r = s.time / max(s.len, 1)
-                                    HStack {
-                                        Text(s.len < 999 ? Fmt.num(s.len / 1000, 2) : "\(s.id)").frame(width: 40, alignment: .leading)
-                                        Text(a.type.pace ? Fmt.pace(s.len / max(1, s.time)) : Fmt.num(s.len / max(1, s.time) * 3.6, 1)).frame(width: 84, alignment: .leading)
-                                        Text(s.ele.map { ($0 >= 0 ? "+" : "") + Fmt.num($0) + " m" } ?? "—").foregroundStyle(Theme.text2).frame(width: 70, alignment: .leading)
-                                        GeometryReader { g in
-                                            let frac = worst > best ? 1 - 0.55 * (r - best) / (worst - best) : 1
-                                            Capsule().fill(Theme.acc.opacity(r == best ? 1 : 0.5)).frame(width: max(8, g.size.width * frac), height: 7).frame(maxHeight: .infinity, alignment: .center)
-                                        }
-                                    }.font(.subheadline).monospacedDigit().foregroundStyle(Theme.text).frame(height: 34)
-                                }
-                            }
-                        }
-                    }
+                    if !splits.isEmpty { splitsPanel }
                 }.padding(.horizontal, 16)
             }.padding(.bottom, 24)
         }
-        .background(Theme.bg.ignoresSafeArea())
+        .background(Glow(color: a.type.color))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
@@ -493,9 +496,91 @@ struct ActivityDetail: View {
             }
         }
         .task { compute() }
-        .sheet(isPresented: $photo) { PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue, steps: steps).environmentObject(model) }
+        .sheet(isPresented: $photo) { PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue, steps: steps, kcal: Cal.active(a)).environmentObject(model) }
+        .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
         .confirmationDialog("Aktivite silinsin mi? Bu işlem geri alınamaz.", isPresented: $confirmDel, titleVisibility: .visible) {
             Button("Sil", role: .destructive) { act.delete(a); dismiss() }
+        }
+    }
+
+    private var mapHero: some View {
+        Group {
+            if coords.count > 1 {
+                Map(position: $cam, interactionModes: [.pan, .zoom]) {
+                    MapPolyline(coordinates: coords).stroke(.black.opacity(0.55), style: StrokeStyle(lineWidth: 10, lineCap: .round, lineJoin: .round))
+                    ForEach(segs) { s in
+                        MapPolyline(coordinates: s.coords).stroke(s.color, style: StrokeStyle(lineWidth: 5.5, lineCap: .round, lineJoin: .round))
+                    }
+                    Annotation("", coordinate: coords[0]) { Circle().fill(Theme.ok).frame(width: 15, height: 15).overlay(Circle().stroke(.white, lineWidth: 2.5)) }
+                    Annotation("", coordinate: coords[coords.count - 1]) { Circle().fill(Theme.err).frame(width: 15, height: 15).overlay(Circle().stroke(.white, lineWidth: 2.5)) }
+                }
+                .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
+                .environment(\.colorScheme, .dark)
+                .frame(height: 330)
+                .overlay(alignment: .bottomLeading) {
+                    HStack(spacing: 8) {
+                        Text("Yavaş").font(.caption2.weight(.bold)).foregroundStyle(Theme.text)
+                        Capsule().fill(LinearGradient(colors: [speedColor(0), speedColor(0.5), speedColor(1)], startPoint: .leading, endPoint: .trailing)).frame(width: 64, height: 6)
+                        Text("Hızlı").font(.caption2.weight(.bold)).foregroundStyle(Theme.text)
+                    }.padding(.horizontal, 12).padding(.vertical, 7).background(.black.opacity(0.6), in: Capsule()).padding(12)
+                }
+            } else {
+                Theme.card.frame(height: 220).overlay(ProgressView())
+            }
+        }
+    }
+
+    private var statsPanel: some View {
+        let avg = a.distance / max(1, a.moving)
+        let kcal = Cal.active(a)
+        return Panel {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(Fmt.km(a.distance)).font(.system(size: 56, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Theme.cDist)
+                    Text("km").font(.title3.weight(.bold)).foregroundStyle(Theme.cDist.opacity(0.75))
+                }
+                Divider().overlay(Theme.line)
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], alignment: .leading, spacing: 18) {
+                    StatCell(label: "Süre", value: Fmt.dur(a.moving), tint: Theme.cTime, big: true)
+                    if let k = kcal { StatCell(label: "Aktif kalori", value: Fmt.num(k), unit: "kcal", tint: Theme.cKcal, big: true) }
+                    else { Button { showSettings = true } label: { StatCell(label: "Aktif kalori", value: "—", unit: "kilonu gir", tint: Theme.cKcal, big: true) }.buttonStyle(.plain) }
+                    if a.type.pace { StatCell(label: "Ort. tempo", value: Fmt.pace(avg), unit: "/km", tint: Theme.cPace, big: true) }
+                    else { StatCell(label: "Ort. hız", value: Fmt.num(avg * 3.6, 1), unit: "km/h", tint: Theme.cPace, big: true) }
+                    StatCell(label: "Yükseliş", value: Fmt.num(a.gain), unit: "m", tint: Theme.cElev, big: true)
+                    if a.type.pace { StatCell(label: "En iyi tempo", value: Fmt.pace(a.maxSpeed), unit: "/km", tint: Theme.cMax, big: true) }
+                    else { StatCell(label: "Maks hız", value: Fmt.num(a.maxSpeed * 3.6), unit: "km/h", tint: Theme.cMax, big: true) }
+                    if let s = steps, s > 0 { StatCell(label: "Adım", value: s.formatted(), tint: Theme.cSteps, big: true) }
+                    else { StatCell(label: "Geçen süre", value: Fmt.dur((a.end ?? a.start).timeIntervalSince(a.start)), big: true) }
+                }
+            }
+        }
+    }
+
+    private var splitsPanel: some View {
+        Panel {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Kilometre bölümleri").font(.subheadline.weight(.bold)).foregroundStyle(Theme.text).padding(.bottom, 6)
+                let rates = splits.map { $0.time / max($0.len, 1) }
+                let best = rates.min() ?? 1, worst = rates.max() ?? 1
+                HStack {
+                    Text("Km").frame(width: 40, alignment: .leading)
+                    Text(a.type.pace ? "Tempo" : "Hız").frame(width: 84, alignment: .leading)
+                    Text("Yükseklik").frame(width: 70, alignment: .leading)
+                    Spacer()
+                }.font(.caption).foregroundStyle(Theme.text3)
+                ForEach(splits) { s in
+                    let r = s.time / max(s.len, 1)
+                    let t = worst > best ? 1 - (r - best) / (worst - best) : 1
+                    HStack {
+                        Text(s.len < 999 ? Fmt.num(s.len / 1000, 2) : "\(s.id)").frame(width: 40, alignment: .leading)
+                        Text(a.type.pace ? Fmt.pace(s.len / max(1, s.time)) : Fmt.num(s.len / max(1, s.time) * 3.6, 1)).foregroundStyle(Theme.cPace).frame(width: 84, alignment: .leading)
+                        Text(s.ele.map { ($0 >= 0 ? "+" : "") + Fmt.num($0) + " m" } ?? "—").foregroundStyle(Theme.text2).frame(width: 70, alignment: .leading)
+                        GeometryReader { g in
+                            Capsule().fill(speedColor(1 - t)).frame(width: max(8, g.size.width * (0.35 + 0.65 * t)), height: 8).frame(maxHeight: .infinity, alignment: .center)
+                        }
+                    }.font(.subheadline.weight(.semibold)).monospacedDigit().foregroundStyle(Theme.text).frame(height: 34)
+                }
+            }
         }
     }
 
@@ -503,6 +588,7 @@ struct ActivityDetail: View {
         let pts = act.readPoints(a.id).filter { $0.ha <= 30 }
         guard pts.count > 1 else { return }
         coords = pts.map { CLLocationCoordinate2D(latitude: $0.la, longitude: $0.lo) }
+        segs = routeSegments(pts)
         let lats = coords.map { $0.latitude }, lons = coords.map { $0.longitude }
         let c = CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2, longitude: (lons.min()! + lons.max()!) / 2)
         let span = MKCoordinateSpan(latitudeDelta: max((lats.max()! - lats.min()!) * 1.5, 0.004), longitudeDelta: max((lons.max()! - lons.min()!) * 1.5, 0.004))
@@ -533,6 +619,7 @@ struct PhotoEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     let gpx: String, name: String, type: String
     var steps: Int? = nil
+    var kcal: Double? = nil
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
@@ -543,7 +630,7 @@ struct PhotoEditorSheet: View {
                 }
             }.padding(.horizontal, 16).frame(height: 56).background(Theme.bg)
             Divider().overlay(Theme.line)
-            ActivityWeb(gpx: gpx, name: name, type: type, steps: steps) { g, n in
+            ActivityWeb(gpx: gpx, name: name, type: type, steps: steps, kcal: kcal) { g, n in
                 model.pendingGpx = (n, g); model.tab = 1; dismiss()
             }
         }
@@ -555,6 +642,7 @@ struct PhotoEditorSheet: View {
 struct ActivityWeb: UIViewRepresentable {
     let gpx: String, name: String, type: String
     var steps: Int? = nil
+    var kcal: Double? = nil
     let toVideo: (String, String) -> Void
     static let url = URL(string: "https://telemetrigo.rahimov.tr/aktivite.html?app=1")!
 
@@ -567,12 +655,15 @@ struct ActivityWeb: UIViewRepresentable {
         // Aktivite, sayfa açılmadan önce verilir: yükleme sırasına bağlı kalmaz (editör her seferinde açılır)
         var payload: [String: Any] = ["gpx": gpx, "name": name, "type": type, "view": "photo"]
         payload["steps"] = steps ?? NSNull()
+        payload["kcal"] = kcal.map { Int($0.rounded()) } ?? NSNull()
         if let d = try? JSONSerialization.data(withJSONObject: payload), let j = String(data: d, encoding: .utf8) {
             cfg.userContentController.addUserScript(WKUserScript(source: "window.__TG_PENDING = \(j);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         }
         let wv = WKWebView(frame: .zero, configuration: cfg)
         wv.navigationDelegate = context.coordinator
         wv.isOpaque = false; wv.backgroundColor = UIColor(Theme.bg); wv.scrollView.backgroundColor = UIColor(Theme.bg)
+        wv.scrollView.pinchGestureRecognizer?.isEnabled = false
+        wv.scrollView.bouncesZoom = false
         context.coordinator.web = wv
         wv.load(URLRequest(url: Self.url, cachePolicy: .reloadIgnoringLocalCacheData))
         return wv
@@ -613,6 +704,11 @@ struct ActivitySettings: View {
     @ObservedObject var health: HealthManager
     @AppStorage("showSteps") private var showSteps = true
     @AppStorage("keepAwake") private var keepAwake = false
+    @AppStorage("profKg") private var kg = 0.0
+    @AppStorage("profCm") private var cm = 0.0
+    @AppStorage("goalKcal") private var goalKcal = 300.0
+    @AppStorage("goalMin") private var goalMin = 30.0
+    @AppStorage("goalSteps") private var goalSteps = 8000.0
     @Environment(\.dismiss) private var dismiss
     @State private var apW = ActivityRecorder.autoPauseSetting(.yuruyus)
     @State private var apR = ActivityRecorder.autoPauseSetting(.kosu)
@@ -625,6 +721,22 @@ struct ActivitySettings: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    HStack { Text("Kilo"); Spacer(); TextField("0", value: $kg, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("kg").foregroundStyle(Theme.text2) }
+                    HStack { Text("Boy"); Spacer(); TextField("0", value: $cm, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("cm").foregroundStyle(Theme.text2) }
+                    if HealthManager.available && health.connected {
+                        Button { health.loadProfile { w, h in if let w { kg = w }; if let h { cm = h } } } label: { Label("Sağlık'tan al", systemImage: "heart.fill").foregroundStyle(Theme.cKcal) }
+                    }
+                } header: { head("Profil") } footer: { foot("Kalori hesabı için kullanılır; yalnızca bu cihazda tutulur. Aktif kalori = hareketle yakılan enerji (dinlenme enerjisi çıkarılmış), Apple Fitness'taki gibi.") }
+                .listRowBackground(Theme.card)
+
+                Section {
+                    HStack { Text("Kalori"); Spacer(); TextField("300", value: $goalKcal, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text("kcal").foregroundStyle(Theme.text2) }
+                    HStack { Text("Süre"); Spacer(); TextField("30", value: $goalMin, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text("dk").foregroundStyle(Theme.text2) }
+                    HStack { Text("Adım"); Spacer(); TextField("8000", value: $goalSteps, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text("adım").foregroundStyle(Theme.text2) }
+                } header: { head("Günlük hedefler") }
+                .listRowBackground(Theme.card)
+
                 Section {
                     Toggle("Yürüyüş", isOn: $apW).onChange(of: apW) { _, v in save(.yuruyus, v) }
                     Toggle("Koşu", isOn: $apR).onChange(of: apR) { _, v in save(.kosu, v) }

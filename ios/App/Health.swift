@@ -29,11 +29,29 @@ final class HealthManager: ObservableObject {
     private var stepType: HKQuantityType { HKQuantityType(.stepCount) }
     private var walkDist: HKQuantityType { HKQuantityType(.distanceWalkingRunning) }
     private var cycDist: HKQuantityType { HKQuantityType(.distanceCycling) }
+    private var energyType: HKQuantityType { HKQuantityType(.activeEnergyBurned) }
+    private var massType: HKQuantityType { HKQuantityType(.bodyMass) }
+    private var heightType: HKQuantityType { HKQuantityType(.height) }
+
+    /// Sağlık'taki en son kilo ve boy
+    func loadProfile(_ done: @escaping (Double?, Double?) -> Void) {
+        func latest(_ t: HKQuantityType, _ unit: HKUnit, _ cb: @escaping (Double?) -> Void) {
+            let q = HKSampleQuery(sampleType: t, predicate: nil, limit: 1, sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)]) { _, r, _ in
+                cb((r?.first as? HKQuantitySample)?.quantity.doubleValue(for: unit))
+            }
+            store.execute(q)
+        }
+        latest(massType, .gramUnit(with: .kilo)) { w in
+            latest(self.heightType, .meterUnit(with: .centi)) { h in
+                DispatchQueue.main.async { done(w.map { ($0 * 10).rounded() / 10 }, h.map { $0.rounded() }) }
+            }
+        }
+    }
 
     func connect() {
         guard Self.available else { lastError = "Bu cihazda Sağlık verisi yok."; return }
-        let read: Set<HKObjectType> = [stepType, walkDist]
-        let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist]
+        let read: Set<HKObjectType> = [stepType, walkDist, massType, heightType]
+        let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
         store.requestAuthorization(toShare: share, read: read) { [weak self] ok, err in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -93,6 +111,9 @@ final class HealthManager: ObservableObject {
         builder.beginCollection(withStart: a.start) { [weak self] ok, _ in
             guard let self, ok else { return }
             var samples: [HKSample] = []
+            if let kc = Cal.active(a), kc > 1 {
+                samples.append(HKQuantitySample(type: self.energyType, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: kc), start: a.start, end: end))
+            }
             if a.distance > 10 {
                 let t = a.type == .bisiklet ? self.cycDist : self.walkDist
                 samples.append(HKQuantitySample(type: t, quantity: HKQuantity(unit: .meter(), doubleValue: a.distance), start: a.start, end: end))

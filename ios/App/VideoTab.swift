@@ -29,6 +29,8 @@ struct WebView: UIViewRepresentable {
         wv.backgroundColor = UIColor(Theme.bg)
         wv.scrollView.backgroundColor = UIColor(Theme.bg)
         wv.allowsLinkPreview = false
+        wv.scrollView.pinchGestureRecognizer?.isEnabled = false
+        wv.scrollView.bouncesZoom = false
         let rc = UIRefreshControl()
         rc.addTarget(context.coordinator, action: #selector(Coordinator.reload(_:)), for: .valueChanged)
         wv.scrollView.refreshControl = rc

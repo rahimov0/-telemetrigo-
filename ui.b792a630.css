@@ -4,9 +4,9 @@
   color-scheme: dark light;
   --bg: #09090B; --panel: #111113; --raised: #18181B; --hover: #202024; --press: #26262B;
   --line: #232327; --line-2: #2F2F35;
-  --text: #FAFAFA; --text-2: #A1A1AA; --text-3: #71717A;
+  --text: #FAFAFA; --text-2: #B4B4BC; --text-3: #92929B;
   --inv: #FAFAFA; --on-inv: #09090B;          /* birincil düğme: açık zemin, koyu yazı */
-  --rec: #F04438; --ok: #3FB950; --warn: #D29922;
+  --acc: #FF5A1F; --on-acc: #1A0A02; --rec: #F04438; --ok: #3FB950; --warn: #D29922;
   --rec-bg: rgba(240,68,56,.10); --ok-bg: rgba(63,185,80,.10); --warn-bg: rgba(210,153,34,.10);
   --ring: rgba(250,250,250,.55);
   --r: 12px; --r-sm: 8px; --r-xs: 6px;
@@ -21,7 +21,7 @@
     --line: #E4E4E7; --line-2: #D4D4D8;
     --text: #09090B; --text-2: #52525B; --text-3: #71717A;
     --inv: #09090B; --on-inv: #FAFAFA; --ring: rgba(9,9,11,.5);
-    --rec: #D92D20; --ok: #1A7F37; --warn: #9A6700;
+    --acc: #FF5A1F; --rec: #D92D20; --ok: #1A7F37; --warn: #9A6700;
   }
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -164,3 +164,6 @@ details.tip p { margin: var(--s2) 0 0; color: var(--text-2); }
 .gobar .btn { max-width: 560px; margin: 0 auto; display: flex; }
 footer.foot { color: var(--text-3); font-size: 12px; text-align: center; margin-top: var(--s6); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+.btn.acc { background: var(--acc); color: var(--on-acc); border-color: transparent; }
+.btn.acc:hover { background: color-mix(in srgb, var(--acc) 90%, #fff); }

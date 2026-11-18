@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
 <title>Aktivite · TelemetriGo</title>
-<link rel="stylesheet" href="ui.63db9fd4.css">
+<link rel="stylesheet" href="ui.b792a630.css">
 <style>
   .head-row { display: flex; align-items: flex-end; gap: var(--s3); flex-wrap: wrap; margin: var(--s5) 0 var(--s4); }
   .head-row .ph { margin: 0; flex: 1; min-width: 240px; }
@@ -39,6 +39,14 @@
   .li .meta { text-align: right; font-variant-numeric: tabular-nums; } .li .meta b { display: block; font-weight: 600; } .li .meta small { color: var(--text-3); font-size: 12.5px; }
   .li .ic svg { width: 18px; height: 18px; }
   /* editör */
+  .canvasbox { position: relative; }
+  .addph { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--s4); background: color-mix(in srgb, var(--bg) 62%, transparent); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); border-radius: var(--r-sm); z-index: 2; }
+  .addph.hidden { display: none; }
+  .addph .in { display: grid; gap: 10px; justify-items: center; text-align: center; max-width: 260px; }
+  .addph .ic { width: 52px; height: 52px; border-radius: 14px; background: var(--raised); border: 1px solid var(--line-2); display: grid; place-items: center; }
+  .addph .ic .i { width: 24px; height: 24px; }
+  .addph span { color: var(--text-2); font-size: 13.5px; }
+  .inapp #vEdit .back, .inapp #vEdit .ph { display: none; }
   .canvasbox { background: repeating-conic-gradient(var(--raised) 0 25%, var(--panel) 0 50%) 0 0 / 16px 16px; border-radius: var(--r-sm); display: grid; place-items: center; padding: var(--s3); }
   #ed { max-width: 100%; max-height: 70vh; display: block; touch-action: none; cursor: grab; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); }
   @media (max-width: 899px) {
@@ -109,7 +117,7 @@
       <div class="ph"><div class="eyebrow" id="dType"></div><h1 id="dTitle"></h1><p id="dSub"></p></div>
       <div class="row">
         <select id="dTypeSel" class="typesel" aria-label="Aktivite türü"></select>
-        <button id="toPhoto" class="btn primary"><svg class="i"><use href="#i-image"/></svg>Fotoğrafa ekle</button>
+        <button id="toPhoto" class="btn acc"><svg class="i"><use href="#i-image"/></svg>Fotoğrafa ekle</button>
         <button id="toVideo" class="btn"><svg class="i"><use href="#i-video"/></svg>Videoya ekle</button>
       </div>
     </div>
@@ -147,7 +155,8 @@
     <div class="grid2">
       <div class="sticky">
         <section class="card edprev">
-          <div class="canvasbox"><canvas id="ed"></canvas></div>
+          <div class="canvasbox"><canvas id="ed"></canvas>
+            <div class="addph" id="addPh"><div class="in"><div class="ic"><svg class="i"><use href="#i-image"/></svg></div><b>Fotoğrafını ekle</b><span>Rota ve değerler fotoğrafın üstüne yerleşir</span><button id="addPhBtn" class="btn acc lg" type="button">Fotoğraf seç</button><button id="addPhSkip" class="btn ghost sm" type="button">Fotoğrafsız devam et</button></div></div></div>
           <p class="muted small" id="edHint" style="margin:var(--s2) 2px 0">Rotayı ve değerleri sürükleyerek taşı. Fotoğrafı kaydırmak için boş alanı sürükle.</p>
         </section>
       </div>
@@ -181,6 +190,6 @@
   </section>
   <footer class="foot">TelemetriGo · Veriler bu cihazda kalır</footer>
 </main>
-<script type="module" src="aktivite.3a6c7038.js"></script>
+<script type="module" src="aktivite.4724193a.js"></script>
 </body>
 </html>

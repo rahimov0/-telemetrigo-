@@ -6,7 +6,7 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "1.1.0"
+    MARKETING_VERSION: "1.2.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: "$(DEVELOPMENT_TEAM)"
@@ -18,6 +18,11 @@ targets:
     sources:
       - path: App
       - path: Resources
+    entitlements:
+      path: App/TelemetriGo.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
     info:
       path: App/Info.plist
       properties:
@@ -34,6 +39,8 @@ targets:
         NSLocationAlwaysAndWhenInUseUsageDescription: "Ekran kilitliyken de sürüş kaydının kesilmemesi için konumun kullanılır."
         NSBluetoothAlwaysUsageDescription: "GoPro kameraya bağlanmak, kaydı başlatıp durdurmak ve saatini eşitlemek için Bluetooth kullanılır."
         NSPhotoLibraryAddUsageDescription: "Göstergeli videoyu Fotoğraflar'a kaydetmek için kullanılır."
+        NSHealthShareUsageDescription: "Günlük adımlarını ve yürüyüşlerini göstermek için Sağlık verilerin okunur."
+        NSHealthUpdateUsageDescription: "Bitirdiğin yürüyüş, koşu ve bisiklet aktiviteleri Sağlık uygulamasına antrenman olarak kaydedilir."
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
     settings:

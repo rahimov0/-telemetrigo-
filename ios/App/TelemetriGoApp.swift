@@ -12,6 +12,11 @@ struct TelemetriGoApp: App {
 
 enum Theme {
     static let accent = Color(white: 0.98)
+    static let acc = Color(red: 1, green: 0.353, blue: 0.122)         // #FF5A1F (yalnızca aktivite vurgusu)
+    static let onAcc = Color(red: 0.10, green: 0.04, blue: 0.01)
+    static let text = Color(white: 0.98)
+    static let text2 = Color(white: 0.72)
+    static let text3 = Color(white: 0.55)
     static let bg = Color(red: 0.035, green: 0.035, blue: 0.043)       // #09090B
     static let card = Color(red: 0.067, green: 0.067, blue: 0.075)     // #111113
     static let card2 = Color(red: 0.094, green: 0.094, blue: 0.106)   // #18181B
@@ -26,6 +31,7 @@ final class AppModel: ObservableObject {
     let gopro = GoProManager()
     let rec = Recorder()
     let activity = ActivityRecorder()
+    let health = HealthManager()
     @Published var tab = 0
     @Published var useGoPro = true
     @Published var pendingGpx: (name: String, text: String)?
@@ -77,7 +83,7 @@ struct RootView: View {
         TabView(selection: $model.tab) {
             RecordView()
                 .tabItem { Label("Kayıt", systemImage: "record.circle") }.tag(0)
-            ActivityTab(act: model.activity)
+            ActivityTab(act: model.activity, health: model.health)
                 .tabItem { Label("Aktivite", systemImage: "figure.run") }.tag(2)
             VideoTab()
                 .ignoresSafeArea(edges: .bottom)

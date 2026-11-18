@@ -7,7 +7,7 @@ export const TEMPLATES = {
   rota: 'Rota + değerler', buyuk: 'Büyük rakam', bant: 'Alt bant', kart: 'Harita kartı', saydam: 'Saydam etiket',
 };
 export const FORMATS = { '9:16': [1080, 1920], '4:5': [1080, 1350], '1:1': [1080, 1080], 'orij': null };
-export const ROUTE_COLORS = { beyaz: '#FFFFFF', sari: '#FFD23F', yesil: '#4ADE80', mavi: '#38BDF8', kirmizi: '#FB4D4D', siyah: '#0A0A0A' };
+export const ROUTE_COLORS = { turuncu: '#FF5A1F', beyaz: '#FFFFFF', sari: '#FFD23F', yesil: '#4ADE80', mavi: '#38BDF8', kirmizi: '#FB4D4D', siyah: '#0A0A0A' };
 export const FIELDS = {
   dist: 'Mesafe', time: 'Süre', pace: 'Tempo / hız', gain: 'Yükseliş', max: 'Maks hız', elapsed: 'Geçen süre',
 };

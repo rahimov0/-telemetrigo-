@@ -225,7 +225,7 @@ $('pinIn').onchange = async () => {
 
 // ---------- fotoğraf editörü ----------
 const ed = {
-  tpl: prefs.tpl || 'rota', fmt: prefs.fmt || '9:16', mapStyle: prefs.edMap || 'yok', color: prefs.color || 'beyaz',
+  tpl: prefs.tpl || 'rota', fmt: prefs.fmt || '9:16', mapStyle: prefs.edMap || 'yok', color: prefs.color || 'turuncu',
   fields: prefs.fields || ['dist', 'time', 'pace'], hide: prefs.hide !== false, sign: prefs.sign !== false,
   photo: null, pan: { x: 0, y: 0, z: 1 }, pos: {}, scale: {}, sel: null, boxes: {},
 };
@@ -239,7 +239,7 @@ function openEditor() {
     b.onclick = () => { ed.color = k; prefs.color = k; savePrefs(); cc.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); scheduleEd(); };
     cc.appendChild(b);
   }
-  renderFields();
+  renderFields(); $('addPh').classList.toggle('hidden', !!ed.photo);
   $('hide').checked = ed.hide; $('sign').checked = ed.sign;
   $('edBack').href = '#' + cur.rec.id;
   scheduleEd();
@@ -260,16 +260,18 @@ function renderFields() {
 $('hide').onchange = () => { ed.hide = prefs.hide = $('hide').checked; savePrefs(); scheduleEd(); };
 $('sign').onchange = () => { ed.sign = prefs.sign = $('sign').checked; savePrefs(); scheduleEd(); };
 $('photoBtn').onclick = () => $('photoIn').click();
+$('addPhBtn').onclick = () => $('photoIn').click();
+$('addPhSkip').onclick = () => $('addPh').classList.add('hidden');
 $('photoIn').onchange = async () => {
   const f = $('photoIn').files[0]; $('photoIn').value = ''; if (!f) return;
   try { ed.photo = await createImageBitmap(f, { imageOrientation: 'from-image' }); }
   catch { setMsg('Bu fotoğraf açılamadı. JPEG veya PNG dene.'); return; }
   ed.pan = { x: 0, y: 0, z: 1 }; $('zoom').value = 100; $('zoomV').textContent = '%100';
-  $('photoClr').classList.remove('hidden'); $('zoomRow').classList.remove('hidden'); $('photoBtn').querySelector('span').textContent = 'Fotoğrafı değiştir';
+  $('addPh').classList.add('hidden'); $('photoClr').classList.remove('hidden'); $('zoomRow').classList.remove('hidden'); $('photoBtn').querySelector('span').textContent = 'Fotoğrafı değiştir';
   if (ed.tpl === 'saydam') { ed.tpl = 'rota'; openEditor(); }
   scheduleEd();
 };
-$('photoClr').onclick = () => { ed.photo = null; $('photoClr').classList.add('hidden'); $('zoomRow').classList.add('hidden'); $('photoBtn').querySelector('span').textContent = 'Fotoğraf seç'; scheduleEd(); };
+$('photoClr').onclick = () => { ed.photo = null; $('addPh').classList.remove('hidden'); $('photoClr').classList.add('hidden'); $('zoomRow').classList.add('hidden'); $('photoBtn').querySelector('span').textContent = 'Fotoğraf seç'; scheduleEd(); };
 $('zoom').oninput = () => { ed.pan.z = $('zoom').value / 100; $('zoomV').textContent = `%${$('zoom').value}`; scheduleEd(); };
 $('scale').oninput = () => { const id = ed.sel || Object.keys(ed.boxes)[0]; if (!id) return; ed.scale[id] = $('scale').value / 100; $('scaleV').textContent = `%${$('scale').value}`; scheduleEd(); };
 

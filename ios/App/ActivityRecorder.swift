@@ -10,7 +10,10 @@ enum ActType: String, Codable, CaseIterable, Identifiable {
     var icon: String { ["yuruyus": "figure.walk", "kosu": "figure.run", "bisiklet": "bicycle", "motor": "motorcycle"][rawValue]! }
     var pace: Bool { self == .yuruyus || self == .kosu }
     /// bunun altı "duruyor" (otomatik duraklatma), m/s
-    var stopSpeed: Double { ["yuruyus": 0.45, "kosu": 0.8, "bisiklet": 1.2, "motor": 1.5][rawValue]! }
+    var stopSpeed: Double { ["yuruyus": 0.3, "kosu": 0.7, "bisiklet": 1.0, "motor": 1.5][rawValue]! }
+    /// bu pencerede (sn) bu kadar metreden az yer değiştirdiyse gerçekten duruyor demektir
+    var stillWindow: Double { ["yuruyus": 14, "kosu": 10, "bisiklet": 8, "motor": 8][rawValue]! }
+    var stillDist: Double { ["yuruyus": 5, "kosu": 5, "bisiklet": 7, "motor": 10][rawValue]! }
     var clType: CLActivityType {
         switch self {
         case .yuruyus, .kosu: return .fitness
@@ -35,6 +38,7 @@ struct Activity: Codable, Identifiable, Hashable {
     var moving: Double = 0       // sn
     var gain: Double = 0         // m
     var maxSpeed: Double = 0     // m/s
+    var preview: [[Double]]? = nil   // rota küçük resmi için seyreltilmiş [enlem, boylam]
     var gpxName: String { "Aktivite_\(Session.nameFmt.string(from: start)).gpx" }
 }
 
@@ -61,9 +65,18 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     enum State { case idle, running, paused }
     @Published var state: State = .idle
     @Published var type: ActType = ActType(rawValue: UserDefaults.standard.string(forKey: "actType") ?? "") ?? .kosu {
-        didSet { UserDefaults.standard.set(type.rawValue, forKey: "actType") }
+        didSet {
+            UserDefaults.standard.set(type.rawValue, forKey: "actType")
+            if oldValue != type { autoPause = Self.autoPauseSetting(type) }
+        }
     }
-    @Published var autoPause = UserDefaults.standard.object(forKey: "autoPause") as? Bool ?? true { didSet { UserDefaults.standard.set(autoPause, forKey: "autoPause") } }
+    /// Otomatik duraklatma türe göre saklanır; yürüyüşte varsayılan kapalı (yavaş yürüyüşü durmuş sanmasın)
+    @Published var autoPause: Bool = ActivityRecorder.autoPauseSetting(ActType(rawValue: UserDefaults.standard.string(forKey: "actType") ?? "") ?? .kosu) {
+        didSet { UserDefaults.standard.set(autoPause, forKey: "autoPause2_" + type.rawValue) }
+    }
+    static func autoPauseSetting(_ t: ActType) -> Bool {
+        UserDefaults.standard.object(forKey: "autoPause2_" + t.rawValue) as? Bool ?? (t != .yuruyus)
+    }
     @Published var voice = UserDefaults.standard.object(forKey: "voice") as? Bool ?? true { didSet { UserDefaults.standard.set(voice, forKey: "voice") } }
     @Published var autoPaused = false
     @Published var current: Activity?
@@ -77,7 +90,6 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     private var handle: FileHandle?
     private var lastGood: CLLocation?
     private var recent: [CLLocation] = []
-    private var slowSince: Date?
     private var lastTick = Date()
     private var timer: Timer?
     private var nextKm = 1
@@ -115,7 +127,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         let a = Activity(id: UUID().uuidString, type: type, start: Date())
         FileManager.default.createFile(atPath: pointsURL(a.id).path, contents: nil)
         handle = try? FileHandle(forWritingTo: pointsURL(a.id))
-        current = a; moving = 0; nextKm = 1; kmMoving = 0; route = []; lastGood = nil; autoPaused = false; slowSince = nil
+        current = a; moving = 0; nextKm = 1; kmMoving = 0; route = []; lastGood = nil; autoPaused = false; stillCount = 0; moveCount = 0
         saveMeta(a)
         lm.activityType = type.clType
         lm.allowsBackgroundLocationUpdates = true
@@ -143,6 +155,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         a.end = Date(timeIntervalSince1970: pts.last!.t)
         a.moving = moving
         a.gain = Self.gain(pts)
+        a.preview = Self.thumb(pts)
         saveMeta(a); writeGPX(a, pts)
         activities.insert(a, at: 0)
         return a
@@ -172,9 +185,11 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     }
     func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {}
 
+    private var stillCount = 0, moveCount = 0
+
     private func add(_ l: CLLocation) {
         accuracy = l.horizontalAccuracy
-        recent.append(l); recent.removeAll { l.timestamp.timeIntervalSince($0.timestamp) > 6 }
+        recent.append(l); recent.removeAll { l.timestamp.timeIntervalSince($0.timestamp) > 16 }
         var v: Double? = l.speed >= 0 ? l.speed : nil
         if v == nil, let a = recent.first, a !== l {
             let dt = l.timestamp.timeIntervalSince(a.timestamp)
@@ -184,12 +199,21 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         speed = v.map { $0 < type.stopSpeed ? 0 : $0 }
 
         guard var a = current, let h = handle else { return }
-        // otomatik duraklatma
-        if let x = v {
-            if x < type.stopSpeed { if slowSince == nil { slowSince = l.timestamp } }
-            else if x > type.stopSpeed * 1.25 { slowSince = nil; if autoPaused { autoPaused = false; lastGood = l } }
-            if let s = slowSince, l.timestamp.timeIntervalSince(s) > 6, !autoPaused { autoPaused = true }
+        // Otomatik duraklatma: yalnızca birkaç saniyedir iyi sinyal VE gerçekten yer değiştirmiyorsa
+        if !autoPause { autoPaused = false; stillCount = 0; moveCount = 0 }
+        else if state == .running, l.horizontalAccuracy <= 30 {
+            let win = type.stillWindow
+            let old = recent.first { l.timestamp.timeIntervalSince($0.timestamp) <= win && $0.horizontalAccuracy <= 30 }
+            if let o = old, l.timestamp.timeIntervalSince(o.timestamp) >= win * 0.8 {
+                let net = l.distance(from: o)
+                let fast = recent.contains { l.timestamp.timeIntervalSince($0.timestamp) <= win && $0.speed > type.stopSpeed * 1.6 }
+                if net < type.stillDist && !fast { stillCount += 1 } else { stillCount = 0 }
+            }
+            if let x = v, x >= type.stopSpeed * 1.6 { moveCount += 1 } else { moveCount = 0 }
+            if !autoPaused, stillCount >= 3 { autoPaused = true; moveCount = 0 }
+            if autoPaused, moveCount >= 2 { autoPaused = false; stillCount = 0; lastGood = l }
         }
+
         let row = TrackPoint(t: l.timestamp.timeIntervalSince1970, la: l.coordinate.latitude, lo: l.coordinate.longitude,
                              al: l.verticalAccuracy >= 0 ? l.altitude : nil, ha: l.horizontalAccuracy, sp: l.speed >= 0 ? l.speed : nil)
         if let d = try? JSONEncoder().encode(row) { h.write(d); h.write(Data([0x0A])) }
@@ -197,7 +221,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         if let p = lastGood {
             let d = l.distance(from: p)
             let moved = (v ?? 0) >= type.stopSpeed || d > max(8, l.horizontalAccuracy * 1.5)
-            if moved && !(autoPause && autoPaused) {
+            if moved && !autoPaused {
                 a.distance += d
                 if let x = v { a.maxSpeed = max(a.maxSpeed, x) }
                 lastGood = l
@@ -211,6 +235,16 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
             nextKm += 1
             saveMeta(a)
         }
+    }
+
+    /// Rota küçük resmi için en fazla ~80 nokta
+    static func thumb(_ pts: [TrackPoint]) -> [[Double]] {
+        let g = pts.filter { $0.ha <= 30 }
+        guard g.count > 1 else { return [] }
+        let step = max(1, g.count / 80)
+        var out = stride(from: 0, to: g.count, by: step).map { [g[$0].la, g[$0].lo] }
+        if let l = g.last { out.append([l.la, l.lo]) }
+        return out
     }
 
     // MARK: Ses
@@ -266,7 +300,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
                 let d = CLLocation(latitude: p.la, longitude: p.lo).distance(from: CLLocation(latitude: q.la, longitude: q.lo))
                 if dt < 30, d / max(dt, 0.1) >= a.type.stopSpeed, q.ha <= 30 { dist += d; mv += dt }
             }
-            a.distance = dist; a.moving = mv; a.gain = Self.gain(pts)
+            a.distance = dist; a.moving = mv; a.gain = Self.gain(pts); a.preview = Self.thumb(pts)
             saveMeta(a); writeGPX(a, pts); activities.insert(a, at: 0)
         }
         activities.sort { $0.start > $1.start }

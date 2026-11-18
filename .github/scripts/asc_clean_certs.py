@@ -21,10 +21,10 @@ for c in certs:
 dev = [c for c in certs if c["attributes"].get("certificateType") in ("DEVELOPMENT", "IOS_DEVELOPMENT")
        and "Created via API" in (c["attributes"].get("name", "") + c["attributes"].get("displayName", ""))]
 # Apple sınırına yaklaşmadan dokunma: her iptal kullanıcıya e-posta gönderiyor
-if len(dev) < 15:
+if len(dev) < 8:
     print("CI sertifika sayısı", len(dev), "— temizlik gerekmiyor"); sys.exit(0)
 dev.sort(key=lambda c: c["attributes"].get("expirationDate", ""))
-dev = dev[:-1]   # en yenisini bırak
+dev = dev[:-3]   # en yeni 3'ünü bırak
 for c in dev:
     print("revoke", c["id"], c["attributes"].get("name"))
     try:

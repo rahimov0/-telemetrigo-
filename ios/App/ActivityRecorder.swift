@@ -3,35 +3,42 @@ import CoreLocation
 import AVFoundation
 import KrovaCore
 
-/// Aktivite türleri (web tarafıyla aynı anahtarlar)
+/// Aktivite türleri (web tarafıyla aynı anahtarlar). Kurallar çekirdekteki `ActivityKind` üzerinden gelir.
 enum ActType: String, Codable, CaseIterable, Identifiable {
-    /// Aktivite sekmesinde kaydedilebilen türler (motor sürüşü Sürüş sekmesinde)
-    static var sport: [ActType] { [.yuruyus, .kosu, .bisiklet] }
-    case yuruyus, kosu, bisiklet, motor
+    case yuruyus, kosu, tirmanis, bisiklet, motor, arac
     var id: String { rawValue }
-    var name: String { ["yuruyus": "Yürüyüş", "kosu": "Koşu", "bisiklet": "Bisiklet", "motor": "Motor"][rawValue]! }
-    var icon: String { ["yuruyus": "figure.walk", "kosu": "figure.run", "bisiklet": "bicycle", "motor": "motorcycle"][rawValue]! }
-    /// Makul üst hız (m/s): GPS sıçramalarını "en iyi tempo"dan ayıklar
-    var maxPlausible: Double { switch self { case .yuruyus: return 3.0; case .kosu: return 7.0; case .bisiklet: return 20; case .motor: return 75 } }
-    var pace: Bool { self == .yuruyus || self == .kosu }
+
+    /// Spor: kalori, halka, Sağlık'a yazma, otomatik duraklat var
+    static var sport: [ActType] { [.yuruyus, .kosu, .tirmanis, .bisiklet] }
+    /// Sürüş: bunların hiçbiri yok
+    static var drive: [ActType] { [.motor, .arac] }
+
     /// Çekirdek paketteki tür kuralları (kalori, halka, Sağlık, otomatik duraklat burada karar verilir)
-    var kind: ActivityKind { switch self { case .yuruyus: return .walk; case .kosu: return .run; case .bisiklet: return .bike; case .motor: return .motorcycle } }
+    var kind: ActivityKind {
+        switch self { case .yuruyus: return .walk; case .kosu: return .run; case .tirmanis: return .hike
+                      case .bisiklet: return .bike; case .motor: return .motorcycle; case .arac: return .car }
+    }
+    var name: String { ["yuruyus": "Yürüyüş", "kosu": "Koşu", "tirmanis": "Tırmanış", "bisiklet": "Bisiklet", "motor": "Motor", "arac": "Araç"][rawValue]! }
+    var icon: String { ["yuruyus": "figure.walk", "kosu": "figure.run", "tirmanis": "figure.hiking", "bisiklet": "bicycle", "motor": "motorcycle", "arac": "car.fill"][rawValue]! }
+    /// Makul üst hız (m/s): GPS sıçramalarını "en iyi tempo"dan ayıklar
+    var maxPlausible: Double { kind.maxPlausibleSpeed }
+    var pace: Bool { kind.showsPace }
     /// bunun altı "duruyor" (otomatik duraklatma), m/s
-    var stopSpeed: Double { ["yuruyus": 0.3, "kosu": 0.7, "bisiklet": 1.0, "motor": 1.5][rawValue]! }
+    var stopSpeed: Double { kind.stopSpeed }
     /// bu pencerede (sn) bu kadar metreden az yer değiştirdiyse gerçekten duruyor demektir
-    var stillWindow: Double { ["yuruyus": 14, "kosu": 10, "bisiklet": 8, "motor": 8][rawValue]! }
-    var stillDist: Double { ["yuruyus": 5, "kosu": 5, "bisiklet": 7, "motor": 10][rawValue]! }
+    var stillWindow: Double { ["yuruyus": 14, "kosu": 10, "tirmanis": 14, "bisiklet": 8, "motor": 8, "arac": 8][rawValue]! }
+    var stillDist: Double { ["yuruyus": 5, "kosu": 5, "tirmanis": 5, "bisiklet": 7, "motor": 10, "arac": 10][rawValue]! }
     var clType: CLActivityType {
         switch self {
-        case .yuruyus, .kosu: return .fitness
+        case .yuruyus, .kosu, .tirmanis: return .fitness
         case .bisiklet: return .otherNavigation
-        case .motor: return .automotiveNavigation
+        case .motor, .arac: return .automotiveNavigation
         }
     }
     func title(_ d: Date) -> String {
         let h = Calendar.current.component(.hour, from: d)
         let part = h < 5 ? "Gece" : h < 11 ? "Sabah" : h < 14 ? "Öğle" : h < 18 ? "Öğleden sonra" : h < 22 ? "Akşam" : "Gece"
-        let w = ["yuruyus": "yürüyüşü", "kosu": "koşusu", "bisiklet": "bisiklet turu", "motor": "sürüşü"][rawValue]!
+        let w = ["yuruyus": "yürüyüşü", "kosu": "koşusu", "tirmanis": "tırmanışı", "bisiklet": "bisiklet turu", "motor": "sürüşü", "arac": "yolculuğu"][rawValue]!
         return "\(part) \(w)"
     }
 }

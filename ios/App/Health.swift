@@ -9,7 +9,8 @@ extension ActType {
         case .yuruyus: return .walking
         case .kosu: return .running
         case .bisiklet: return .cycling
-        case .motor: return .other
+        case .tirmanis: return .hiking
+        case .motor, .arac: return .other
         }
     }
 }

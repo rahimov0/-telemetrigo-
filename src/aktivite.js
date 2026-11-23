@@ -20,7 +20,7 @@ let cur = null;   // { rec, g, A, pins: [{i, t, url}] }
 function titleFor(type, start) {
   const h = new Date(start).getHours();
   const part = h < 5 ? 'Gece' : h < 11 ? 'Sabah' : h < 14 ? 'Öğle' : h < 18 ? 'Öğleden sonra' : h < 22 ? 'Akşam' : 'Gece';
-  return `${part} ${{ yuruyus: 'yürüyüşü', kosu: 'koşusu', bisiklet: 'bisiklet turu', motor: 'sürüşü' }[type] || 'aktivitesi'}`;
+  return `${part} ${{ yuruyus: 'yürüyüşü', kosu: 'koşusu', tirmanis: 'tırmanışı', bisiklet: 'bisiklet turu', motor: 'sürüşü', arac: 'yolculuğu' }[type] || 'aktivitesi'}`;
 }
 const dateStr = t => new Date(t).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) + ' · ' + new Date(t).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 

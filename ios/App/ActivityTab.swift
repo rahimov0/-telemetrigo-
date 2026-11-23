@@ -409,20 +409,26 @@ struct RecordScreen: View {
         .background(Theme.bg.opacity(0.96).clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)).ignoresSafeArea(edges: .bottom))
     }
 
+    private func typeChip(_ t: ActType) -> some View {
+        Button { act.type = t } label: {
+            VStack(spacing: 5) {
+                Image(systemName: t.icon).font(.system(size: 20, weight: .bold))
+                Text(t.name).font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(act.type == t ? Theme.onAcc : t.color)
+            .frame(width: 64, height: 62)
+            .background(act.type == t ? t.color : t.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }.buttonStyle(.plain)
+    }
+
     private var idlePanel: some View {
         VStack(spacing: 16) {
-            HStack(spacing: 8) {
-                ForEach(ActType.allCases) { t in
-                    Button { act.type = t } label: {
-                        VStack(spacing: 5) {
-                            Image(systemName: t.icon).font(.system(size: 20, weight: .bold))
-                            Text(t.name).font(.caption.weight(.semibold))
-                        }
-                        .foregroundStyle(act.type == t ? Theme.onAcc : t.color)
-                        .frame(maxWidth: .infinity, minHeight: 62)
-                        .background(act.type == t ? t.color : t.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }.buttonStyle(.plain)
-                }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(ActType.sport) { typeChip($0) }
+                    Rectangle().fill(Theme.line).frame(width: 1, height: 40).padding(.horizontal, 2)
+                    ForEach(ActType.drive) { typeChip($0) }
+                }.padding(.horizontal, 2)
             }
             Button { act.start() } label: {
                 Text("BAŞLA").font(.system(size: 20, weight: .heavy, design: .rounded)).foregroundStyle(Theme.onAcc)
@@ -778,6 +784,7 @@ struct ActivitySettings: View {
     @State private var apW = ActivityRecorder.autoPauseSetting(.yuruyus)
     @State private var apR = ActivityRecorder.autoPauseSetting(.kosu)
     @State private var apB = ActivityRecorder.autoPauseSetting(.bisiklet)
+    @State private var apT = ActivityRecorder.autoPauseSetting(.tirmanis)
 
     private func save(_ t: ActType, _ v: Bool) {
         if act.type == t { act.autoPause = v } else { UserDefaults.standard.set(v, forKey: "autoPause2_" + t.rawValue) }
@@ -806,6 +813,7 @@ struct ActivitySettings: View {
                 Section {
                     Toggle("Yürüyüş", isOn: $apW).onChange(of: apW) { _, v in save(.yuruyus, v) }
                     Toggle("Koşu", isOn: $apR).onChange(of: apR) { _, v in save(.kosu, v) }
+                    Toggle("Tırmanış", isOn: $apT).onChange(of: apT) { _, v in save(.tirmanis, v) }
                     Toggle("Bisiklet", isOn: $apB).onChange(of: apB) { _, v in save(.bisiklet, v) }
                 } header: { head("Otomatik duraklat") } footer: { foot("Yaklaşık 10 saniye yerinde durursan kayıt kendiliğinden bekler, yürümeye başlayınca devam eder. Yürüyüşte varsayılan kapalıdır.") }
                 .listRowBackground(Theme.card)

@@ -20,7 +20,9 @@ extension ActType {
         case .yuruyus: return Color(red: 0.20, green: 0.85, blue: 0.55)   // nane yeşili
         case .kosu: return Color(red: 1.0, green: 0.55, blue: 0.10)       // turuncu
         case .bisiklet: return Color(red: 0.30, green: 0.64, blue: 1.0)   // mavi
-        case .motor: return Color(red: 1.0, green: 0.28, blue: 0.36)      // kırmızı
+        case .tirmanis: return Color(red: 0.71, green: 0.55, blue: 1.0)   // mor
+        case .motor: return Color(red: 1.0, green: 0.22, blue: 0.37)      // pembe-kırmızı
+        case .arac: return Color(red: 1.0, green: 0.84, blue: 0.04)       // sarı
         }
     }
 }

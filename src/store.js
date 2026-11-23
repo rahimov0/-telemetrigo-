@@ -19,5 +19,6 @@ export async function listActs() {
 }
 export const TYPES = {
   yuruyus: { name: 'Yürüyüş', pace: true }, kosu: { name: 'Koşu', pace: true },
-  bisiklet: { name: 'Bisiklet', pace: false }, motor: { name: 'Motor', pace: false },
+  tirmanis: { name: 'Tırmanış', pace: true }, bisiklet: { name: 'Bisiklet', pace: false },
+  motor: { name: 'Motor', pace: false }, arac: { name: 'Araç', pace: false },
 };

@@ -133,17 +133,18 @@ struct ActivityTab: View {
                     case .day:
                         dayNav
                         if group == .sport { todayCard }
+                        if group == .sport && (period == .day || period == .week) && HealthManager.available && showSteps { stepsCard }
                         dayActivities
                     case .week:
                         weekCard
                         if group == .sport { todayCard }
+                        if group == .sport && (period == .day || period == .week) && HealthManager.available && showSteps { stepsCard }
                         dayActivities
                     case .month:
                         monthCard
                     case .year:
                         yearCard
                     }
-                    if group == .sport && (period == .day || period == .week) && HealthManager.available && showSteps { stepsCard }
                     if act.activities.isEmpty {
                         Panel {
                             VStack(spacing: 8) {

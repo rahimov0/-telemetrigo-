@@ -89,11 +89,12 @@ struct GoalRing: View {
 
 /// Üstte hafif renkli ışık veren arka plan
 struct Glow: View {
+    @Environment(\.colorScheme) private var scheme
     var color: Color = Theme.acc
     var body: some View {
         ZStack(alignment: .top) {
             Theme.bg
-            RadialGradient(colors: [color.opacity(0.30), color.opacity(0)], center: .top, startRadius: 0, endRadius: 380).frame(height: 420)
+            RadialGradient(colors: [color.opacity(scheme == .dark ? 0.30 : 0.14), color.opacity(0)], center: .top, startRadius: 0, endRadius: 380).frame(height: 420)
         }.ignoresSafeArea()
     }
 }

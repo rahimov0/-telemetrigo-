@@ -3,24 +3,33 @@ import SwiftUI
 @main
 struct TelemetriGoApp: App {
     @StateObject private var model = AppModel()
+    @AppStorage("appearance") private var appearance = "system"   // system | dark | light
     var body: some Scene {
         WindowGroup {
-            RootView().environmentObject(model).preferredColorScheme(.dark).tint(Theme.accent)
+            RootView().environmentObject(model)
+                .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil).tint(Theme.accent)
         }
     }
 }
 
+extension Color {
+    /// Koyu/açık temada farklı değer alan renk
+    init(dark: UIColor, light: UIColor) { self.init(UIColor { $0.userInterfaceStyle == .dark ? dark : light }) }
+}
+
 enum Theme {
-    static let accent = Color(white: 0.98)
+    static let accent = Color(dark: UIColor(white: 0.98, alpha: 1), light: UIColor(white: 0.07, alpha: 1))
     static let acc = Color(red: 1, green: 0.353, blue: 0.122)         // #FF5A1F (yalnızca aktivite vurgusu)
     static let onAcc = Color(red: 0.10, green: 0.04, blue: 0.01)
-    static let text = Color(white: 0.98)
-    static let text2 = Color(white: 0.72)
-    static let text3 = Color(white: 0.55)
-    static let bg = Color(red: 0, green: 0, blue: 0)                   // saf siyah (OLED)
-    static let card = Color(red: 0.11, green: 0.11, blue: 0.118)       // #1C1C1E
-    static let card2 = Color(red: 0.173, green: 0.173, blue: 0.18)    // #2C2C2E
-    static let line = Color.white.opacity(0.08)
+    static let text = Color(dark: UIColor(white: 0.98, alpha: 1), light: UIColor(white: 0.07, alpha: 1))
+    static let text2 = Color(dark: UIColor(white: 0.72, alpha: 1), light: UIColor(red: 0.36, green: 0.36, blue: 0.40, alpha: 1))
+    static let text3 = Color(dark: UIColor(white: 0.55, alpha: 1), light: UIColor(red: 0.50, green: 0.50, blue: 0.55, alpha: 1))
+    static let bg = Color(dark: .black, light: UIColor(red: 0.949, green: 0.949, blue: 0.969, alpha: 1))
+    static let card = Color(dark: UIColor(red: 0.11, green: 0.11, blue: 0.118, alpha: 1), light: .white)
+    static let card2 = Color(dark: UIColor(red: 0.173, green: 0.173, blue: 0.18, alpha: 1), light: UIColor(red: 0.898, green: 0.898, blue: 0.918, alpha: 1))
+    static let line = Color(dark: UIColor.white.withAlphaComponent(0.08), light: UIColor.black.withAlphaComponent(0.08))
+    /// Grafik çubuklarının boş zemini
+    static let track = Color(dark: UIColor.white.withAlphaComponent(0.07), light: UIColor.black.withAlphaComponent(0.06))
     static let ok = Color(red: 0.31, green: 0.9, blue: 0.55)
     static let mid = Color(red: 1, green: 0.82, blue: 0.25)
     static let err = Color(red: 1, green: 0.3, blue: 0.37)

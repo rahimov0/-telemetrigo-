@@ -157,7 +157,6 @@ struct ActivityTab: View {
             }
             .background(Glow())
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3").foregroundStyle(Theme.text) }.accessibilityLabel("Aktivite ayarları")
@@ -268,7 +267,7 @@ struct ActivityTab: View {
                         Button { withAnimation(.easeOut(duration: 0.15)) { selDay = cal.startOfDay(for: d) } } label: {
                             VStack(spacing: 6) {
                                 ZStack(alignment: .bottom) {
-                                    Capsule().fill(Color.white.opacity(0.07)).frame(height: 64)
+                                    Capsule().fill(Theme.track).frame(height: 64)
                                     Capsule().fill(sel ? Theme.acc : Theme.cDist).frame(height: days[i].km > 0 ? max(8, 64 * days[i].km / mx) : 0)
                                 }.frame(width: 26)
                                 Text(d.formatted(.dateTime.weekday(.abbreviated))).font(.caption2.weight(.semibold)).foregroundStyle(sel ? Theme.onAcc : Theme.text2)
@@ -378,7 +377,7 @@ struct ActivityTab: View {
                     totals(list)
                     HStack(alignment: .bottom, spacing: 2) {
                         ForEach(0..<n, id: \.self) { i in
-                            Capsule().fill(perDay[i] > 0 ? Theme.cDist : Color.white.opacity(0.07))
+                            Capsule().fill(perDay[i] > 0 ? Theme.cDist : Theme.track)
                                 .frame(height: perDay[i] > 0 ? max(6, 56 * perDay[i] / mx) : 6)
                                 .frame(maxWidth: .infinity)
                         }
@@ -423,7 +422,7 @@ struct ActivityTab: View {
                         } label: {
                             VStack(spacing: 6) {
                                 ZStack(alignment: .bottom) {
-                                    Capsule().fill(Color.white.opacity(0.07)).frame(height: 90)
+                                    Capsule().fill(Theme.track).frame(height: 90)
                                     Capsule().fill(Theme.cDist).frame(height: m.km > 0 ? max(8, 90 * m.km / mx) : 0)
                                 }
                                 Text(m.date.formatted(.dateTime.month(.narrow))).font(.caption2.weight(.semibold)).foregroundStyle(Theme.text2)
@@ -515,6 +514,7 @@ struct RecordScreen: View {
     @State private var cam: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var confirmEnd = false
     @AppStorage("keepAwake") private var keepAwake = false
+    @AppStorage("appearance") private var appearance = "system"
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -868,6 +868,7 @@ struct PhotoEditorSheet: View {
             })
         }
         .background(Theme.bg.ignoresSafeArea())
+        .environment(\.colorScheme, .dark)
         .presentationDragIndicator(.visible)
     }
 }
@@ -966,6 +967,11 @@ struct ActivitySettings: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Picker("Tema", selection: $appearance) { Text("Sistem").tag("system"); Text("Koyu").tag("dark"); Text("Açık").tag("light") }.pickerStyle(.segmented)
+                } header: { head("Görünüm") } footer: { foot("Stüdyo (video) ekranı şimdilik her zaman koyu kalır.") }
+                .listRowBackground(Theme.card)
+
                 Section {
                     HStack { Text("Kilo"); Spacer(); TextField("0", value: $kg, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("kg").foregroundStyle(Theme.text2) }
                     HStack { Text("Boy"); Spacer(); TextField("0", value: $cm, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("cm").foregroundStyle(Theme.text2) }

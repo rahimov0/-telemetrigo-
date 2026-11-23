@@ -6,7 +6,7 @@ import WebKit
 struct VideoTab: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
-        WebView(pending: $model.pendingGpx).background(Theme.bg.ignoresSafeArea())
+        WebView(pending: $model.pendingGpx).background(Color.black.ignoresSafeArea()).environment(\.colorScheme, .dark)
     }
 }
 
@@ -26,8 +26,8 @@ struct WebView: UIViewRepresentable {
         wv.navigationDelegate = context.coordinator
         wv.uiDelegate = context.coordinator
         wv.isOpaque = false
-        wv.backgroundColor = UIColor(Theme.bg)
-        wv.scrollView.backgroundColor = UIColor(Theme.bg)
+        wv.backgroundColor = .black
+        wv.scrollView.backgroundColor = .black
         wv.allowsLinkPreview = false
         wv.scrollView.pinchGestureRecognizer?.isEnabled = false
         wv.scrollView.bouncesZoom = false

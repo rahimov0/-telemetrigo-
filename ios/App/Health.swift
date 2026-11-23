@@ -136,16 +136,17 @@ final class HealthManager: ObservableObject {
         }
         store.execute(eq)
         // Fitness'taki Hareket halkasının kendisi: Watch/iPhone kaynaklarını Apple'ın kendi yöntemiyle birleştirir
-        var c = Calendar.current; c.timeZone = .current
-        let units: Set<Calendar.Component> = [.era, .year, .month, .day]
-        let sc = c.dateComponents(units, from: from), ec = c.dateComponents(units, from: to)
-        var sc2 = sc, ec2 = ec; sc2.calendar = c; ec2.calendar = c
-        let sq = HKActivitySummaryQuery(predicate: HKQuery.predicateForActivitySummaries(betweenStart: sc2, end: ec2)) { [weak self] _, sums, _ in
-            var m: [Date: Double] = [:]
-            for x in sums ?? [] { if let d = c.date(from: x.dateComponents(for: c)) { m[c.startOfDay(for: d)] = x.activeEnergyBurned.doubleValue(for: .kilocalorie()) } }
-            DispatchQueue.main.async { self?.weekMove = self?.weekMove.merging(m) { _, new in new } ?? m }
+        let c = Calendar.current
+        for i in 0..<7 {
+            guard let d = c.date(byAdding: .day, value: i, to: from) else { continue }
+            var dc = c.dateComponents([.era, .year, .month, .day], from: d); dc.calendar = c
+            let sq = HKActivitySummaryQuery(predicate: HKQuery.predicateForActivitySummary(with: dc)) { [weak self] _, sums, _ in
+                guard let x = sums?.first else { return }
+                let v = x.activeEnergyBurned.doubleValue(for: .kilocalorie()), key = c.startOfDay(for: d)
+                DispatchQueue.main.async { self?.weekMove[key] = v }
+            }
+            store.execute(sq)
         }
-        store.execute(sq)
     }
 
     /// Bir aktivitenin süresindeki adım sayısı (yürüyüş ve koşu için)

@@ -514,7 +514,6 @@ struct RecordScreen: View {
     @State private var cam: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var confirmEnd = false
     @AppStorage("keepAwake") private var keepAwake = false
-    @AppStorage("appearance") private var appearance = "system"
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -897,7 +896,7 @@ struct ActivityWeb: UIViewRepresentable {
         }
         let wv = WKWebView(frame: .zero, configuration: cfg)
         wv.navigationDelegate = context.coordinator
-        wv.isOpaque = false; wv.backgroundColor = UIColor(Theme.bg); wv.scrollView.backgroundColor = UIColor(Theme.bg)
+        wv.isOpaque = false; wv.backgroundColor = .black; wv.scrollView.backgroundColor = .black
         wv.scrollView.pinchGestureRecognizer?.isEnabled = false
         wv.scrollView.bouncesZoom = false
         context.coordinator.web = wv
@@ -948,6 +947,7 @@ struct ActivitySettings: View {
     @State private var showCam = false
     @AppStorage("showSteps") private var showSteps = true
     @AppStorage("keepAwake") private var keepAwake = false
+    @AppStorage("appearance") private var appearance = "system"
     @AppStorage("profKg") private var kg = 0.0
     @AppStorage("profCm") private var cm = 0.0
     @AppStorage("goalKcal") private var goalKcal = 300.0

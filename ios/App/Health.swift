@@ -37,7 +37,7 @@ final class HealthManager: ObservableObject {
 
     /// İzinleri (yeni türler dahil) yeniden ister, sonra kilo/boyu okur
     func fetchProfile(_ done: @escaping (Double?, Double?, String?) -> Void) {
-        let read: Set<HKObjectType> = [stepType, walkDist, energyType, massType, heightType]
+        let read: Set<HKObjectType> = [stepType, walkDist, energyType, HKObjectType.activitySummaryType(), massType, heightType]
         let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
         store.requestAuthorization(toShare: share, read: read) { [weak self] _, err in
             guard let self else { return }
@@ -66,7 +66,7 @@ final class HealthManager: ObservableObject {
 
     func connect() {
         guard Self.available else { lastError = "Bu cihazda Sağlık verisi yok."; return }
-        let read: Set<HKObjectType> = [stepType, walkDist, energyType, massType, heightType]
+        let read: Set<HKObjectType> = [stepType, walkDist, energyType, HKObjectType.activitySummaryType(), massType, heightType]
         let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
         store.requestAuthorization(toShare: share, read: read) { [weak self] ok, err in
             DispatchQueue.main.async {
@@ -85,14 +85,15 @@ final class HealthManager: ObservableObject {
     @Published var weekDist: [Date: Double] = [:]
     /// Sağlık'taki günlük aktif enerji (kcal): Apple Watch, iPhone ve bu uygulamanın yazdıkları dahil, Hareket halkasıyla aynı
     @Published var weekEnergy: [Date: Double] = [:]
+    @Published var weekMove: [Date: Double] = [:]   // Hareket halkası (HKActivitySummary)
     private var loadedWeek: Date?
     func refresh() {
         // Kalori okuma izni sonradan eklendi: bağlı olanlara bir kez sorulur
-        if connected, !UserDefaults.standard.bool(forKey: "healthEnergyAsked") {
-            let read: Set<HKObjectType> = [stepType, walkDist, energyType, massType, heightType]
+        if connected, !UserDefaults.standard.bool(forKey: "healthEnergyAsked2") {
+            let read: Set<HKObjectType> = [stepType, walkDist, energyType, HKObjectType.activitySummaryType(), massType, heightType]
             let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
             store.requestAuthorization(toShare: share, read: read) { [weak self] ok, _ in
-                DispatchQueue.main.async { if ok { UserDefaults.standard.set(true, forKey: "healthEnergyAsked") }; self?.loadWeek(containing: Date(), force: true) }
+                DispatchQueue.main.async { if ok { UserDefaults.standard.set(true, forKey: "healthEnergyAsked2") }; self?.loadWeek(containing: Date(), force: true) }
             }
         }
         loadWeek(containing: Date(), force: true)
@@ -134,6 +135,17 @@ final class HealthManager: ObservableObject {
             DispatchQueue.main.async { self?.weekEnergy.merge(m) { _, new in new } }
         }
         store.execute(eq)
+        // Fitness'taki Hareket halkasının kendisi: Watch/iPhone kaynaklarını Apple'ın kendi yöntemiyle birleştirir
+        var c = Calendar.current; c.timeZone = .current
+        let units: Set<Calendar.Component> = [.era, .year, .month, .day]
+        let sc = c.dateComponents(units, from: from), ec = c.dateComponents(units, from: to)
+        var sc2 = sc, ec2 = ec; sc2.calendar = c; ec2.calendar = c
+        let sq = HKActivitySummaryQuery(predicate: HKQuery.predicateForActivitySummaries(betweenStart: sc2, end: ec2)) { [weak self] _, sums, _ in
+            var m: [Date: Double] = [:]
+            for x in sums ?? [] { if let d = c.date(from: x.dateComponents(for: c)) { m[c.startOfDay(for: d)] = x.activeEnergyBurned.doubleValue(for: .kilocalorie()) } }
+            DispatchQueue.main.async { self?.weekMove = self?.weekMove.merging(m) { _, new in new } ?? m }
+        }
+        store.execute(sq)
     }
 
     /// Bir aktivitenin süresindeki adım sayısı (yürüyüş ve koşu için)

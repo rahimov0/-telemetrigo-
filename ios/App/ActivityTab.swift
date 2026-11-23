@@ -208,7 +208,8 @@ struct ActivityTab: View {
         let list = dayList
         let own = list.reduce(0.0) { $0 + (Cal.active($1) ?? 0) }
         // Sağlık'ta o günün aktif enerjisi varsa (Apple Watch dahil) o geçerli; yoksa kendi hesabımız
-        let hk = health.connected ? (health.weekEnergy[Calendar.current.startOfDay(for: selDay)] ?? 0) : 0
+        let dk = Calendar.current.startOfDay(for: selDay)
+        let hk = health.connected ? max(health.weekMove[dk] ?? 0, health.weekEnergy[dk] ?? 0) : 0
         let fromHealth = hk >= 1
         let kcal = fromHealth ? hk : own
         let mins = list.reduce(0.0) { $0 + $1.moving } / 60

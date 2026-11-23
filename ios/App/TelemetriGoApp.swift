@@ -94,7 +94,7 @@ struct RootView: View {
         VStack(spacing: 0) {
             ZStack {
                 page(0) { ActivityTab(act: model.activity, health: model.health) }
-                page(1) { VideoTab() }
+                page(1) { StudioTab(act: model.activity) }
                 page(2) { ProfileTab(act: model.activity, health: model.health, store: model.profile) }
             }
             FloatingTabBar(selection: $model.tab)

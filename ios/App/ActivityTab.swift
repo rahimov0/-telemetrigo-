@@ -1022,11 +1022,6 @@ struct ActivitySettings: View {
                 }
 
                 Section {
-                    Button { showCam = true } label: { Label("GoPro ile motor sürüşü kaydı", systemImage: "gauge.with.dots.needle.67percent") }
-                } header: { head("Kamera ve telemetri") } footer: { foot("GoPro'yu bağlayıp sürüşü kaydeder; göstergeli video Stüdyo sekmesinde hazırlanır.") }
-                .listRowBackground(Theme.card)
-
-                Section {
                     Button { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) } } label: { Label("Konum izni ayarları", systemImage: "location") }
                 } header: { head("İzinler") } footer: { foot("Kayıt ekran kilitliyken de sürsün diye konum izni \"Her zaman\" olmalı.") }
                 .listRowBackground(Theme.card)
@@ -1043,7 +1038,6 @@ struct ActivitySettings: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
-        .sheet(isPresented: $showCam) { RecordView().environmentObject(model) }
         .presentationDragIndicator(.visible)
     }
     private func head(_ t: String) -> some View { Text(t).foregroundStyle(Theme.text2) }

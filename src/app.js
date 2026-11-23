@@ -369,6 +369,7 @@ $('off').oninput = e => setOffset(Number(e.target.value));
 document.querySelectorAll('[data-off]').forEach(b => b.onclick = () => setOffset(state.goff + Number(b.dataset.off)));
 $('gpxRemove').onclick = () => { state.gps = null; updateGpsUI(); renderGaugeList(); drawPreview(); $('syncMsg').textContent = ''; };
 $('autoSync').onclick = () => runAutoSync(false);
+$('gReset').onclick = () => { state.syncMode = null; state.syncScore = 0; setOffset(0, false); state.syncMode = null; updateGpsUI(); $('syncMsg').textContent = 'Kaydırma sıfırlandı (dosyanın saatine göre).'; };
 function runAutoSync(silent) {
   if (!state.gps || !state.tel?.hasAccel) { if (!silent) $('syncMsg').textContent = 'Bu videoda ivme verisi yok (yalnızca GoPro sensör verisi okunabilir). Kareyi GPX anına oturtarak elle eşleştir.'; return; }
   const gdur = (state.gps.end - state.gps.start) / 1000;
@@ -380,7 +381,8 @@ function runAutoSync(silent) {
     if (fine && fine.score >= coarse.score - 0.02) r = { offset: Math.round((fine.offset + c) * 10) / 10, score: fine.score, overlap: fine.overlap };
   }
   const el = $('syncMsg');
-  if (!r || r.score < 0.3) {
+  const minScore = R > 300 ? 0.55 : 0.3;      // geniş taramada yanlış eşleşme olasılığı yüksek: daha sıkı eşik
+  if (!r || r.score < minScore) {
     el.textContent = silent ? '' : 'Otomatik eşitleme güvenilir bir sonuç bulamadı (video kısa olabilir, hız fazla değişmemiş olabilir ya da kamera kaskta olabilir). Videoda bir fren/kalkış anına gel, "Videonun şu karesi GPX\'te" kaydırıcısıyla aynı anı seç ve "Oynatılan kareyi bu GPX anına oturt"a bas.';
     return;
   }

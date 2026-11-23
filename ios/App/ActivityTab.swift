@@ -803,7 +803,7 @@ struct ActivityDetail: View {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], alignment: .leading, spacing: 18) {
                     StatCell(label: "Süre", value: Fmt.dur(a.moving), tint: Theme.cTime, big: true)
                     if let k = kcal { StatCell(label: "Aktif kalori", value: Fmt.num(k), unit: "kcal", tint: Theme.cKcal, big: true) }
-                    else { Button { showSettings = true } label: { StatCell(label: "Aktif kalori", value: "—", unit: "kilonu gir", tint: Theme.cKcal, big: true) }.buttonStyle(.plain) }
+                    else if a.type.kind.countsCalories { Button { showSettings = true } label: { StatCell(label: "Aktif kalori", value: "—", unit: "kilonu gir", tint: Theme.cKcal, big: true) }.buttonStyle(.plain) }
                     if a.type.pace { StatCell(label: "Ort. tempo", value: Fmt.pace(avg), unit: "/km", tint: Theme.cPace, big: true) }
                     else { StatCell(label: "Ort. hız", value: Fmt.num(avg * 3.6, 1), unit: "km/h", tint: Theme.cPace, big: true) }
                     StatCell(label: "Yükseliş", value: Fmt.num(a.gain), unit: "m", tint: Theme.cElev, big: true)

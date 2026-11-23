@@ -6,6 +6,7 @@ import { readGoProTelemetry, emptyTelemetry, calibrateAt, applyCalibration } fro
 import { parseGpx, coverage, autoSync } from './gpx.js';
 import { MAP_STYLES, onTile, prefetchRoute, tilesIdle, lastZoom } from './tiles.js';
 import { cards, addCard, removeCard, rebuild, drawCards, importNative, setCardsListener, activityChoices, CARD_TPLS, SHAPES, TEXT_COLORS, ROUTE_COLORS as CARD_COLORS, MAP_STYLES as CARD_MAPS, titleFor, dateStr } from './cards.js';
+import { tabButton } from './dockui.js';
 import { drawOverlay, drawGaugeThumb, mergeOpts, applyPreset, PRESETS, ACCENTS, THEMES, GAUGES, gaugeAvailable, kindOf, gaugeFits, allowedStyles, styleFor, gaugeName } from './overlay.js';
 
 const $ = id => document.getElementById(id);
@@ -640,21 +641,50 @@ function buildVideoDock() {
   const TABS = { live: ['Göstergeler', 'Hizalama', 'Görünüm', 'Dışa aktar'], card: ['İçerik', 'Zaman', 'Yerleşim', 'Dışa aktar'] };
   let tab = null;
   const show = n => { tab = n; Object.entries(W).forEach(([k, w]) => { w.hidden = k !== n; }); [...tabs.children].forEach(b => b.classList.toggle('on', b.textContent === n)); pane.scrollTop = 0;
-    if (n === 'Zaman' && selCard) showAt(selCard); };
+    if ((n === 'Zaman' || n === 'Yerleşim') && selCard) showAt(selCard); };
   const setMode = m => {
     state.mode = m; state.sel = null; if (state.edit) setEdit(false);
-    [...modes.children].forEach(b => b.classList.toggle('on', b.dataset.m === m));
-    tabs.replaceChildren(...TABS[m].map(n => { const b = mk('button'); b.type = 'button'; b.textContent = n; b.onclick = () => show(n); return b; }));
+    [...modes.children].forEach(b => b.classList.toggle('on', b.dataset.m === m)); $('stage').classList.toggle('cardmode', m === 'card');
+    tabs.replaceChildren(...TABS[m].map(n => tabButton(n, () => show(n))));
     $('editBtn').closest('.toolbar')?.classList.toggle('hidden', m === 'card');
     renderCards().then(() => { show(TABS[m][0]); if (m === 'card' && selCard) showAt(selCard); drawPreview(); });
   };
   [['live', 'Canlı veri'], ['card', 'Aktivite kartı']].forEach(([m, n]) => { const b = mk('button'); b.type = 'button'; b.dataset.m = m; b.textContent = n; b.onclick = () => setMode(m); modes.append(b); });
-  const bar = $('gobar'); dock.append(modes, tabs, pane, bar);
+  const bar = $('gobar'); dock.append(modes, pane, tabs, bar);
   root.replaceChildren(prev, dock);
   $('goMobile').onclick = () => { show('Dışa aktar'); if (!$('go').disabled) $('go').click(); };
   window.__tgShowTab = show; window.__tgSetMode = setMode;
   window.__tgInitDock = () => setMode(state.mode || 'live');
   setMode(state.mode || 'live');
+}
+// kartı doğrudan video üstünde sürükle (kart modu)
+{ let cd = null;
+  ov.addEventListener('pointerdown', e => {
+    const c = selCard; if (state.mode !== 'card' || !c?.bmp || !state.info) return;
+    const t = video.currentTime || 0; if (t < c.t0 - 0.05 || t > c.t0 + c.dur + 0.05) return;
+    const nx = e.offsetX / ov.clientWidth, ny = e.offsetY / ov.clientHeight, w = c.size, h = c.size * c.bmp.height / c.bmp.width * state.info.width / state.info.height;
+    if (Math.abs(nx - c.cx) > w / 2 || Math.abs(ny - c.cy) > h / 2) return;
+    e.preventDefault(); ov.setPointerCapture(e.pointerId); cd = { sx: nx, sy: ny, x0: c.cx, y0: c.cy, w, h };
+  });
+  ov.addEventListener('pointermove', e => {
+    if (!cd || !selCard) return; const c = selCard, nx = e.offsetX / ov.clientWidth, ny = e.offsetY / ov.clientHeight;
+    const snap = v => Math.abs(v - 0.5) < 0.025 ? 0.5 : v, cl = (v, half) => Math.min(1 - half, Math.max(half, v));
+    c.cx = snap(cl(cd.x0 + nx - cd.sx, Math.min(.5, cd.w / 2))); c.cy = snap(cl(cd.y0 + ny - cd.sy, Math.min(.5, cd.h / 2))); drawPreview();
+  });
+  const end = () => { cd = null; }; ov.addEventListener('pointerup', end); ov.addEventListener('pointercancel', end);
+}
+if (isApp) {
+  video.controls = false;
+  const bar = document.createElement('div'); bar.className = 'vplay';
+  bar.innerHTML = '<button type="button" aria-label="Oynat / durdur"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><input type="range" min="0" max="1000" value="0" aria-label="Video konumu"><span>0:00</span>';
+  const [btn, rng, tm] = bar.children, PLAY = 'M8 5v14l11-7z', PAUSE = 'M6 5h4v14H6zM14 5h4v14h-4z';
+  btn.onclick = () => (video.paused ? video.play() : video.pause());
+  const upd = () => { const d = video.duration || 0; rng.value = d ? video.currentTime / d * 1000 : 0; tm.textContent = fmtDur(video.currentTime || 0); };
+  ['timeupdate', 'seeked', 'loadedmetadata'].forEach(ev => video.addEventListener(ev, upd));
+  video.addEventListener('play', () => btn.querySelector('path').setAttribute('d', PAUSE));
+  video.addEventListener('pause', () => btn.querySelector('path').setAttribute('d', PLAY));
+  rng.oninput = () => { if (video.duration) video.currentTime = rng.value / 1000 * video.duration; };
+  $('stage').after(bar);
 }
 if (isApp) {
   buildVideoDock(); buildActPick();

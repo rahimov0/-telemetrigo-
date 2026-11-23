@@ -3,6 +3,7 @@ import { parseGpx } from './gpx.js';
 import { putAct, getAct, delAct, listActs, TYPES } from './store.js';
 import { analyze, fitRoute, routePath, visibleRange, fmtDur, fmtPace, fmtKm, fmtNum, photoTime, guessType } from './activity.js';
 import { drawTiles, MAP_STYLES, onTile, tilesIdle } from './tiles.js';
+import { tabButton, thumbStrip } from './dockui.js';
 import { compose, TEMPLATES, FORMATS, ROUTE_COLORS, FIELDS, SHAPES, TEXT_COLORS, FONTS, MAX_FIELDS } from './compose.js';
 
 const $ = id => document.getElementById(id);
@@ -233,7 +234,9 @@ const ed = {
   photo: null, pan: { x: 0, y: 0, z: 1 }, pos: {}, scale: {}, sel: null, boxes: {},
 };
 function openEditor() {
-  segButtons($('tpl'), TEMPLATES, () => ed.tpl, v => { ed.tpl = v; prefs.tpl = v; ed.pos = {}; ed.scale = {}; savePrefs(); scheduleEd(); });
+  const tplSet = v => { ed.tpl = v; prefs.tpl = v; ed.pos = {}; ed.scale = {}; savePrefs(); scheduleEd(); };
+  if (isApp) thumbStrip($('tpl'), TEMPLATES, () => ed.tpl, tplSet, (x, w, h, k) => compose(x, { ...edState(w, h), tpl: k, mapStyle: 'yok', pos: {}, scale: {}, sel: null }, edData(), { fetchTiles: false }));
+  else segButtons($('tpl'), TEMPLATES, () => ed.tpl, tplSet);
   segButtons($('fmt'), { '3:4': '3:4 Profil', '9:16': '9:16 Hikâye', '4:5': '4:5 Gönderi', '1:1': '1:1 Kare', orij: 'Fotoğraf' }, () => ed.fmt, v => { ed.fmt = v; prefs.fmt = v; ed.pos = {}; savePrefs(); scheduleEd(); });
   segButtons($('edMap'), Object.fromEntries(Object.entries(MAP_STYLES).map(([k, v]) => [k, v.name])), () => ed.mapStyle, v => { ed.mapStyle = v; prefs.edMap = v; savePrefs(); scheduleEd(); });
   segButtons($('shape'), SHAPES, () => ed.shape, v => { ed.shape = v; prefs.shape = v; ed.pos = {}; savePrefs(); scheduleEd(); });
@@ -307,6 +310,7 @@ function drawEd() {
   if (ed.sel && ed.boxes[ed.sel]) {
     const b = ed.boxes[ed.sel]; ctx.setLineDash([10, 8]); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / k; ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.setLineDash([]);
   }
+  clearTimeout(drawEd._t); drawEd._t = setTimeout(() => $('tpl')._paint?.(), 120);
   const ids = Object.keys(ed.boxes); $('scaleRow').classList.toggle('hidden', !ids.length || ed.tpl === 'bant');
   $('expInfo').textContent = `${W}×${H} ${ed.tpl === 'saydam' ? 'PNG (saydam)' : 'JPEG'}`;
 }
@@ -410,11 +414,11 @@ function buildDock() {
   ];
   const parts = {}; groups.forEach(([n, f]) => { const w = mk('div', 'dk-g'); w.append(...f()); parts[n] = w; pane.append(w); });
   const show = n => { Object.entries(parts).forEach(([k, w]) => { w.hidden = k !== n; }); [...tabs.children].forEach(b => b.classList.toggle('on', b.textContent === n)); pane.scrollTop = 0; };
-  groups.forEach(([n]) => { const b = mk('button', '', n); b.type = 'button'; b.onclick = () => show(n); tabs.append(b); });
+  groups.forEach(([n]) => tabs.append(tabButton(n, () => show(n))));
   const prof = $('expProfile'); prof.className = 'btn primary'; prof.textContent = 'Profilde paylaş'; prof.style.cssText = '';
   $('exp').className = 'btn'; $('exp').textContent = 'Paylaş'; $('expDl').className = 'btn'; $('expDl').textContent = 'İndir';
   act.append(prof, $('exp'), $('expDl'));
-  root.replaceChildren(stage, dock, back); dock.append(tabs, pane, act, info);
+  root.replaceChildren(stage, dock, back); dock.append(pane, tabs, act, info);
   info.className = 'dk-info'; show('Şablon');
 }
 if (isApp) buildDock();

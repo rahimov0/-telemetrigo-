@@ -19,6 +19,30 @@ export const GAUGES = {
   clock:    { name: 'Saat', def: { on: true, x: 1, y: 0 } },
   stats:    { name: 'Aktivite', needs: 'gps', styles: { band: 'Şerit', stack: 'Dikey' }, def: { on: false, x: 0.5, y: 0.18 } },
 };
+// Aktivite türüne göre uygun göstergeler: yürüyen/koşan birinin videosunda motor kadranı, yatış açısı, G-kuvveti anlamsız
+const KINDS = {
+  foot: { hide: ['lean', 'gforce', 'attitude', 'chart'], styles: { speed: ['digital', 'mini'] } },
+  bike: { hide: ['gforce', 'attitude', 'chart'], styles: { speed: ['digital', 'bar', 'needle', 'mini'] } },
+  car:  { hide: ['lean', 'attitude'], styles: {} },
+  moto: { hide: [], styles: {} },
+};
+/** GPX türünden grup: foot | bike | car | moto | null (bilinmiyorsa her gösterge açık) */
+export function kindOf(gps) {
+  const t = (gps && gps.type) || '';
+  if (/yuruyus|kosu|tirmanis|walk|run|hik/i.test(t)) return 'foot';
+  if (/bisiklet|bike|cycl/i.test(t)) return 'bike';
+  if (/motor/i.test(t)) return 'moto';
+  if (/arac|\bcar\b|drive/i.test(t)) return 'car';
+  return null;
+}
+export const gaugeFits = (id, kind) => !(KINDS[kind]?.hide || []).includes(id);
+export function allowedStyles(id, kind) {
+  const G = GAUGES[id]; if (!G.styles) return null;
+  const a = KINDS[kind]?.styles?.[id];
+  return a ? Object.fromEntries(Object.entries(G.styles).filter(([k]) => a.includes(k))) : G.styles;
+}
+export function styleFor(id, style, kind) { const a = allowedStyles(id, kind); return a && !(style in a) ? Object.keys(a)[0] : style; }
+export const gaugeName = (id, kind) => (id === 'speed' && kind === 'foot') ? 'Tempo' : GAUGES[id].name;
 const SIZES = {
   lean: s => ({ arc: [760, 500], horizon: [900, 260], mini: [440, 230] }[s] || [760, 560]),
   gforce: s => s === 'bars' ? [760, 320] : [760, 500], attitude: () => [760, 300], clock: () => [760, 150],
@@ -437,6 +461,23 @@ function speedBar(ctx, d, o, A) {
   text(ctx, '0', x0, 210, 24, 500, GREY); text(ctx, `${MAX}`, x1, 210, 24, 500, GREY, 'right');
   text(ctx, `MAKS ${p.valid ? Math.round(p.maxSpeed * 3.6) : dash}  ·  ${p.valid ? fmt(p.dist / 1000, 1) : '0'} km`, x1, 248, 26, 500, GREY, 'right');
 }
+// Yürüyüş/koşu: hız yerine tempo (dk/km)
+const paceStr = v => { if (!(v > 0.5)) return dash; const q = Math.round(1000 / v); return `${Math.floor(q / 60)}:${String(q % 60).padStart(2, '0')}`; };
+function paceDigital(ctx, d) {
+  const { p } = d, W = 600, v = p.valid ? paceStr(p.speed) : dash;
+  label(ctx, 'Tempo', 40, 64);
+  text(ctx, v, 40, 200, 170, 700);
+  ctx.font = `700 170px ${FONT}`; const w = ctx.measureText(v).width;
+  text(ctx, '/km', 52 + w, 200, 36, 600, GREY);
+  text(ctx, p.valid ? `${fmt(p.dist / 1000, 2)} km` : '', W - 40, 64, 30, 600, GREY, 'right');
+  text(ctx, p.valid ? `${fmt(p.speed * 3.6, 1)} km/h` : '', 40, 262, 28, 500, GREY);
+}
+function paceMini(ctx, d) {
+  const { p } = d, v = p.valid ? paceStr(p.speed) : dash;
+  text(ctx, v, 36, 170, 140, 700);
+  ctx.font = `700 140px ${FONT}`; const w = ctx.measureText(v).width;
+  text(ctx, '/km', 46 + w, 170, 34, 600, GREY);
+}
 function speedMini(ctx, d) {
   const { p } = d;
   text(ctx, p.valid ? `${Math.round(p.speed * 3.6)}` : dash, 36, 180, 170, 700);
@@ -545,7 +586,7 @@ function statsGauge(ctx, d, o, A, st) {
 
 const DRAW = {
   lean: (c, d, o, A, st) => ({ arc: leanArc, horizon: leanHorizon, mini: leanMini }[st] || leanBike)(c, d, o, A),
-  speed: (c, d, o, A, st) => ({ digital: speedDigital, needle: speedNeedle, bar: speedBar, mini: speedMini }[st] || speedDial)(c, d, o, A),
+  speed: (c, d, o, A, st) => kindOf(d.gps) === 'foot' ? (st === 'mini' ? paceMini : paceDigital)(c, d, o, A) : ({ digital: speedDigital, needle: speedNeedle, bar: speedBar, mini: speedMini }[st] || speedDial)(c, d, o, A),
   gforce: (c, d, o, A, st) => (st === 'bars' ? gBars : gforce)(c, d, o, A),
   map: (c, d, o, A, st) => ({ heading: mapHeading, heat: mapHeat }[st] || mapGauge)(c, d, o, A),
   attitude, clock, alt: altGauge, compass, chart, stats: statsGauge,
@@ -553,7 +594,7 @@ const DRAW = {
 
 export function gaugeAvailable(id, data) {
   const need = GAUGES[id].needs;
-  return !(need === 'gps' && !data.gps) && !(need === 'accel' && !data.tel.hasAccel) && !(need === 'imu' && data.tel.hasImu === false);
+  return gaugeFits(id, kindOf(data.gps)) && !(need === 'gps' && !data.gps) && !(need === 'accel' && !data.tel.hasAccel) && !(need === 'imu' && data.tel.hasImu === false);
 }
 export function gaugeSize(id, style) { return SIZES[id](style); }
 
@@ -567,10 +608,11 @@ export function drawOverlay(ctx, W, H, t, data, o, meta = {}, ui = {}) {
   const rects = [];
   for (const id of Object.keys(GAUGES)) {
     const g = o.g[id]; if (!g.on || !gaugeAvailable(id, data)) continue;
-    const [pw, ph] = SIZES[id](g.style), k = k0 * (g.scale || 100) / 100;
+    const gst = styleFor(id, g.style, kindOf(data.gps));
+    const [pw, ph] = SIZES[id](gst), k = k0 * (g.scale || 100) / 100;
     const x = m + clamp(g.x, 0, 1) * Math.max(0, W - 2 * m - pw * k), y = m + clamp(g.y, 0, 1) * Math.max(0, H - 2 * m - ph * k);
     ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
-    ctx.save(); panel(ctx, pw, ph, o, A); DRAW[id](ctx, d, o, A, g.style); ctx.restore();
+    ctx.save(); panel(ctx, pw, ph, o, A); DRAW[id](ctx, d, o, A, gst); ctx.restore();
     if (ui.highlight === id || ui.edit) {
       const sel = ui.highlight === id;
       ctx.setLineDash(sel ? [] : [16, 12]); ctx.lineWidth = (sel ? 8 : 4) / Math.max(0.15, k / base);

@@ -6,7 +6,7 @@ import { readGoProTelemetry, emptyTelemetry, calibrateAt, applyCalibration } fro
 import { parseGpx, coverage, autoSync } from './gpx.js';
 import { MAP_STYLES, onTile, prefetchRoute, tilesIdle, lastZoom } from './tiles.js';
 import { cards, addCard, removeCard, rebuild, drawCards, importNative, setCardsListener, activityChoices, CARD_TPLS, SHAPES, TEXT_COLORS, ROUTE_COLORS as CARD_COLORS, MAP_STYLES as CARD_MAPS, titleFor, dateStr } from './cards.js';
-import { drawOverlay, drawGaugeThumb, mergeOpts, applyPreset, PRESETS, ACCENTS, THEMES, GAUGES, gaugeAvailable } from './overlay.js';
+import { drawOverlay, drawGaugeThumb, mergeOpts, applyPreset, PRESETS, ACCENTS, THEMES, GAUGES, gaugeAvailable, kindOf, gaugeFits, allowedStyles, styleFor, gaugeName } from './overlay.js';
 
 const $ = id => document.getElementById(id);
 const fileEl = $('file'), gpxEl = $('gpxFile'), video = $('video'), ov = $('ov'), msgEl = $('msg');
@@ -61,12 +61,12 @@ function seg(el, items, get, set) {
 // ---- gösterge listesi ve düzenleyici ----
 function renderGaugeList() {
   const list = $('gauges'); list.innerHTML = '';
-  const ids = Object.keys(GAUGES), avail = id => !state.tel || gaugeAvailable(id, data());
+  const kind = kindOf(state.gps), ids = Object.keys(GAUGES).filter(id => gaugeFits(id, kind)), avail = id => !state.tel || gaugeAvailable(id, data());
   const row = id => {
-    const G = GAUGES[id], ok = avail(id), r = document.createElement('div');
+    const G = GAUGES[id], ok = avail(id), r = document.createElement('div'), AS = allowedStyles(id, kind);
     r.className = 'grow-row' + (state.sel === id ? ' sel' : '') + (ok ? '' : ' na');
-    const sub = !ok ? (G.needs === 'gps' ? 'GPX ekleyince açılır' : 'Bu videoda sensör verisi yok') : (G.styles ? (G.styles[opts.g[id].style] || Object.values(G.styles)[0]) + ' · ' + Object.keys(G.styles).length + ' stil' : 'Boyut ve konum');
-    r.innerHTML = `<button class="gname" aria-expanded="${state.sel === id}" ${ok ? '' : 'disabled'}><b>${G.name}</b><small>${sub}</small></button>
+    const sub = !ok ? (G.needs === 'gps' ? 'GPX ekleyince açılır' : 'Bu videoda sensör verisi yok') : (G.styles ? (AS[styleFor(id, opts.g[id].style, kind)]) + ' · ' + Object.keys(AS).length + ' stil' : 'Boyut ve konum');
+    r.innerHTML = `<button class="gname" aria-expanded="${state.sel === id}" ${ok ? '' : 'disabled'}><b>${gaugeName(id, kind)}</b><small>${sub}</small></button>
       <input type="checkbox" class="switch" ${opts.g[id].on && ok ? 'checked' : ''} ${ok ? '' : 'disabled'} aria-label="${G.name} göster">`;
     r.querySelector('input').onchange = e => { opts.g[id].on = e.target.checked; save(); if (e.target.checked) select(id); else drawPreview(); };
     r.querySelector('.gname').onclick = () => select(state.sel === id ? null : id);
@@ -83,14 +83,15 @@ function renderGaugeList() {
 }
 function editorFor(id) {
   const G = GAUGES[id], g = opts.g[id], box = document.createElement('div'); box.className = 'geditor';
-  box.innerHTML = `${G.styles ? '<div class="styles" data-r="style" role="radiogroup" aria-label="Stil"></div>' : ''}
+  const kind = kindOf(state.gps), AS = allowedStyles(id, kind), cur = G.styles ? styleFor(id, g.style, kind) : null, multi = AS && Object.keys(AS).length > 1;
+  box.innerHTML = `${multi ? '<div class="styles" data-r="style" role="radiogroup" aria-label="Stil"></div>' : ''}
     ${id === 'map' ? '<div class="field-l" style="font-size:12.5px;color:var(--text-3);margin:var(--s3) 0 6px">Harita arka planı</div><div class="seg" data-r="tiles"></div>' : ''}
     <div class="slider"><label>Bu göstergenin boyutu <b class="num">%${g.scale}</b></label><input type="range" min="50" max="200" step="5" value="${g.scale}" aria-label="Gösterge boyutu"></div>
     <div class="row" style="margin-top:var(--s2)"><button class="btn sm grow" data-r="edit">Önizlemede taşı</button><button class="btn sm ghost" data-r="reset">Varsayılana dön</button></div>`;
-  if (G.styles && state.tel) {
+  if (multi && state.tel) {
     const wrap = box.querySelector('[data-r=style]'), t = video.currentTime || 0;
-    for (const [st, name] of Object.entries(G.styles)) {
-      const b = document.createElement('button'); b.className = (g.style || Object.keys(G.styles)[0]) === st ? 'on' : '';
+    for (const [st, name] of Object.entries(AS)) {
+      const b = document.createElement('button'); b.className = cur === st ? 'on' : '';
       b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', b.className === 'on');
       const c = document.createElement('canvas'), dpr = window.devicePixelRatio || 1, W = 104;
       c.width = W * dpr * 2; c.height = W * dpr * 2;
@@ -211,7 +212,7 @@ async function loadFile(f) {
     setMsg(canDecode ? '' : 'Bu tarayıcı bu videonun formatını (' + (info.codec || '?') + ') çözemiyor; dışa aktarma çalışmayabilir. iPhone\'da Safari veya bilgisayarda güncel Chrome dene.', 'err');
     if (canDecode && noImu) setMsg('Bu videoda yatış/eğim sensör verisi yok' + (tel.device === 'GoPro' ? ' (WhatsApp vb. ile gönderilen GoPro videolarında silinir; orijinal dosyayı kullan)' : '') + '. <b>GPX ekleyerek hız, rota, pusula ve irtifa göstergeleri ekleyebilirsin.</b>', 'warn');
     else if (canDecode && !tel.hasAccel) setMsg('Bu videoda ivmeölçer verisi yok; G-kuvveti göstergesi gizlendi.', 'warn');
-    drawPreview(); autoLast();
+    drawPreview(); if (!applyLead()) autoLast();
   } catch (e) { console.error(e); setMsg('Video okunamadı: ' + esc(e.message || e)); }
 }
 
@@ -262,6 +263,23 @@ function showLast() {
 }
 showLast();
 // Video seçilince: son GPS kaydı bu videonun zamanını kapsıyorsa kendiliğinden ekle
+// Uygulamada bir aktivitenin içinden "Videoya ekle" denildiyse: o aktivitenin verisi eşleşme aranmadan kullanılır
+function applyLead() {
+  if (!isApp || !window.__TG_LEAD || state.gps) return false;
+  const a = (window.__TG_ACTS || [])[0]; if (!a?.gpx) return false;
+  useGpx(a.gpx, a.name); syncActSel(0);
+  setMsg(`<b>${esc(a.name)}</b> verisi eklendi. Videoyla zamanı tutmuyorsa Hizalama sekmesinden ayarlayabilirsin.`, 'ok');
+  return true;
+}
+function syncActSel(i) { const sel = $('actSel'); if (sel) sel.value = String(i); }
+function buildActPick() {
+  const L = window.__TG_ACTS; if (!isApp || !Array.isArray(L) || !L.length) return;
+  const sel = $('actSel'); $('actPick').classList.remove('hidden');
+  const when = g => { const m = (g.match(/<time>([^<]+)<\/time>/) || [])[1], d = m && new Date(m); return d && !isNaN(d) ? d.toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''; };
+  sel.innerHTML = '<option value="-1">Aktivite seç…</option>' + L.map((a, i) => `<option value="${i}">${esc(a.name)} · ${esc(when(a.gpx))}</option>`).join('');
+  sel.value = '-1';
+  sel.onchange = () => { const a = L[+sel.value]; if (a && state.info) useGpx(a.gpx, a.name); };
+}
 function autoLast() {
   if (state.gps || !last?.gpx || !state.info) return;
   try {
@@ -636,7 +654,7 @@ function buildVideoDock() {
   setMode(state.mode || 'live');
 }
 if (isApp) {
-  buildVideoDock();
+  buildVideoDock(); buildActPick();
   $('pickCard').append(fileEl);
   $('pkText').textContent = state.mode === 'card'
     ? 'Aktivitenin rota ve değerleri, videonun istediğin kısmında kart olarak belirir. Hangi saniyede başlayacağını ve ne kadar kalacağını sonra ayarlarsın.'

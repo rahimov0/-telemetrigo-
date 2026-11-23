@@ -46,6 +46,10 @@ final class AppModel: ObservableObject {
     @Published var useGoPro = true
     @Published var pendingGpx: (name: String, text: String)?
     @Published var busy = false
+    @Published var videoRoute: VideoRoute?   // video editörü (Stüdyo ve Özet'ten)
+
+    /// Video editörünü aç. `lead` verilirse o aktivitenin verisi videoya hazır bağlanır.
+    func openVideo(mode: String, lead: Activity?) { videoRoute = VideoRoute(mode: mode, lead: lead) }
 
     init() {
         gopro.onEncodingChange = { [weak self] on, t in
@@ -84,6 +88,7 @@ final class AppModel: ObservableObject {
     func useInVideo(_ s: Session) {
         pendingGpx = (s.gpxName, rec.gpxText(s))
         tab = 1
+        if videoRoute == nil { openVideo(mode: "live", lead: nil) }
     }
 }
 
@@ -100,6 +105,7 @@ struct RootView: View {
             FloatingTabBar(selection: $model.tab)
         }
         .background(Theme.bg.ignoresSafeArea())
+        .fullScreenCover(item: $model.videoRoute) { VideoCover(v: $0).environmentObject(model) }
     }
     private func page<V: View>(_ i: Int, @ViewBuilder _ v: () -> V) -> some View {
         v().opacity(model.tab == i ? 1 : 0).allowsHitTesting(model.tab == i).accessibilityHidden(model.tab != i)

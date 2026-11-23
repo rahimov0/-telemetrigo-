@@ -699,6 +699,7 @@ struct ActivityDetail: View {
     @State private var steps: Int?
     @State private var cam: MapCameraPosition = .automatic
     @State private var photo = false
+    @State private var videoPick = false
     @State private var showSettings = false
     @State private var confirmDel = false
     @Environment(\.dismiss) private var dismiss
@@ -718,7 +719,7 @@ struct ActivityDetail: View {
                     statsPanel
                     VStack(spacing: 10) {
                         Button { photo = true } label: { Label("Fotoğrafa ekle", systemImage: "photo") }.buttonStyle(AccButton(height: 52))
-                        Button { model.pendingGpx = (a.gpxName, act.gpxText(a)); model.tab = 1 } label: { Label("Videoya ekle", systemImage: "film") }.buttonStyle(GhostButton(height: 52))
+                        Button { videoPick = true } label: { Label("Videoya ekle", systemImage: "film") }.buttonStyle(GhostButton(height: 52))
                     }
                     if elev.count > 2 {
                         Panel {
@@ -747,7 +748,14 @@ struct ActivityDetail: View {
             }
         }
         .task { compute() }
-        .sheet(isPresented: $photo) { PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue, steps: steps, kcal: Cal.active(a)).environmentObject(model) }
+        .sheet(isPresented: $photo) { PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue, steps: steps, kcal: Cal.active(a), lead: a).environmentObject(model) }
+        .sheet(isPresented: $videoPick) {
+            SourceSheet(a: a, videoOnly: true) { choice in
+                videoPick = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { model.openVideo(mode: choice == .card ? "card" : "live", lead: a) }
+            }
+            .presentationDetents([.height(330), .medium]).presentationDragIndicator(.visible)
+        }
         .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
         .confirmationDialog("Aktivite silinsin mi? Bu işlem geri alınamaz.", isPresented: $confirmDel, titleVisibility: .visible) {
             Button("Sil", role: .destructive) { act.delete(a); dismiss() }
@@ -871,6 +879,7 @@ struct PhotoEditorSheet: View {
     let gpx: String, name: String, type: String
     var steps: Int? = nil
     var kcal: Double? = nil
+    var lead: Activity? = nil
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
@@ -882,7 +891,10 @@ struct PhotoEditorSheet: View {
             }.padding(.horizontal, 16).frame(height: 56).background(Theme.bg)
             Divider().overlay(Theme.line)
             ActivityWeb(gpx: gpx, name: name, type: type, steps: steps, kcal: kcal, toVideo: { g, n in
-                model.pendingGpx = (n, g); model.tab = 1; dismiss()
+                dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    if let l = lead { model.openVideo(mode: "live", lead: l) } else { model.pendingGpx = (n, g); model.tab = 1; model.openVideo(mode: "live", lead: nil) }
+                }
             }, onImage: { _ in }, onProfile: { d, ext in
                 model.profile.add(data: d, ext: ext, title: name, type: type)
                 model.tab = 2; dismiss()

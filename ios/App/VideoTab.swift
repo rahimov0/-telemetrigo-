@@ -8,7 +8,7 @@ struct VideoTab: View {
     var mode: String = "live"
     var lead: Activity? = nil
     var body: some View {
-        WebView(pending: $model.pendingGpx, actsJSON: Self.actsJSON(model.activity, lead: lead), mode: mode).background(Color.black.ignoresSafeArea()).environment(\.colorScheme, .dark)
+        WebView(pending: $model.pendingGpx, actsJSON: Self.actsJSON(model.activity, lead: lead), mode: mode, lead: lead).background(Color.black.ignoresSafeArea()).environment(\.colorScheme, .dark)
     }
 }
 
@@ -29,6 +29,7 @@ struct WebView: UIViewRepresentable {
     @Binding var pending: (name: String, text: String)?
     var actsJSON: String = "[]"
     var mode: String = "live"
+    var lead: Activity? = nil
     var home: URL { URL(string: "https://telemetrigo.rahimov.tr/?app=1&mode=\(mode)")! }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -39,7 +40,7 @@ struct WebView: UIViewRepresentable {
         cfg.allowsInlineMediaPlayback = true
         cfg.mediaTypesRequiringUserActionForPlayback = []
         cfg.websiteDataStore = .default()
-        cfg.userContentController.addUserScript(WKUserScript(source: "window.__TG_ACTS = \(actsJSON);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        cfg.userContentController.addUserScript(WKUserScript(source: "window.__TG_ACTS = \(actsJSON);" + (lead != nil ? " window.__TG_LEAD = true;" : ""), injectionTime: .atDocumentStart, forMainFrameOnly: true))
         let wv = WKWebView(frame: .zero, configuration: cfg)
         wv.navigationDelegate = context.coordinator
         wv.uiDelegate = context.coordinator

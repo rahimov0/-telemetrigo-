@@ -7,10 +7,7 @@ struct StudioTab: View {
     @ObservedObject var act: ActivityRecorder
     @State private var picked: Activity?          // seçenek sayfası
     @State private var editing: Activity?         // fotoğraf editörü
-    @State private var video: VideoRoute?         // video editörü
     @State private var showCam = false
-
-    struct VideoRoute: Identifiable { let id = UUID(); var mode: String; var lead: Activity? }
 
     var body: some View {
         ScrollView {
@@ -19,7 +16,7 @@ struct StudioTab: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     sectionTitle("Videodan başla")
-                    Button { video = VideoRoute(mode: "live", lead: nil) } label: {
+                    Button { model.openVideo(mode: "live", lead: nil) } label: {
                         HStack(spacing: 14) {
                             Image(systemName: "film.stack.fill").font(.system(size: 22)).foregroundStyle(Theme.onAcc)
                                 .frame(width: 52, height: 52).background(Color.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
@@ -72,37 +69,18 @@ struct StudioTab: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     switch choice {
                     case .photo: editing = a
-                    case .card: video = VideoRoute(mode: "card", lead: a)
-                    case .live:
-                        model.pendingGpx = (name: a.type.title(a.start), text: act.gpxText(a))
-                        video = VideoRoute(mode: "live", lead: a)
+                    case .card: model.openVideo(mode: "card", lead: a)
+                    case .live: model.openVideo(mode: "live", lead: a)
                     }
                 }
             }
             .presentationDetents([.height(330), .medium]).presentationDragIndicator(.visible)
         }
         .sheet(item: $editing) { a in
-            PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue, steps: nil, kcal: Cal.active(a))
+            PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue, steps: nil, kcal: Cal.active(a), lead: a)
                 .environmentObject(model)
         }
-        .fullScreenCover(item: $video) { v in
-            VStack(spacing: 0) {
-                HStack {
-                    Button { video = nil } label: {
-                        Text("Kapat").font(.body.weight(.medium)).foregroundStyle(.white).padding(.horizontal, 14).frame(height: 34)
-                            .background(Color.white.opacity(0.14), in: Capsule())
-                    }
-                    Spacer()
-                    Text(v.mode == "card" ? "Aktivite kartı" : "Canlı veri").font(.headline).foregroundStyle(.white)
-                    Spacer()
-                    Color.clear.frame(width: 66, height: 1)
-                }.padding(.horizontal, 16).padding(.vertical, 8)
-                VideoTab(mode: v.mode, lead: v.lead).environmentObject(model)
-            }.background(Color.black.ignoresSafeArea())
-        }
         .sheet(isPresented: $showCam) { RecordView().environmentObject(model) }
-        .onAppear { if model.pendingGpx != nil && video == nil { video = VideoRoute(mode: "live", lead: nil) } }
-        .onChange(of: model.pendingGpx == nil) { _, none in if !none && video == nil { video = VideoRoute(mode: "live", lead: nil) } }
     }
 
     private func sectionTitle(_ t: String) -> some View {
@@ -129,13 +107,14 @@ enum SourceChoice { case photo, card, live }
 /// "Bu aktiviteyle ne yapalım?" iki adımlı seçim: Fotoğraf / Video → Kart / Canlı veri
 struct SourceSheet: View {
     let a: Activity
+    var videoOnly = false
     let pick: (SourceChoice) -> Void
     @State private var step = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                if step == 1 {
+                if step == 1 && !videoOnly {
                     Button { withAnimation(.easeOut(duration: 0.15)) { step = 0 } } label: { Image(systemName: "chevron.left").font(.body.weight(.semibold)) }
                         .foregroundStyle(Theme.text2)
                 }
@@ -155,6 +134,7 @@ struct SourceSheet: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 18).background(Theme.bg.ignoresSafeArea())
+        .onAppear { if videoOnly { step = 1 } }
     }
 
     private func option(_ icon: String, _ title: String, _ sub: String, _ tint: Color, _ action: @escaping () -> Void) -> some View {
@@ -171,5 +151,29 @@ struct SourceSheet: View {
             }
             .padding(14).background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         }.buttonStyle(.plain)
+    }
+}
+
+
+/// Video editörü sayfası (Stüdyo ve Özet'ten aynı yerden açılır)
+struct VideoRoute: Identifiable { let id = UUID(); var mode: String; var lead: Activity? }
+
+struct VideoCover: View {
+    @EnvironmentObject var model: AppModel
+    let v: VideoRoute
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button { model.videoRoute = nil } label: {
+                    Text("Kapat").font(.body.weight(.medium)).foregroundStyle(.white).padding(.horizontal, 14).frame(height: 34)
+                        .background(Color.white.opacity(0.14), in: Capsule())
+                }
+                Spacer()
+                Text(v.mode == "card" ? "Aktivite kartı" : "Canlı veri").font(.headline).foregroundStyle(.white)
+                Spacer()
+                Color.clear.frame(width: 66, height: 1)
+            }.padding(.horizontal, 16).padding(.vertical, 8)
+            VideoTab(mode: v.mode, lead: v.lead).environmentObject(model)
+        }.background(Color.black.ignoresSafeArea())
     }
 }

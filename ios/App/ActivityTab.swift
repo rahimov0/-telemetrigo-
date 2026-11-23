@@ -1,4 +1,5 @@
 import SwiftUI
+import KrovaCore
 import MapKit
 import Charts
 import WebKit
@@ -178,7 +179,7 @@ struct ActivityTab: View {
 
     // Bugün: kalori, süre, adım hedefleri
     private var todayCard: some View {
-        let list = dayList
+        let list = dayList.filter { $0.type.kind.countsTowardGoals }
         let kcal = list.reduce(0.0) { $0 + (Cal.active($1) ?? 0) }
         let mins = list.reduce(0.0) { $0 + $1.moving } / 60
         let steps = Double(daySteps)
@@ -430,8 +431,10 @@ struct RecordScreen: View {
                     .shadow(color: act.type.color.opacity(0.5), radius: 22)
             }.buttonStyle(.plain).padding(.vertical, 6)
             VStack(spacing: 0) {
-                Toggle("Otomatik duraklat", isOn: $act.autoPause).padding(.vertical, 8)
-                Divider().overlay(Theme.line)
+                if act.type.kind.supportsAutoPause {
+                    Toggle("Otomatik duraklat", isOn: $act.autoPause).padding(.vertical, 8)
+                    Divider().overlay(Theme.line)
+                }
                 Toggle("Her kilometrede sesli bildirim", isOn: $act.voice).padding(.vertical, 8)
             }
             .tint(act.type.color).foregroundStyle(Theme.text).font(.subheadline)

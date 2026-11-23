@@ -11,10 +11,15 @@ settings:
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: "$(DEVELOPMENT_TEAM)"
     CODE_SIGN_STYLE: Automatic
+packages:
+  KrovaCore:
+    path: Core
 targets:
   TelemetriGo:
     type: application
     platform: iOS
+    dependencies:
+      - package: KrovaCore
     sources:
       - path: App
       - path: Resources

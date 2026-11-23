@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import KrovaCore
 import CoreLocation
 
 extension ActType {
@@ -117,7 +118,7 @@ final class HealthManager: ObservableObject {
 
     /// Bitmiş aktiviteyi Sağlık'a antrenman ve rota olarak yaz
     func save(_ a: Activity, points: [TrackPoint]) {
-        guard connected, write, Self.available, let end = a.end else { return }
+        guard connected, write, Self.available, a.type.kind.writesToHealth, let end = a.end else { return }
         let cfg = HKWorkoutConfiguration()
         cfg.activityType = a.type.hkType
         cfg.locationType = .outdoor

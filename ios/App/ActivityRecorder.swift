@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import AVFoundation
+import KrovaCore
 
 /// Aktivite türleri (web tarafıyla aynı anahtarlar)
 enum ActType: String, Codable, CaseIterable, Identifiable {
@@ -13,6 +14,8 @@ enum ActType: String, Codable, CaseIterable, Identifiable {
     /// Makul üst hız (m/s): GPS sıçramalarını "en iyi tempo"dan ayıklar
     var maxPlausible: Double { switch self { case .yuruyus: return 3.0; case .kosu: return 7.0; case .bisiklet: return 20; case .motor: return 75 } }
     var pace: Bool { self == .yuruyus || self == .kosu }
+    /// Çekirdek paketteki tür kuralları (kalori, halka, Sağlık, otomatik duraklat burada karar verilir)
+    var kind: ActivityKind { switch self { case .yuruyus: return .walk; case .kosu: return .run; case .bisiklet: return .bike; case .motor: return .motorcycle } }
     /// bunun altı "duruyor" (otomatik duraklatma), m/s
     var stopSpeed: Double { ["yuruyus": 0.3, "kosu": 0.7, "bisiklet": 1.0, "motor": 1.5][rawValue]! }
     /// bu pencerede (sn) bu kadar metreden az yer değiştirdiyse gerçekten duruyor demektir
@@ -79,7 +82,8 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         didSet { UserDefaults.standard.set(autoPause, forKey: "autoPause2_" + type.rawValue) }
     }
     static func autoPauseSetting(_ t: ActType) -> Bool {
-        UserDefaults.standard.object(forKey: "autoPause2_" + t.rawValue) as? Bool ?? (t != .yuruyus)
+        guard t.kind.supportsAutoPause else { return false }
+        return UserDefaults.standard.object(forKey: "autoPause2_" + t.rawValue) as? Bool ?? t.kind.autoPauseDefault
     }
     @Published var voiceEvery: Int = max(1, UserDefaults.standard.integer(forKey: "voiceEvery")) { didSet { UserDefaults.standard.set(voiceEvery, forKey: "voiceEvery") } }
     @Published var voice = UserDefaults.standard.object(forKey: "voice") as? Bool ?? true { didSet { UserDefaults.standard.set(voice, forKey: "voice") } }
@@ -94,6 +98,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     private let lm = CLLocationManager()
     private var handle: FileHandle?
     private var lastGood: CLLocation?
+    private var engine = DistanceEngine(kind: .run)
     private var recent: [CLLocation] = []
     private var lastTick = Date()
     private var timer: Timer?
@@ -132,6 +137,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         let a = Activity(id: UUID().uuidString, type: type, start: Date())
         FileManager.default.createFile(atPath: pointsURL(a.id).path, contents: nil)
         handle = try? FileHandle(forWritingTo: pointsURL(a.id))
+        engine = DistanceEngine(kind: type.kind)
         current = a; moving = 0; nextKm = 1; kmMoving = 0; route = []; lastGood = nil; autoPaused = false; stillCount = 0; moveCount = 0
         saveMeta(a)
         lm.activityType = type.clType
@@ -142,8 +148,8 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.tick() }
         say("\(type.name) başladı")
     }
-    func pause() { guard state == .running else { return }; tick(); state = .paused; say("Duraklatıldı") }
-    func resume() { guard state == .paused else { return }; lastTick = Date(); lastGood = nil; state = .running; say("Devam") }
+    func pause() { guard state == .running else { return }; tick(); engine.breakSegment(); state = .paused; say("Duraklatıldı") }
+    func resume() { guard state == .paused else { return }; lastTick = Date(); lastGood = nil; engine.breakSegment(); state = .running; say("Devam") }
 
     /// Bitir: GPX yaz, geçmişe ekle. Çok kısa kayıtları atar.
     @discardableResult
@@ -156,7 +162,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         lm.stopUpdatingLocation()
         state = .idle; current = nil; autoPaused = false
         let pts = readPoints(a.id)
-        guard pts.count >= 2 else { delete(a); return nil }
+        guard pts.count >= 2, !Validity.isTooShort(distance: a.distance, movingTime: moving) else { delete(a); return nil }
         a.end = Date(timeIntervalSince1970: pts.last!.t)
         a.moving = moving
         a.gain = Self.gain(pts)
@@ -180,8 +186,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
 
     private func tick() {
         let now = Date(), dt = now.timeIntervalSince(lastTick); lastTick = now
-        guard state == .running, !(autoPause && autoPaused), dt < 5 else { return }
-        moving += dt
+        _ = dt   // hareket süresi artık konum zaman damgalarından (DistanceEngine) hesaplanır
     }
 
     // MARK: Konum
@@ -215,24 +220,19 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
                 if net < type.stillDist && !fast { stillCount += 1 } else { stillCount = 0 }
             }
             if let x = v, x >= type.stopSpeed * 1.6 { moveCount += 1 } else { moveCount = 0 }
-            if !autoPaused, stillCount >= 3 { autoPaused = true; moveCount = 0 }
-            if autoPaused, moveCount >= 2 { autoPaused = false; stillCount = 0; lastGood = l }
+            if !autoPaused, stillCount >= 3 { autoPaused = true; moveCount = 0; engine.breakSegment() }
+            if autoPaused, moveCount >= 2 { autoPaused = false; stillCount = 0; lastGood = l; engine.breakSegment() }
         }
 
         let row = TrackPoint(t: l.timestamp.timeIntervalSince1970, la: l.coordinate.latitude, lo: l.coordinate.longitude,
                              al: l.verticalAccuracy >= 0 ? l.altitude : nil, ha: l.horizontalAccuracy, sp: l.speed >= 0 ? l.speed : nil)
-        if let d = try? JSONEncoder().encode(row) { h.write(d); h.write(Data([0x0A])) }
-        guard state == .running, l.horizontalAccuracy <= 30 else { return }
-        if let p = lastGood {
-            let d = l.distance(from: p)
-            let moved = (v ?? 0) >= type.stopSpeed || d > max(8, l.horizontalAccuracy * 1.5)
-            if moved && !autoPaused {
-                a.distance += d
-                if let x = v, x <= type.maxPlausible, d / max(l.timestamp.timeIntervalSince(p.timestamp), 1) <= type.maxPlausible * 1.3 { a.maxSpeed = max(a.maxSpeed, x) }
-                lastGood = l
-                route.append(l.coordinate)
-            } else if !moved { /* titreme: konumu ilerletme */ } else { lastGood = l }
-        } else { lastGood = l; route.append(l.coordinate) }
+        let recording = state == .running && !(autoPause && autoPaused)
+        if recording, let d = try? JSONEncoder().encode(row) { h.write(d); h.write(Data([0x0A])) }
+        guard recording else { return }
+        let fix = Fix(t: l.timestamp.timeIntervalSince1970, lat: l.coordinate.latitude, lon: l.coordinate.longitude, hAcc: l.horizontalAccuracy, speed: l.speed)
+        engine.add(fix)
+        a.distance = engine.distance; a.maxSpeed = engine.maxSpeed; moving = engine.movingTime
+        if l.horizontalAccuracy <= 30, route.last.map({ CLLocation(latitude: $0.latitude, longitude: $0.longitude).distance(from: l) >= 3 }) ?? true { route.append(l.coordinate) }
         current = a
         if a.distance >= Double(nextKm) * 1000 {
             let ev = max(1, voiceEvery)

@@ -1,4 +1,5 @@
 import SwiftUI
+import KrovaCore
 import CoreLocation
 
 // MARK: Renk sistemi: her değerin kendi rengi var (süre sarı, mesafe mavi, tempo camgöbeği, kalori pembe, yükseliş yeşil, adım mor)
@@ -62,21 +63,9 @@ enum Cal {
     static var cm: Double { UserDefaults.standard.double(forKey: "profCm") }
     static var ready: Bool { kg >= 25 }
 
-    static func met(_ t: ActType, kmh: Double) -> Double {
-        switch t {
-        case .yuruyus:
-            switch kmh { case ..<3.2: return 2.5; case ..<4.0: return 2.9; case ..<4.8: return 3.3; case ..<5.6: return 3.8; case ..<6.4: return 5.0; default: return 7.0 }
-        case .kosu: return max(6.0, kmh)
-        case .bisiklet:
-            switch kmh { case ..<12: return 4.0; case ..<16: return 5.8; case ..<19: return 6.8; case ..<22: return 8.0; case ..<25.7: return 10.0; case ..<30: return 12.0; default: return 15.8 }
-        case .motor: return 3.5
-        }
-    }
-    /// Aktif kalori (kcal); kilo girilmemişse nil
+    /// Aktif kalori (kcal); sürüş türlerinde, kilo girilmemişse ya da süre kısaysa nil
     static func active(_ t: ActType, dist: Double, moving: Double) -> Double? {
-        guard ready, moving > 30 else { return nil }
-        let kmh = dist / moving * 3.6
-        return max(0, (met(t, kmh: kmh) - 1) * kg * moving / 3600)
+        Calories.active(kind: t.kind, distance: dist, movingTime: moving, weightKg: kg)
     }
     static func active(_ a: Activity) -> Double? { active(a.type, dist: a.distance, moving: a.moving) }
 }

@@ -32,6 +32,7 @@ final class AppModel: ObservableObject {
     let rec = Recorder()
     let activity = ActivityRecorder()
     let health = HealthManager()
+    let profile = ProfileStore()
     @Published var tab = 0   // 0 Özet · 1 Stüdyo · 2 Profil
     @Published var useGoPro = true
     @Published var pendingGpx: (name: String, text: String)?
@@ -81,17 +82,13 @@ struct RootView: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
         TabView(selection: $model.tab) {
-            tabContent(ActivityTab(act: model.activity, health: model.health)).tag(0)
-            tabContent(VideoTab()).tag(1)
-            tabContent(ActivitySettings(act: model.activity, health: model.health, embedded: true)).tag(2)
+            ActivityTab(act: model.activity, health: model.health).toolbar(.hidden, for: .tabBar).tag(0)
+            VideoTab().toolbar(.hidden, for: .tabBar).tag(1)
+            ProfileTab(act: model.activity, health: model.health, store: model.profile).toolbar(.hidden, for: .tabBar).tag(2)
         }
-        .overlay(alignment: .bottom) { FloatingTabBar(selection: $model.tab) }
-    }
-
-    /// Sistem sekme çubuğu gizli; altta içeriğin çubuğun altında kalmaması için boşluk bırakılır
-    private func tabContent<V: View>(_ v: V) -> some View {
-        v.safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: 88) }
-            .toolbar(.hidden, for: .tabBar)
+        // Çubuk güvenli alana eklenir: içerik (ve "Kayda başla" düğmesi) çubuğun altında kalmaz
+        .safeAreaInset(edge: .bottom, spacing: 0) { FloatingTabBar(selection: $model.tab) }
+        .background(Theme.bg.ignoresSafeArea())
     }
 }
 

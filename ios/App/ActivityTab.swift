@@ -681,9 +681,9 @@ struct PhotoEditorSheet: View {
                 }
             }.padding(.horizontal, 16).frame(height: 56).background(Theme.bg)
             Divider().overlay(Theme.line)
-            ActivityWeb(gpx: gpx, name: name, type: type, steps: steps, kcal: kcal) { g, n in
+            ActivityWeb(gpx: gpx, name: name, type: type, steps: steps, kcal: kcal, toVideo: { g, n in
                 model.pendingGpx = (n, g); model.tab = 1; dismiss()
-            }
+            }, onImage: { model.profile.add(imageAt: $0, title: name, type: type) })
         }
         .background(Theme.bg.ignoresSafeArea())
         .presentationDragIndicator(.visible)
@@ -695,6 +695,7 @@ struct ActivityWeb: UIViewRepresentable {
     var steps: Int? = nil
     var kcal: Double? = nil
     let toVideo: (String, String) -> Void
+    var onImage: ((URL) -> Void)? = nil     // dışa aktarılan görsel (profil galerisine eklenir)
     static let url = URL(string: "https://telemetrigo.rahimov.tr/aktivite.html?app=1")!
 
     func makeCoordinator() -> C { C(self) }
@@ -741,6 +742,7 @@ struct ActivityWeb: UIViewRepresentable {
         }
         func downloadDidFinish(_ d: WKDownload) {
             guard let u = dest, let web else { return }
+            p.onImage?(u)
             let vc = UIActivityViewController(activityItems: [u], applicationActivities: nil)
             vc.popoverPresentationController?.sourceView = web
             web.window?.rootViewController?.topMost.present(vc, animated: true)

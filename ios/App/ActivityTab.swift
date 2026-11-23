@@ -180,9 +180,10 @@ struct ActivityTab: View {
             }
         }
         .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
-        .onAppear { health.refresh(); loadDaySteps(); if act.state != .idle { showRecord = true } }
+        .onAppear { health.loadWeek(containing: selDay, force: true); loadDaySteps(); if act.state != .idle { showRecord = true } }
         .onChange(of: selDay) { _, d in
             loadDaySteps()
+            health.loadWeek(containing: d)
             var cal = Calendar(identifier: .iso8601); cal.locale = Locale(identifier: "tr_TR")
             let a = cal.dateInterval(of: .weekOfYear, for: d)?.start ?? d, b = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
             weekBack = max(0, (cal.dateComponents([.weekOfYear], from: a, to: b).weekOfYear ?? 0))
@@ -456,17 +457,33 @@ struct ActivityTab: View {
                     Label("Apple Sağlık", systemImage: "heart.fill").font(.caption.weight(.semibold)).foregroundStyle(Theme.cKcal)
                 }
                 if health.connected {
+                    let cal = Calendar.current
+                    let isToday = cal.isDateInToday(selDay)
+                    let steps = health.week.first(where: { cal.isDate($0.day, inSameDayAs: selDay) })?.steps ?? 0
+                    let dist = health.weekDist[cal.startOfDay(for: selDay)] ?? 0
                     HStack(alignment: .top) {
-                        StatCell(label: "Bugün", value: health.stepsToday.formatted(), unit: "adım", tint: Theme.cSteps, big: true)
-                        StatCell(label: "Yürünen", value: Fmt.km(health.distToday), unit: "km", tint: Theme.cDist, big: true)
+                        StatCell(label: isToday ? "Bugün" : selDay.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)), value: steps.formatted(), unit: "adım", tint: Theme.cSteps, big: true)
+                        StatCell(label: "Yürünen", value: Fmt.km(dist), unit: "km", tint: Theme.cDist, big: true)
                     }
                     Chart(health.week, id: \.day) { d in
-                        BarMark(x: .value("Gün", d.day, unit: .day), y: .value("Adım", d.steps), width: .ratio(0.55))
-                            .foregroundStyle(Calendar.current.isDateInToday(d.day) ? Theme.cSteps : Theme.cSteps.opacity(0.35)).cornerRadius(5)
+                        BarMark(x: .value("Gün", d.day, unit: .day), y: .value("Adım", max(d.steps, 60)), width: .ratio(0.55))
+                            .foregroundStyle(cal.isDate(d.day, inSameDayAs: selDay) ? Theme.cSteps : Theme.cSteps.opacity(0.32)).cornerRadius(5)
                     }
                     .chartYAxis(.hidden)
                     .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.abbreviated)).foregroundStyle(Theme.text2) } }
-                    .frame(height: 72)
+                    .chartOverlay { proxy in
+                        GeometryReader { geo in
+                            Rectangle().fill(.clear).contentShape(Rectangle()).onTapGesture { loc in
+                                guard let frame = proxy.plotFrame else { return }
+                                let x = loc.x - geo[frame].origin.x
+                                if let d: Date = proxy.value(atX: x), let hit = health.week.first(where: { cal.isDate($0.day, inSameDayAs: d) }), hit.day <= Date() {
+                                    withAnimation(.easeOut(duration: 0.15)) { selDay = cal.startOfDay(for: hit.day) }
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: 84)
+                    Text("Bir güne dokun: o günün özeti açılır.").font(.caption).foregroundStyle(Theme.text3)
                 } else {
                     Text("Günlük adımların ve yürüyüşlerin burada görünsün. Bitirdiğin aktiviteler de Sağlık uygulamasına antrenman olarak yazılır.").font(.subheadline).foregroundStyle(Theme.text2)
                     Button { health.connect() } label: { Label("Apple Sağlık'a bağlan", systemImage: "heart.fill") }.buttonStyle(AccButton(height: 46, color: Theme.cKcal))

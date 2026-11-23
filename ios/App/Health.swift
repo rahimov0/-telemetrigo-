@@ -81,30 +81,37 @@ final class HealthManager: ObservableObject {
 
     func disconnect() { connected = false; UserDefaults.standard.set(false, forKey: "healthOn"); stepsToday = 0; week = [] }
 
-    /// Bugünkü ve son 7 günün adımları
-    func refresh() {
+    /// Seçili günün haftası (Pzt–Paz): günlük adım ve yürüme mesafesi
+    @Published var weekDist: [Date: Double] = [:]
+    private var loadedWeek: Date?
+    func refresh() { loadWeek(containing: Date(), force: true) }
+
+    func loadWeek(containing day: Date, force: Bool = false) {
         guard connected, Self.available else { return }
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        guard let from = cal.date(byAdding: .day, value: -6, to: today) else { return }
-        let pred = HKQuery.predicateForSamples(withStart: from, end: nil, options: .strictStartDate)
-        let q = HKStatisticsCollectionQuery(quantityType: stepType, quantitySamplePredicate: pred, options: .cumulativeSum,
-                                            anchorDate: today, intervalComponents: DateComponents(day: 1))
+        var cal = Calendar(identifier: .iso8601); cal.locale = Locale(identifier: "tr_TR")
+        guard let from = cal.dateInterval(of: .weekOfYear, for: day)?.start, let to = cal.date(byAdding: .day, value: 7, to: from) else { return }
+        if !force, loadedWeek == from { return }
+        loadedWeek = from
+        let range = HKQuery.predicateForSamples(withStart: from, end: to, options: .strictStartDate)
+        let q = HKStatisticsCollectionQuery(quantityType: stepType, quantitySamplePredicate: range, options: .cumulativeSum,
+                                            anchorDate: from, intervalComponents: DateComponents(day: 1))
         q.initialResultsHandler = { [weak self] _, res, _ in
-            guard let res else { return }
             var days: [(day: Date, steps: Int)] = []
-            res.enumerateStatistics(from: from, to: Date()) { s, _ in
+            res?.enumerateStatistics(from: from, to: to) { s, _ in
                 days.append((s.startDate, Int(s.sumQuantity()?.doubleValue(for: .count()) ?? 0)))
             }
-            DispatchQueue.main.async { self?.week = days; self?.stepsToday = days.last?.steps ?? 0 }
+            DispatchQueue.main.async { self?.week = days; self?.stepsToday = days.first(where: { Calendar.current.isDateInToday($0.day) })?.steps ?? 0 }
         }
         store.execute(q)
         // Bu uygulamanın antrenman olarak yazdığı mesafe sayılmaz; yoksa az adımla çok km görünür
         let own = NSCompoundPredicate(notPredicateWithSubpredicate: HKQuery.predicateForObjects(from: HKSource.default()))
-        let dp = NSCompoundPredicate(andPredicateWithSubpredicates: [HKQuery.predicateForSamples(withStart: today, end: nil, options: .strictStartDate), own])
-        let dq = HKStatisticsQuery(quantityType: walkDist, quantitySamplePredicate: dp, options: .cumulativeSum) { [weak self] _, s, _ in
-            let m = s?.sumQuantity()?.doubleValue(for: .meter()) ?? 0
-            DispatchQueue.main.async { self?.distToday = m }
+        let dp = NSCompoundPredicate(andPredicateWithSubpredicates: [range, own])
+        let dq = HKStatisticsCollectionQuery(quantityType: walkDist, quantitySamplePredicate: dp, options: .cumulativeSum,
+                                             anchorDate: from, intervalComponents: DateComponents(day: 1))
+        dq.initialResultsHandler = { [weak self] _, res, _ in
+            var m: [Date: Double] = [:]
+            res?.enumerateStatistics(from: from, to: to) { s, _ in m[Calendar.current.startOfDay(for: s.startDate)] = s.sumQuantity()?.doubleValue(for: .meter()) ?? 0 }
+            DispatchQueue.main.async { self?.weekDist = m }
         }
         store.execute(dq)
     }

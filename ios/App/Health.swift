@@ -37,7 +37,7 @@ final class HealthManager: ObservableObject {
 
     /// İzinleri (yeni türler dahil) yeniden ister, sonra kilo/boyu okur
     func fetchProfile(_ done: @escaping (Double?, Double?, String?) -> Void) {
-        let read: Set<HKObjectType> = [stepType, walkDist, massType, heightType]
+        let read: Set<HKObjectType> = [stepType, walkDist, energyType, massType, heightType]
         let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
         store.requestAuthorization(toShare: share, read: read) { [weak self] _, err in
             guard let self else { return }
@@ -66,7 +66,7 @@ final class HealthManager: ObservableObject {
 
     func connect() {
         guard Self.available else { lastError = "Bu cihazda Sağlık verisi yok."; return }
-        let read: Set<HKObjectType> = [stepType, walkDist, massType, heightType]
+        let read: Set<HKObjectType> = [stepType, walkDist, energyType, massType, heightType]
         let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
         store.requestAuthorization(toShare: share, read: read) { [weak self] ok, err in
             DispatchQueue.main.async {
@@ -83,8 +83,20 @@ final class HealthManager: ObservableObject {
 
     /// Seçili günün haftası (Pzt–Paz): günlük adım ve yürüme mesafesi
     @Published var weekDist: [Date: Double] = [:]
+    /// Sağlık'taki günlük aktif enerji (kcal): Apple Watch, iPhone ve bu uygulamanın yazdıkları dahil, Hareket halkasıyla aynı
+    @Published var weekEnergy: [Date: Double] = [:]
     private var loadedWeek: Date?
-    func refresh() { loadWeek(containing: Date(), force: true) }
+    func refresh() {
+        // Kalori okuma izni sonradan eklendi: bağlı olanlara bir kez sorulur
+        if connected, !UserDefaults.standard.bool(forKey: "healthEnergyAsked") {
+            let read: Set<HKObjectType> = [stepType, walkDist, energyType, massType, heightType]
+            let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
+            store.requestAuthorization(toShare: share, read: read) { [weak self] ok, _ in
+                DispatchQueue.main.async { if ok { UserDefaults.standard.set(true, forKey: "healthEnergyAsked") }; self?.loadWeek(containing: Date(), force: true) }
+            }
+        }
+        loadWeek(containing: Date(), force: true)
+    }
 
     func loadWeek(containing day: Date, force: Bool = false) {
         guard connected, Self.available else { return }
@@ -114,6 +126,14 @@ final class HealthManager: ObservableObject {
             DispatchQueue.main.async { self?.weekDist = m }
         }
         store.execute(dq)
+        let eq = HKStatisticsCollectionQuery(quantityType: energyType, quantitySamplePredicate: range, options: .cumulativeSum,
+                                             anchorDate: from, intervalComponents: DateComponents(day: 1))
+        eq.initialResultsHandler = { [weak self] _, res, _ in
+            var m: [Date: Double] = [:]
+            res?.enumerateStatistics(from: from, to: to) { s, _ in m[Calendar.current.startOfDay(for: s.startDate)] = s.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0 }
+            DispatchQueue.main.async { self?.weekEnergy.merge(m) { _, new in new } }
+        }
+        store.execute(eq)
     }
 
     /// Bir aktivitenin süresindeki adım sayısı (yürüyüş ve koşu için)

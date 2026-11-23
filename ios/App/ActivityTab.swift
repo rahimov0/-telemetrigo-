@@ -156,6 +156,11 @@ struct ActivityTab: View {
                     }
                 }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 130)
             }
+            .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { v in
+                let dx = v.translation.width, dy = v.translation.height
+                guard abs(dx) > 70, abs(dx) > abs(dy) * 1.8 else { return }
+                swipePeriod(back: dx > 0)
+            })
             .background(Glow())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -181,7 +186,7 @@ struct ActivityTab: View {
             }
         }
         .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
-        .onAppear { health.loadWeek(containing: selDay, force: true); loadDaySteps(); if act.state != .idle { showRecord = true } }
+        .onAppear { health.refresh(); health.loadWeek(containing: selDay, force: true); loadDaySteps(); if act.state != .idle { showRecord = true } }
         .onChange(of: selDay) { _, d in
             loadDaySteps()
             health.loadWeek(containing: d)
@@ -201,7 +206,11 @@ struct ActivityTab: View {
     // Bugün: kalori, süre, adım hedefleri
     private var todayCard: some View {
         let list = dayList
-        let kcal = list.reduce(0.0) { $0 + (Cal.active($1) ?? 0) }
+        let own = list.reduce(0.0) { $0 + (Cal.active($1) ?? 0) }
+        // Sağlık'ta o günün aktif enerjisi varsa (Apple Watch dahil) o geçerli; yoksa kendi hesabımız
+        let hk = health.connected ? (health.weekEnergy[Calendar.current.startOfDay(for: selDay)] ?? 0) : 0
+        let fromHealth = hk >= 1
+        let kcal = fromHealth ? hk : own
         let mins = list.reduce(0.0) { $0 + $1.moving } / 60
         let steps = Double(daySteps)
         let isToday = Calendar.current.isDateInToday(selDay)
@@ -213,11 +222,11 @@ struct ActivityTab: View {
                     Text(selDay.formatted(.dateTime.weekday(.wide).day().month(.wide))).font(.subheadline).foregroundStyle(Theme.text2)
                 }
                 HStack(alignment: .top, spacing: 0) {
-                    goal(kcal, goalKcal, Theme.cKcal, "flame.fill", Cal.ready ? Fmt.num(kcal) : "—", "kcal")
+                    goal(kcal, goalKcal, Theme.cKcal, "flame.fill", (Cal.ready || fromHealth) ? Fmt.num(kcal) : "—", "kcal")
                     goal(mins, goalMin, Theme.cElev, "timer", Fmt.num(mins), "dakika")
                     goal(steps, goalSteps, Theme.cSteps, "figure.walk", health.connected ? Int(steps).formatted() : "—", "adım")
                 }
-                if !Cal.ready {
+                if !Cal.ready && !fromHealth {
                     Button { showSettings = true } label: {
                         Label("Kalori için boy ve kilonu gir", systemImage: "person.crop.circle.badge.plus").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.acc)
                     }
@@ -432,6 +441,19 @@ struct ActivityTab: View {
                         }.buttonStyle(.plain)
                     }
                 }
+            }
+        }
+    }
+
+    /// Sağa kaydır: geçmişe; sola kaydır: ileri (bugünden öteye geçmez)
+    private func swipePeriod(back: Bool) {
+        let cal = Calendar.current, today = cal.startOfDay(for: Date())
+        withAnimation(.easeOut(duration: 0.2)) {
+            switch period {
+            case .day: selDay = min(today, cal.date(byAdding: .day, value: back ? -1 : 1, to: selDay) ?? selDay)
+            case .week: if back || weekBack > 0 { shiftWeek(back ? 1 : -1) }
+            case .month: monthBack = max(0, monthBack + (back ? 1 : -1))
+            case .year: yearBack = max(0, yearBack + (back ? 1 : -1))
             }
         }
     }

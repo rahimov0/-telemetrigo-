@@ -683,7 +683,10 @@ struct PhotoEditorSheet: View {
             Divider().overlay(Theme.line)
             ActivityWeb(gpx: gpx, name: name, type: type, steps: steps, kcal: kcal, toVideo: { g, n in
                 model.pendingGpx = (n, g); model.tab = 1; dismiss()
-            }, onImage: { model.profile.add(imageAt: $0, title: name, type: type) })
+            }, onImage: { _ in }, onProfile: { d, ext in
+                model.profile.add(data: d, ext: ext, title: name, type: type)
+                model.tab = 2; dismiss()
+            })
         }
         .background(Theme.bg.ignoresSafeArea())
         .presentationDragIndicator(.visible)
@@ -696,6 +699,7 @@ struct ActivityWeb: UIViewRepresentable {
     var kcal: Double? = nil
     let toVideo: (String, String) -> Void
     var onImage: ((URL) -> Void)? = nil     // dışa aktarılan görsel (profil galerisine eklenir)
+    var onProfile: ((Data, String) -> Void)? = nil   // "Profilde paylaş": ham görsel verisi + uzantı
     static let url = URL(string: "https://telemetrigo.rahimov.tr/aktivite.html?app=1")!
 
     func makeCoordinator() -> C { C(self) }
@@ -727,7 +731,11 @@ struct ActivityWeb: UIViewRepresentable {
         let p: ActivityWeb; weak var web: WKWebView?; private var dest: URL?
         init(_ p: ActivityWeb) { self.p = p }
         func userContentController(_ u: WKUserContentController, didReceive m: WKScriptMessage) {
-            guard let b = m.body as? [String: Any], b["action"] as? String == "video", let g = b["gpx"] as? String else { return }
+            guard let b = m.body as? [String: Any] else { return }
+            if b["action"] as? String == "profile", let s = b["image"] as? String, let d = Data(base64Encoded: s) {
+                p.onProfile?(d, b["ext"] as? String ?? "jpg"); return
+            }
+            guard b["action"] as? String == "video", let g = b["gpx"] as? String else { return }
             p.toVideo(g, b["name"] as? String ?? "aktivite.gpx")
         }
         func webView(_ w: WKWebView, decidePolicyFor a: WKNavigationAction, preferences: WKWebpagePreferences,

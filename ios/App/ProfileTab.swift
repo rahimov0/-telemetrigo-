@@ -48,6 +48,16 @@ final class ProfileStore: ObservableObject {
         }
     }
 
+    /// Editörden gelen görseli (ham veri) galeriye ekler
+    func add(data: Data, ext: String, title: String, type: String) {
+        let id = UUID().uuidString, file = "\(id).\(ext == "png" ? "png" : "jpg")"
+        do { try data.write(to: Self.dir.appendingPathComponent(file), options: .atomic) } catch { return }
+        DispatchQueue.main.async {
+            self.posts.insert(ProfilePost(id: id, file: file, date: Date(), title: title, type: type), at: 0)
+            self.save()
+        }
+    }
+
     func delete(_ p: ProfilePost) {
         try? FileManager.default.removeItem(at: url(for: p))
         posts.removeAll { $0.id == p.id }
@@ -82,7 +92,6 @@ struct ProfileTab: View {
     @ObservedObject var health: HealthManager
     @ObservedObject var store: ProfileStore
     @State private var pick: PhotosPickerItem?
-    @State private var showSettings = false
     @State private var open: ProfilePost?
 
     private var totalKm: Double { act.activities.reduce(0) { $0 + $1.distance } / 1000 }
@@ -91,19 +100,13 @@ struct ProfileTab: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                HStack {
-                    Spacer()
-                    Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3").foregroundStyle(Theme.text).frame(width: 44, height: 44) }
-                        .accessibilityLabel("Ayarlar")
-                }
                 header
                 stats
                 gallery
             }
-            .padding(.horizontal, 16).padding(.top, 4)
+            .padding(.horizontal, 16).padding(.top, 24)
         }
         .background(Theme.bg.ignoresSafeArea())
-        .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
         .sheet(item: $open) { p in PostDetail(store: store, post: p) }
         .onChange(of: pick) { _, item in
             guard let item else { return }

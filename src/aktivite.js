@@ -358,6 +358,17 @@ $('exp').onclick = async () => {
   } catch (e) { if (e.name !== 'AbortError') setMsg('Görsel oluşturulamadı: ' + esc(e.message)); }
   b.disabled = false;
 };
+// iOS uygulaması: görseli profil galerisine gönder
+if (isApp) $('expProfile').style.display = '';
+$('expProfile').onclick = async () => {
+  const b = $('expProfile'); b.disabled = true;
+  try {
+    const f = await renderFull();
+    const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
+    window.webkit.messageHandlers.tg.postMessage({ action: 'profile', ext: f.type === 'image/png' ? 'png' : 'jpg', image: data });
+  } catch (e) { setMsg('Profile eklenemedi: ' + esc(e.message)); }
+  b.disabled = false;
+};
 $('expDl').onclick = async e => {
   e.preventDefault(); const f = await renderFull();
   const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);

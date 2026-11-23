@@ -81,14 +81,19 @@ final class AppModel: ObservableObject {
 struct RootView: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
-        TabView(selection: $model.tab) {
-            ActivityTab(act: model.activity, health: model.health).toolbar(.hidden, for: .tabBar).tag(0)
-            VideoTab().toolbar(.hidden, for: .tabBar).tag(1)
-            ProfileTab(act: model.activity, health: model.health, store: model.profile).toolbar(.hidden, for: .tabBar).tag(2)
+        // Sekme çubuğu içeriğin altında ayrı yer kaplar (üst üste binme olmaz); üç sekme de canlı kalır (video durumu kaybolmaz)
+        VStack(spacing: 0) {
+            ZStack {
+                page(0) { ActivityTab(act: model.activity, health: model.health) }
+                page(1) { VideoTab() }
+                page(2) { ProfileTab(act: model.activity, health: model.health, store: model.profile) }
+            }
+            FloatingTabBar(selection: $model.tab)
         }
-        // Çubuk güvenli alana eklenir: içerik (ve "Kayda başla" düğmesi) çubuğun altında kalmaz
-        .safeAreaInset(edge: .bottom, spacing: 0) { FloatingTabBar(selection: $model.tab) }
         .background(Theme.bg.ignoresSafeArea())
+    }
+    private func page<V: View>(_ i: Int, @ViewBuilder _ v: () -> V) -> some View {
+        v().opacity(model.tab == i ? 1 : 0).allowsHitTesting(model.tab == i).accessibilityHidden(model.tab != i)
     }
 }
 
@@ -117,6 +122,6 @@ struct FloatingTabBar: View {
         .padding(5)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 1))
-        .padding(.horizontal, 40).padding(.bottom, 8)
+        .padding(.horizontal, 40).padding(.top, 6).padding(.bottom, 4)
     }
 }

@@ -60,7 +60,7 @@ final class AppModel: ObservableObject {
     var recording: Bool { rec.current != nil }
 
     func startAll() {
-        rec.start()
+        rec.start(); gopro.reconnectWhileRecording = true
         if useGoPro && gopro.isReady && !gopro.encoding {
             gopro.syncClock()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
@@ -83,7 +83,8 @@ final class AppModel: ObservableObject {
         if !gopro.encoding || Date() >= waitUntil { finish(); return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.waitForCamera() }
     }
-    private func finish() { rec.stop(); busy = false }
+    /// Kayıt bitince kamerayla bağlantıyı kes: kamera kendi uyku/kapanma süresine dönsün, kendiliğinden uyanmasın
+    private func finish() { rec.stop(); busy = false; gopro.reconnectWhileRecording = false; gopro.disconnect() }
 
     func useInVideo(_ s: Session) {
         pendingGpx = (s.gpxName, rec.gpxText(s))

@@ -35,6 +35,7 @@ private struct RecordContent: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
         .onAppear { rec.startPreview(); if gopro.hasSavedCamera && gopro.phase == .idle { gopro.connect() } }
+        .onDisappear { if rec.current == nil { gopro.disconnect() } }   // ekrandan çıkınca bağlantı açık kalmasın
         .sheet(item: Binding(get: { share.map { ShareItem(url: $0) } }, set: { share = $0?.url })) { ShareSheet(items: [$0.url]) }
         .confirmationDialog("Bu kayıt silinsin mi?", isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }), titleVisibility: .visible) {
             Button("Sil", role: .destructive) { if let s = confirmDelete { rec.delete(s) } }

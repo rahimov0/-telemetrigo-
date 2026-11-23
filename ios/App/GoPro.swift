@@ -24,6 +24,9 @@ final class GoProManager: NSObject, ObservableObject {
     private var keepAlive: Timer?
     private var poll: Timer?
     private var wantConnect = false
+    private var giveUp: Timer?
+    /// Kayıt sürerken kopan bağlantı yeniden kurulur; kayıt dışında kopan bağlantı bir daha denenmez (kamera kendi kendine kapanabilsin)
+    var reconnectWhileRecording = false
     private var rx: [CBUUID: (len: Int, data: Data)] = [:]
     private var pendingShutter: ((Bool) -> Void)?
 
@@ -49,6 +52,12 @@ final class GoProManager: NSObject, ObservableObject {
     func connect() {
         wantConnect = true; lastError = nil
         guard central.state == .poweredOn else { phase = .off; return }
+        giveUp?.invalidate()
+        giveUp = Timer.scheduledTimer(withTimeInterval: 25, repeats: false) { [weak self] _ in
+            guard let self, self.phase == .scanning || self.phase == .connecting else { return }
+            self.disconnect()
+            self.phase = .failed("Kamera bulunamadı. GoPro açık mı ve telefonun yakınında mı?")
+        }
         if let s = UserDefaults.standard.string(forKey: Self.savedKey), let id = UUID(uuidString: s),
            let p = central.retrievePeripherals(withIdentifiers: [id]).first {
             open(p)
@@ -60,7 +69,7 @@ final class GoProManager: NSObject, ObservableObject {
         }
     }
     func disconnect() {
-        wantConnect = false
+        wantConnect = false; giveUp?.invalidate(); giveUp = nil
         central.stopScan()
         if let p = peripheral { central.cancelPeripheralConnection(p) }
         cleanup(); phase = .idle
@@ -115,7 +124,7 @@ final class GoProManager: NSObject, ObservableObject {
     }
 
     private func didBecomeReady() {
-        phase = .ready
+        phase = .ready; giveUp?.invalidate(); giveUp = nil
         if let p = peripheral { UserDefaults.standard.set(p.identifier.uuidString, forKey: Self.savedKey); name = p.name ?? "GoPro" }
         send(Self.cmd, [0x50])                          // üçüncü taraf istemci olduğumuzu bildir
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.syncClock() }
@@ -185,11 +194,13 @@ final class GoProManager: NSObject, ObservableObject {
 extension GoProManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ c: CBCentralManager) {
         bluetoothOn = c.state == .poweredOn
-        if c.state == .poweredOn { if wantConnect || hasSavedCamera { connect() } else { phase = .idle } }
+        if c.state == .poweredOn { if wantConnect { connect() } else { phase = .idle } }   // açılışta kendiliğinden bağlanmaz: kamerayı uyanık tutmasın
         else { cleanup(); phase = .off }
     }
     func centralManager(_ c: CBCentralManager, didDiscover p: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
         guard phase == .scanning else { return }
+        // Kayıtlı kamera varsa yalnızca o; yoksa (ilk eşleşme) bulunan GoPro
+        if let s = UserDefaults.standard.string(forKey: Self.savedKey), p.identifier.uuidString != s { return }
         open(p)
     }
     func centralManager(_ c: CBCentralManager, didConnect p: CBPeripheral) {
@@ -197,11 +208,12 @@ extension GoProManager: CBCentralManagerDelegate {
     }
     func centralManager(_ c: CBCentralManager, didFailToConnect p: CBPeripheral, error: Error?) {
         cleanup(); phase = .failed("Bağlanılamadı: \(error?.localizedDescription ?? "bilinmeyen hata")")
-        if wantConnect { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in if self?.wantConnect == true { self?.connect() } } }
+        if wantConnect && reconnectWhileRecording { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in if self?.wantConnect == true { self?.connect() } } } else { wantConnect = false }
     }
     func centralManager(_ c: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) {
         let wasReady = phase == .ready
         cleanup()
+        if wantConnect && !reconnectWhileRecording { wantConnect = false; phase = .idle; if wasReady { lastError = "GoPro bağlantısı kapandı." }; return }
         if wantConnect {
             phase = .scanning
             if wasReady { lastError = "GoPro bağlantısı koptu, yeniden bağlanılıyor…" }

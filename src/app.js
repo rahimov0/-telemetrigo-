@@ -281,11 +281,14 @@ function buildActPick() {
   sel.onchange = () => { const a = L[+sel.value]; if (a && state.info) useGpx(a.gpx, a.name); };
 }
 function autoLast() {
-  if (state.gps || !last?.gpx || !state.info) return;
-  try {
-    const g = parseGpx(last.gpx), base = gpsBase(g);
-    if (coverage(g, base, 0, state.info.duration) > 0.3) { useGpx(last.gpx, last.name); setMsg('Bu videonun zamanına denk gelen GPS kaydı otomatik eklendi.', 'ok'); }
-  } catch {}
+  if (state.gps || !state.info) return;
+  // uygulamada: son aktivitelerden videonun zamanına denk geleni bul; yoksa son GPS kaydına bak
+  const cands = [...(isApp ? (window.__TG_ACTS || []) : []), ...(last?.gpx ? [last] : [])];
+  let best = null;
+  for (const c of cands) {
+    try { const g = parseGpx(c.gpx), cv = coverage(g, gpsBase(g), 0, state.info.duration); if (cv > 0.3 && (!best || cv > best.cv)) best = { c, cv }; } catch {}
+  }
+  if (best) { useGpx(best.c.gpx, best.c.name); const i = (window.__TG_ACTS || []).indexOf(best.c); if (i >= 0) syncActSel(i); setMsg('Bu videonun zamanına denk gelen GPS kaydı otomatik eklendi.', 'ok'); }
 }
 // iOS uygulaması GPX'i buraya verir
 window.TelemetriGo = {

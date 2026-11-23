@@ -9,7 +9,7 @@ function db() {
   });
   return dbp;
 }
-const tx = async (mode, fn) => { const d = await db(); return new Promise((res, rej) => { const t = d.transaction(ST, mode); const out = fn(t.objectStore(ST)); t.oncomplete = () => res(out?.result ?? out); t.onerror = () => rej(t.error); }); };
+const tx = async (mode, fn) => { const d = await db(); return new Promise((res, rej) => { const t = d.transaction(ST, mode); const out = fn(t.objectStore(ST)); t.oncomplete = () => res(out && "result" in out ? out.result : out); t.onerror = () => rej(t.error); }); };
 export const putAct = a => tx('readwrite', s => s.put(a));
 export const delAct = id => tx('readwrite', s => s.delete(id));
 export const getAct = id => tx('readonly', s => s.get(id));

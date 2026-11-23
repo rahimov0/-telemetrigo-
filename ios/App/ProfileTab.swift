@@ -175,7 +175,15 @@ struct PostThumb: View {
     @State private var img: UIImage?
     var body: some View {
         Color(Theme.card).aspectRatio(3.0 / 4.0, contentMode: .fit)
-            .overlay { if let img { Image(uiImage: img).resizable().scaledToFill() } }
+            .overlay {
+                if let img {
+                    // Hiçbir paylaşım kırpılmaz: bulanık arka plan + tam görüntü; böylece hepsi aynı ölçekte ve eksiksiz görünür
+                    ZStack {
+                        Image(uiImage: img).resizable().scaledToFill().blur(radius: 14).opacity(0.75)
+                        Image(uiImage: img).resizable().scaledToFit()
+                    }
+                }
+            }
             .clipped()
             .task { img = await Task.detached { ProfileStore.thumbnail(url, maxPixel: 500) }.value }
     }

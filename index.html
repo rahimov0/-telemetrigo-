@@ -30,6 +30,7 @@
   .dk-g { display: flex; flex-direction: column; gap: 10px; } .dk-g[hidden] { display: none; }
   html.inapp .vdock .gobar { position: static; flex: none; padding: 6px 12px calc(10px + env(safe-area-inset-bottom)); background: transparent; backdrop-filter: none; }
   html.inapp .vdock .gobar.hidden { display: none; }
+  .seg.wrap { flex-wrap: wrap; } .seg.wrap button { flex: 1 1 auto; white-space: nowrap; }
   .layout { display: grid; gap: var(--s3); }
   @media (min-width: 900px) { .layout { grid-template-columns: minmax(0, 1.6fr) minmax(340px, 1fr); align-items: start; } .layout > .left { position: sticky; top: 72px; } }
   @media (max-width: 899px) {
@@ -201,8 +202,13 @@
           <p class="muted small" style="margin:var(--s2) 2px 0">Bir göstergeye dokunarak stilini ve boyutunu seç. Yerini değiştirmek için önizlemede <b>Konumları düzenle</b>.</p>
         </section>
 
+        <section class="card" id="cardsCard">
+          <h2 class="sec-h"><span class="idx">03</span>Aktivite kartı<span class="opt">isteğe bağlı</span></h2>
+          <div id="cardsBox"></div>
+        </section>
+
         <section class="card">
-          <h2 class="sec-h"><span class="idx">03</span>Görünüm</h2>
+          <h2 class="sec-h"><span class="idx">04</span>Görünüm</h2>
           <div class="seg" id="theme" role="group" aria-label="Tema"></div>
           <div class="slider"><label>Genel boyut <b id="sizeV" class="num"></b></label><input type="range" min="60" max="150" step="5" data-k="size" aria-label="Genel boyut"></div>
           <div class="slider"><label>Arka plan koyuluğu <b id="opacityV" class="num"></b></label><input type="range" min="0" max="100" step="5" data-k="opacity" aria-label="Arka plan koyuluğu"></div>
@@ -211,7 +217,7 @@
         </section>
 
         <section class="card" id="exportCard">
-          <h2 class="sec-h"><span class="idx">04</span>Dışa aktar</h2>
+          <h2 class="sec-h"><span class="idx">05</span>Dışa aktar</h2>
           <div class="seg" id="res" role="group" aria-label="Çözünürlük">
             <button data-v="1080" class="on">1080p<small>hızlı · paylaşım</small></button>
             <button data-v="orig">Orijinal<small id="origLbl">tam kalite</small></button>
@@ -234,6 +240,6 @@
   <footer class="foot">TelemetriGo · Orijinal videon değişmez · İşlem cihazında yapılır</footer>
 </main>
 <div class="gobar hidden" id="gobar"><button class="btn primary block lg" id="goMobile"><svg class="i"><use href="#i-down"/></svg><span>Videoyu oluştur</span></button></div>
-<script type="module" src="app.d40a427c.js"></script>
+<script type="module" src="app.0b0b038e.js"></script>
 </body>
 </html>

@@ -6,12 +6,24 @@ import WebKit
 struct VideoTab: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
-        WebView(pending: $model.pendingGpx).background(Color.black.ignoresSafeArea()).environment(\.colorScheme, .dark)
+        WebView(pending: $model.pendingGpx, actsJSON: Self.actsJSON(model.activity)).background(Color.black.ignoresSafeArea()).environment(\.colorScheme, .dark)
+    }
+}
+
+extension VideoTab {
+    /// Son aktiviteler: video editöründe "aktivite kartı" olarak kullanılır.
+    static func actsJSON(_ act: ActivityRecorder) -> String {
+        let list: [[String: Any]] = act.activities.prefix(6).map { a in
+            ["name": a.type.title(a.start), "type": a.type.rawValue, "gpx": act.gpxText(a)]
+        }
+        guard let d = try? JSONSerialization.data(withJSONObject: list), let s = String(data: d, encoding: .utf8) else { return "[]" }
+        return s
     }
 }
 
 struct WebView: UIViewRepresentable {
     @Binding var pending: (name: String, text: String)?
+    var actsJSON: String = "[]"
     static let home = URL(string: "https://telemetrigo.rahimov.tr/?app=1")!
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -22,6 +34,7 @@ struct WebView: UIViewRepresentable {
         cfg.allowsInlineMediaPlayback = true
         cfg.mediaTypesRequiringUserActionForPlayback = []
         cfg.websiteDataStore = .default()
+        cfg.userContentController.addUserScript(WKUserScript(source: "window.__TG_ACTS = \(actsJSON);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         let wv = WKWebView(frame: .zero, configuration: cfg)
         wv.navigationDelegate = context.coordinator
         wv.uiDelegate = context.coordinator

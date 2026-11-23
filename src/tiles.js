@@ -5,6 +5,9 @@ export const MAP_STYLES = {
   koyu:   { name: 'Koyu', url: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 16, attr: '© Esri, HERE, Garmin, © OpenStreetMap', dark: true },
   acik:   { name: 'Açık', url: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 16, attr: '© Esri, HERE, Garmin, © OpenStreetMap', dark: false },
   renkli: { name: 'Renkli', url: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 19, attr: '© Esri, HERE, Garmin, © OpenStreetMap', dark: false },
+  voyager:{ name: 'Sokak', url: (z, x, y) => `https://${'abcd'[(x + y) & 3]}.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`, px: 256, max: 19, attr: '© OpenStreetMap, © CARTO', dark: false },
+  gece:   { name: 'Gece', url: (z, x, y) => `https://${'abcd'[(x + y) & 3]}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`, px: 256, max: 19, attr: '© OpenStreetMap, © CARTO', dark: true },
+  topo:   { name: 'Topo', url: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 19, attr: '© Esri, HERE, Garmin, © OpenStreetMap', dark: false },
   uydu:   { name: 'Uydu', url: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`, px: 256, max: 19, attr: 'Görüntü © Esri, Maxar', dark: true },
 };
 const C = 2 * Math.PI * 6371008.8;

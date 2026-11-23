@@ -3,7 +3,7 @@ import { parseGpx } from './gpx.js';
 import { putAct, getAct, delAct, listActs, TYPES } from './store.js';
 import { analyze, fitRoute, routePath, visibleRange, fmtDur, fmtPace, fmtKm, fmtNum, photoTime, guessType } from './activity.js';
 import { drawTiles, MAP_STYLES, onTile, tilesIdle } from './tiles.js';
-import { compose, TEMPLATES, FORMATS, ROUTE_COLORS, FIELDS } from './compose.js';
+import { compose, TEMPLATES, FORMATS, ROUTE_COLORS, FIELDS, SHAPES, TEXT_COLORS, FONTS, MAX_FIELDS } from './compose.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -228,14 +228,17 @@ $('pinIn').onchange = async () => {
 
 // ---------- fotoğraf editörü ----------
 const ed = {
-  tpl: prefs.tpl || 'rota', fmt: prefs.fmt || '9:16', mapStyle: prefs.edMap || 'yok', color: prefs.color || 'turuncu',
+  tpl: prefs.tpl || 'rota', fmt: prefs.fmt || (isApp ? '3:4' : '9:16'), mapStyle: prefs.edMap || 'yok', color: prefs.color || 'turuncu', shape: prefs.shape || 'yuvarlak', textColor: prefs.textColor || 'otomatik', font: prefs.font || 'standart',
   fields: prefs.fields || ['dist', 'time', 'pace'], hide: prefs.hide !== false, sign: prefs.sign !== false,
   photo: null, pan: { x: 0, y: 0, z: 1 }, pos: {}, scale: {}, sel: null, boxes: {},
 };
 function openEditor() {
   segButtons($('tpl'), TEMPLATES, () => ed.tpl, v => { ed.tpl = v; prefs.tpl = v; ed.pos = {}; ed.scale = {}; savePrefs(); scheduleEd(); });
-  segButtons($('fmt'), { '9:16': '9:16 Hikâye', '4:5': '4:5 Gönderi', '1:1': '1:1 Kare', orij: 'Fotoğraf' }, () => ed.fmt, v => { ed.fmt = v; prefs.fmt = v; ed.pos = {}; savePrefs(); scheduleEd(); });
+  segButtons($('fmt'), { '3:4': '3:4 Profil', '9:16': '9:16 Hikâye', '4:5': '4:5 Gönderi', '1:1': '1:1 Kare', orij: 'Fotoğraf' }, () => ed.fmt, v => { ed.fmt = v; prefs.fmt = v; ed.pos = {}; savePrefs(); scheduleEd(); });
   segButtons($('edMap'), Object.fromEntries(Object.entries(MAP_STYLES).map(([k, v]) => [k, v.name])), () => ed.mapStyle, v => { ed.mapStyle = v; prefs.edMap = v; savePrefs(); scheduleEd(); });
+  segButtons($('shape'), SHAPES, () => ed.shape, v => { ed.shape = v; prefs.shape = v; ed.pos = {}; savePrefs(); scheduleEd(); });
+  segButtons($('txtColor'), TEXT_COLORS, () => ed.textColor, v => { ed.textColor = v; prefs.textColor = v; savePrefs(); scheduleEd(); });
+  segButtons($('font'), FONTS, () => ed.font, v => { ed.font = v; prefs.font = v; savePrefs(); scheduleEd(); });
   const cc = $('edColor'); cc.innerHTML = '';
   for (const [k, c] of Object.entries(ROUTE_COLORS)) {
     const b = document.createElement('button'); b.className = 'chip' + (ed.color === k ? ' on' : ''); b.style.background = c; b.setAttribute('aria-label', k); b.type = 'button';
@@ -256,7 +259,7 @@ function renderFields() {
     b.textContent = k === 'pace' ? (cur.A.pace ? 'Tempo' : 'Ort. hız') : k === 'max' ? (cur.A.pace ? 'En iyi tempo' : 'Maks hız') : name;
     b.className = ed.fields.includes(k) ? 'on' : '';
     b.onclick = () => {
-      if (ed.fields.includes(k)) ed.fields = ed.fields.filter(x => x !== k); else if (ed.fields.length < 4) ed.fields.push(k);
+      if (ed.fields.includes(k)) ed.fields = ed.fields.filter(x => x !== k); else if (ed.fields.length < MAX_FIELDS) ed.fields.push(k);
       prefs.fields = ed.fields; savePrefs(); renderFields(); scheduleEd();
     };
     el.appendChild(b);
@@ -398,9 +401,10 @@ function buildDock() {
   const groups = [
     ['Şablon', () => [$('tpl')]],
     ['Boyut', () => [$('fmt')]],
-    ['Harita', () => [$('edMap')]],
+    ['Harita', () => [$('edMap'), $('shape')]],
     ['Renk', () => [$('edColor')]],
-    ['Değerler', () => [mk('p', 'dk-h', 'En fazla 4 değer seç'), $('fields'), $('scaleRow')]],
+    ['Yazı', () => [$('txtColor'), $('font')]],
+    ['Değerler', () => [mk('p', 'dk-h', 'En fazla 6 değer seç'), $('fields'), $('scaleRow')]],
     ['Fotoğraf', () => [$('photoCard')]],
     ['Gizlilik', () => [...document.querySelectorAll('#vEdit .opt-row')]],
   ];

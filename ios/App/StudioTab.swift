@@ -91,7 +91,7 @@ struct StudioTab: View {
 
     // MARK: Video
     @ViewBuilder private var videoMode: some View {
-        Text("GoPro, DJI ya da telefon videona hız, rota ve eğim göstergeleri ekle. Video cihazından çıkmaz.")
+        Text("Videona iki şekilde ekleme yapabilirsin: canlı veri göstergeleri (hız, rota, eğim) ya da istediğin saniyede belirip kaybolan sabit aktivite kartı. Video cihazından çıkmaz.")
             .font(.subheadline).foregroundStyle(Theme.text2)
         Button { showVideo = true } label: {
             VStack(spacing: 10) {
@@ -105,9 +105,9 @@ struct StudioTab: View {
         Panel {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Nasıl çalışır").font(.headline).foregroundStyle(Theme.text)
-                step("1", "GPS kaydı", "İstersen sürüşü uygulamada kaydet; hız ve rota için kullanılır.")
-                step("2", "Videoyu seç", "Sıkıştırılmamış orijinal dosya en iyi sonucu verir.")
-                step("3", "Hizala ve ayarla", "GPS ile video otomatik eşleşir; olmazsa kareyi GPS anına elle oturtursun.")
+                step("1", "Canlı göstergeler", "GoPro sensör verisi ya da GPS kaydıyla hız, rota ve eğim video boyunca akar.")
+                step("2", "Aktivite kartı", "Fotoğraftaki gibi rota ve değerler; hangi saniyede başlayacağını ve ne kadar kalacağını sen seçersin.")
+                step("3", "Videoyu seç", "Sıkıştırılmamış orijinal dosya en iyi sonucu verir. İkisini birlikte de kullanabilirsin.")
             }
         }
         Button { showCam = true } label: {

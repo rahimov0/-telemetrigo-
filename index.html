@@ -210,20 +210,30 @@
           <p id="gpsRecLink" class="muted small" style="margin:var(--s2) 2px 0">GPS kaydın yok mu? Sürüşte <a href="kayit.html">GPS Kaydedici</a>'yi aç.</p>
           <input id="gpxFile" class="sr" type="file" aria-label="GPX dosyası seç">
           <div id="gpsBox" class="hidden">
-            <p id="gpsInfo" class="muted small" style="margin:var(--s3) 0"></p>
-            <div id="gpsCov" class="msg"></div>
-            <div class="slider"><label for="off">Zaman kaydırma <b id="offV" class="num"></b></label><input id="off" type="range" min="-60" max="60" step="0.1" value="0"></div>
+            <div id="alStatus" class="msg" style="margin-top:var(--s3)"></div>
+            <p id="alInfo" class="muted small" style="margin:var(--s2) 2px"></p>
+            <div class="slider"><label for="off">İnce ayar <b id="offV" class="num"></b></label><input id="off" type="range" min="-60" max="60" step="0.1" value="0"></div>
             <div class="row nudge">
               <button class="btn sm" data-off="-1">−1 sn</button><button class="btn sm" data-off="-0.1">−0,1</button>
               <button class="btn sm" data-off="0.1">+0,1</button><button class="btn sm" data-off="1">+1 sn</button>
             </div>
+            <div class="alClock">
+              <div class="field-l" style="margin:var(--s3) 0 4px;font-size:12.5px;color:var(--text-3)">Videonun üstünde saat damgası görüyorsan</div>
+              <p id="alNow" class="muted small" style="margin:0 2px 8px"></p>
+              <div class="row"><input id="clkIn" type="time" step="1" aria-label="Videodaki saat" class="typesel" style="flex:1"><button id="clkSet" class="btn">Bu saate eşitle</button></div>
+              <p id="clkMsg" class="muted small" style="margin:6px 2px 0"></p>
+            </div>
+            <details id="alAdv" style="margin-top:var(--s3)"><summary class="muted small" style="cursor:pointer">Gelişmiş eşitleme ve GPS bilgisi</summary>
+            <p id="gpsInfo" class="muted small" style="margin:var(--s3) 0"></p>
+            <div id="gpsCov" class="msg"></div>
             <div class="slider" style="margin-top:var(--s3)"><label for="gAt">Videonun şu karesi GPX'te <b id="gAtV" class="num"></b></label><input id="gAt" type="range" min="0" max="100" step="1" value="0"></div>
             <p id="gAtInfo" class="muted small" style="margin:0 2px var(--s2)"></p>
             <button id="gSet" class="btn block"><svg class="i"><use href="#i-pin"/></svg><span>Oynatılan kareyi bu GPX anına oturt</span></button>
             <button id="gReset" class="btn block ghost" style="margin-top:var(--s2)">Kaydırmayı sıfırla</button>
-            <button id="autoSync" class="btn block" style="margin-top:var(--s2)"><svg class="i"><use href="#i-sync"/></svg><span>Otomatik eşitle</span></button>
+            <button id="autoSync" class="btn block" style="margin-top:var(--s2)"><svg class="i"><use href="#i-sync"/></svg><span>Otomatik eşitle (sensörle)</span></button>
             <p id="syncMsg" class="muted small" style="margin:var(--s2) 2px 0"></p>
-            <button id="gpxRemove" class="btn ghost block" style="margin-top:var(--s1)">GPX'i kaldır</button>
+            </details>
+            <button id="gpxRemove" class="btn ghost block" style="margin-top:var(--s2)">GPX'i kaldır</button>
           </div>
         </section>
 
@@ -272,6 +282,6 @@
   <footer class="foot">TelemetriGo · Orijinal videon değişmez · İşlem cihazında yapılır</footer>
 </main>
 <div class="gobar hidden" id="gobar"><button class="btn primary block lg" id="goMobile"><svg class="i"><use href="#i-down"/></svg><span>Videoyu oluştur</span></button></div>
-<script type="module" src="app.16da7fa0.js"></script>
+<script type="module" src="app.b8dbc671.js"></script>
 </body>
 </html>

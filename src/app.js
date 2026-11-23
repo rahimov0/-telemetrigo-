@@ -204,7 +204,7 @@ async function loadFile(f) {
       const device = /^DJI_/i.test(f.name) ? 'DJI' : /^G[HXL]\d/i.test(f.name) ? 'GoPro' : 'Kamera';
       tel = { ...emptyTelemetry(duration), created: tel.created, device };
     }
-    Object.assign(state, { file: f, tel, info, meta: { created: tel.created, device: tel.device }, tzNote: 0 });
+    Object.assign(state, { file: f, tel, info, meta: { created: tel.created, device: tel.device, nameTime: nameTime(f.name) }, tzNote: 0 });
     if (state.gps) { state.gbase = gpsBase(); updateGpsUI(); }
     if (state.url) URL.revokeObjectURL(state.url);
     state.url = URL.createObjectURL(f); video.src = state.url;
@@ -235,20 +235,26 @@ function showInfo() {
 // ---- GPX ----
 const isApp = /TelemetriGoApp/.test(navigator.userAgent);
 // Zaman tabanı: GoPro bu GPS kaydı sırasında uygulamadan başlatıldıysa o an (en hassas), yoksa kameranın saati
+// Dosya adındaki çekim saati (DJI_20261123085241_0001_D.MP4, VID_20261123_085241...): kameranın yerel saati, saniyesine kadar
+function nameTime(name) {
+  const m = /(20\d\d)(\d\d)(\d\d)[_\-T ]?(\d\d)(\d\d)(\d\d)/.exec(name || ''); if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  return !isNaN(d) && d.getMonth() === +m[2] - 1 && +m[4] < 24 && +m[5] < 60 && +m[6] < 60 ? d : null;
+}
+// Videonun başlangıç saatini bul: 1) GoPro uygulamasından başlatıldıysa kesin kayıt işareti 2) dosya adındaki saat 3) dosya bilgisindeki saat.
+// Kamera saati yerel yazılmış olabilir: örtüşme yoksa tam/yarım saatlik farkları dener.
 function gpsBase(g = state.gps) {
-  const created = state.meta?.created?.getTime();
-  state.syncSrc = created ? 'saat' : 'gpx';
-  if (!created) return g.start;
-  const cs = (g.camStarts || []).map(t => [Math.abs(t - created), t]).sort((a, b) => a[0] - b[0])[0];
+  const created = state.meta?.created?.getTime(), nt = state.meta?.nameTime?.getTime();
+  state.tzFix = 0; state.srcName = '';
+  if (!created && !nt) { state.syncSrc = 'gpx'; return g.start; }
+  state.syncSrc = 'saat';
+  const cs = (g.camStarts || []).map(t => [Math.abs(t - (nt || created)), t]).sort((a, b) => a[0] - b[0])[0];
   if (cs && cs[0] < 10000) { state.syncSrc = 'kamera'; return cs[1]; }
-  // Bazı kameralar (ör. DJI) yerel saati UTC gibi yazar: örtüşme yoksa tam/yarım saatlik farkları dene
-  state.tzFix = 0;
-  const dur = state.info?.duration || 60;
-  if (coverage(g, created, 0, dur) === 0) {
-    for (const h of [3, -3, 1, -1, 2, -2, 4, -4, 5, -5, 6, -6, 7, -7, 8, -8, 9, -9, 10, -10, 11, -11, 12, -12, 3.5, 4.5, 5.5, 5.75, 6.5, 9.5, -3.5, 13, 14])
-      if (coverage(g, created - h * 3600000, 0, dur) > 0.5) { state.tzFix = h; return created - h * 3600000; }
-  }
-  return created;
+  const dur = state.info?.duration || 60, cands = [nt && ['dosya adı', nt], created && ['dosya bilgisi', created]].filter(Boolean);
+  const shifts = [0, 3, -3, 1, -1, 2, -2, 4, -4, 5, -5, 6, -6, 7, -7, 8, -8, 9, -9, 10, -10, 11, -11, 12, -12, 3.5, 4.5, 5.5, 5.75, 6.5, 9.5, -3.5, 13, 14];
+  for (const [label, t] of cands) for (const h of shifts)
+    if (coverage(g, t - h * 3600000, 0, dur) > 0.5) { state.tzFix = h; state.srcName = label; return t - h * 3600000; }
+  state.srcName = cands[0][0]; return cands[0][1];
 }
 $('gpxBtn').onclick = () => gpxEl.click();
 gpxEl.addEventListener('change', async () => {
@@ -307,14 +313,10 @@ window.TelemetriGo = {
 function useGpx(text, name) {
   try {
     const g = parseGpx(text);
-    state.gps = g; state.gpxName = name; state.goff = 0; state.gbase = gpsBase(); state.offRemembered = false; state.syncMode = null; state.syncScore = 0;
-    if (state.syncSrc !== 'kamera') {
-      let m = NaN; try { m = parseFloat(localStorage.getItem(offKey())); } catch {}
-      if (isFinite(m) && m !== 0) { state.goff = m; state.offRemembered = true; }
-    }
-    if (state.tzFix && state.meta?.created) {   // saat göstergesi de doğru saati göstersin
-      state.meta.created = new Date(state.meta.created.getTime() - state.tzFix * 3600000);
-      state.tzNote = state.tzFix; state.tzFix = 0;
+    state.gps = g; state.gpxName = name; state.goff = 0; state.gbase = gpsBase(); state.syncMode = null; state.syncScore = 0;
+    try { for (const k of Object.keys(localStorage)) if (k.startsWith('tg-off-')) localStorage.removeItem(k); } catch {}   // eski sürümlerin "hatırlanan kaydırma"sı yanlış eşleşme yapıyordu
+    if (state.syncSrc === 'saat' && state.meta) {   // saat göstergesi de eşleşen saati göstersin
+      state.meta.created = new Date(state.gbase); state.tzNote = state.tzFix; state.tzFix = 0;
     }
     for (const id of ['speed', 'map', 'compass']) if (!saved?.g?.[id]) opts.g[id].on = true;
     updateGpsUI(); renderGaugeList(); drawPreview();
@@ -333,7 +335,6 @@ function updateGpsUI() {
   $('gpsInfo').innerHTML = `<b>${esc(state.gpxName)}</b><br>${g.n} nokta · ${(g.total / 1000).toFixed(1).replace('.', ',')} km · ${durMin} dk · ${hhmm(g.start)}–${hhmm(g.end)}`
     + `<br>Hız verisi: ${g.unit === 'konum' ? 'konumdan hesaplandı' : 'GPX içinden (' + g.unit + ')'} · Maks ${Math.round(g.vMax * 3.6)} km/h`
     + `<br>Zamanlama: ${state.syncSrc === 'kamera' ? '<b>GoPro kayıt başlangıcıyla eşleşti</b> (uygulamadan başlatıldı)' : state.syncSrc === 'saat' ? 'kameranın saatine göre' + (state.tzNote ? ` (kamera saati ${Math.abs(state.tzNote)} saat ${state.tzNote > 0 ? 'ileri' : 'geri'} yazılmış, düzeltildi)` : '') : 'GPX başlangıcına göre (videoda saat bilgisi yok; kaydırmayı elle ayarla)'}`
-    + (state.offRemembered ? `<br>Bu kamera için daha önce ayarladığın <b>${state.goff > 0 ? '+' : ''}${state.goff.toFixed(1).replace('.', ',')} sn</b> kaydırma uygulandı.` : '')
     + (g.stillCount || g.dropped ? `<br>Temizlik: ${g.stillCount ? g.stillCount + ' duruş noktasındaki GPS kayması sıfırlandı' : ''}${g.stillCount && g.dropped ? ', ' : ''}${g.dropped ? g.dropped + ' hatalı nokta atıldı' : ''}` : '');
   const vStart = state.gbase - state.goff * 1000;
   const gdur = (g.end - g.start) / 1000, vdur = state.info?.duration || 0;
@@ -349,17 +350,43 @@ function updateGpsUI() {
     : ['err', `GPX bu videonun zamanıyla örtüşmüyor. Video ${hhmm(vStart)}'de başlıyor, GPX ${hhmm(g.start)}–${hhmm(g.end)} arası. Doğru GPX'i seçtiğinden emin ol ya da "Otomatik eşitle"yi dene.`];
   if (g.total < 20) status[0] = 'err', status[1] = `Bu GPS kaydında neredeyse hiç hareket yok (${Math.round(g.total)} m). Telefon kayıt sırasında gerçek GPS almamış olabilir (kapalı alan ya da "Kesin Konum" kapalı). ` + (cov > 0 ? 'Hız 0 ve rota tek nokta görünecek.' : status[1]);
   $('gpsCov').className = 'msg ' + status[0]; $('gpsCov').textContent = status[1];
+  // sade durum satırı
+  const srcTxt = state.srcName === 'dosya adı' ? 'dosya adındaki saat' : 'dosya bilgisindeki saat';
+  const al = state.syncMode === 'elle' ? ['ok', 'Eşleşti. Elle ayarladın.']
+    : state.syncMode === 'oto' ? [state.syncScore >= 0.6 ? 'ok' : 'warn', state.syncScore >= 0.6 ? 'Eşleşti. Sensör verisiyle otomatik eşitlendi.' : 'Sensörle eşitlendi ama uyum düşük. Önizlemede kontrol et.']
+    : state.syncSrc === 'kamera' ? ['ok', 'Eşleşti. GoPro kaydı uygulamadan başlatıldı, zaman kesin.']
+    : state.syncSrc === 'gpx' ? ['warn', 'Videoda saat bilgisi yok. GPS kaydı videonun başına konuldu; saat damgası görüyorsan aşağıya yaz.']
+    : cov >= 0.95 ? ['ok', `Eşleşti. Videonun ${srcTxt} ile GPS saati örtüşüyor.`]
+    : cov > 0 ? ['warn', `Kısmen eşleşti: GPS videonun %${Math.round(cov * 100)}'ini kapsıyor.`]
+    : ['err', 'Videonun saati GPS kaydıyla örtüşmüyor. Videoda saat damgası görüyorsan aşağıya yaz.'];
+  $('alStatus').className = 'msg ' + al[0]; $('alStatus').textContent = al[1];
+  $('alInfo').textContent = `Video ${hhmm(vStart)} ile başlıyor · GPS kaydı ${hhmm(g.start)}–${hhmm(g.end)}`;
+  updAlNow();
   const lim = Math.max(60, Math.ceil((Math.abs(state.goff) + 60) / 60) * 60);
   $('off').min = -lim; $('off').max = lim;
   $('gAt').max = Math.max(1, Math.floor(gdur)); syncGpsPos();
   $('off').value = state.goff; $('offV').textContent = `${state.goff > 0 ? '+' : ''}${state.goff.toFixed(1).replace('.', ',')} sn`;
 }
-// Elle yapılan kaydırma kamera başına hatırlanır (kamera saati genelde hep aynı yöne kayar)
-const offKey = () => 'tg-off-' + (state.meta?.device || 'Kamera');
+function updAlNow() {
+  const el = $('alNow'); if (!el) return;
+  if (!state.gps || !state.info) { el.textContent = ''; return; }
+  const T = state.gbase + ((video.currentTime || 0) - state.goff) * 1000, ok = T >= state.gps.start - 1500 && T <= state.gps.end + 1500;
+  el.textContent = ok ? `Bu karede GPS'e göre saat: ${hhmm(T)}. Videodaki damgayla aynı değilse, damgadaki saati yazıp eşitle.` : 'Bu kare GPS kaydının dışında kalıyor.';
+}
+['seeked', 'timeupdate', 'loadedmetadata'].forEach(ev => video.addEventListener(ev, updAlNow));
+$('clkSet').onclick = () => {
+  const g = state.gps, v = $('clkIn').value; if (!g || !v) { $('clkMsg').textContent = 'Önce videodaki saati yaz.'; return; }
+  const [h, m, sec] = v.split(':').map(Number), d = new Date(g.start);
+  let T = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m, sec || 0).getTime();
+  if (T < g.start - 12 * 3600000) T += 86400000; else if (T > g.end + 12 * 3600000) T -= 86400000;
+  if (T < g.start - 1500 || T > g.end + 1500) { $('clkMsg').textContent = `Bu saat GPS kaydının (${hhmm(g.start)}–${hhmm(g.end)}) dışında. Doğru aktiviteyi seçtiğinden emin ol.`; return; }
+  const sc = (T - g.start) / 1000, tv = video.currentTime || 0;
+  setOffset(tv - sc - (g.start - state.gbase) / 1000);
+  $('clkMsg').textContent = `Eşitlendi: bu karede saat ${hhmm(T)}.`;
+};
 function setOffset(v, remember = true) {
   state.goff = Math.round(Math.max(-7200, Math.min(7200, v)) * 10) / 10;
   state.syncMode = remember ? 'elle' : 'oto';
-  if (remember && state.syncSrc !== 'kamera') { try { localStorage.setItem(offKey(), String(state.goff)); } catch {} state.offRemembered = false; }
   updateGpsUI(); drawPreview();
 }
 // Videonun o anki karesi GPX'in kaçıncı saniyesine denk geliyor (ve tersi)

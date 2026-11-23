@@ -32,7 +32,7 @@ final class AppModel: ObservableObject {
     let rec = Recorder()
     let activity = ActivityRecorder()
     let health = HealthManager()
-    @Published var tab = 2
+    @Published var tab = 0   // 0 Özet · 1 Stüdyo · 2 Profil
     @Published var useGoPro = true
     @Published var pendingGpx: (name: String, text: String)?
     @Published var busy = false
@@ -81,13 +81,45 @@ struct RootView: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
         TabView(selection: $model.tab) {
-            ActivityTab(act: model.activity, health: model.health)
-                .tabItem { Label("Aktivite", systemImage: "figure.run") }.tag(2)
-            RecordView()
-                .tabItem { Label("Sürüş", systemImage: "gauge.with.dots.needle.67percent") }.tag(0)
-            VideoTab()
-                .ignoresSafeArea(edges: .bottom)
-                .tabItem { Label("Video", systemImage: "film") }.tag(1)
+            tabContent(ActivityTab(act: model.activity, health: model.health)).tag(0)
+            tabContent(VideoTab()).tag(1)
+            tabContent(ActivitySettings(act: model.activity, health: model.health, embedded: true)).tag(2)
         }
+        .overlay(alignment: .bottom) { FloatingTabBar(selection: $model.tab) }
+    }
+
+    /// Sistem sekme çubuğu gizli; altta içeriğin çubuğun altında kalmaması için boşluk bırakılır
+    private func tabContent<V: View>(_ v: V) -> some View {
+        v.safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: 88) }
+            .toolbar(.hidden, for: .tabBar)
+    }
+}
+
+/// Yuvarlak, yarı saydam, yüzen sekme çubuğu
+struct FloatingTabBar: View {
+    @Binding var selection: Int
+    private let items: [(String, String)] = [("Özet", "chart.bar.fill"), ("Stüdyo", "play.rectangle.fill"), ("Profil", "person.crop.circle.fill")]
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(items.indices, id: \.self) { i in
+                Button {
+                    if selection != i { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+                    selection = i
+                } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: items[i].1).font(.system(size: 20, weight: .semibold))
+                        Text(items[i].0).font(.system(size: 10, weight: .semibold))
+                    }
+                    .foregroundStyle(selection == i ? Theme.text : Theme.text3)
+                    .frame(maxWidth: .infinity).frame(height: 54)
+                    .background(selection == i ? Theme.bg.opacity(0.55) : Color.clear, in: Capsule())
+                }.buttonStyle(.plain)
+                .accessibilityLabel(items[i].0)
+            }
+        }
+        .padding(5)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 1))
+        .padding(.horizontal, 40).padding(.bottom, 8)
     }
 }

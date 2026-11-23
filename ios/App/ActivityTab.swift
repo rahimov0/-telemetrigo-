@@ -753,6 +753,9 @@ struct ActivityWeb: UIViewRepresentable {
 struct ActivitySettings: View {
     @ObservedObject var act: ActivityRecorder
     @ObservedObject var health: HealthManager
+    var embedded = false      // true: Profil sekmesi (Bitti düğmesi yok)
+    @EnvironmentObject var model: AppModel
+    @State private var showCam = false
     @AppStorage("showSteps") private var showSteps = true
     @AppStorage("keepAwake") private var keepAwake = false
     @AppStorage("profKg") private var kg = 0.0
@@ -780,7 +783,7 @@ struct ActivitySettings: View {
                         Button { health.fetchProfile { w, h, msg in if let w { kg = w }; if let h { cm = h }; profMsg = msg } } label: { Label("Sağlık'tan al", systemImage: "heart.fill").foregroundStyle(Theme.cKcal) }
                     }
                     if let m = profMsg { Text(m).font(.footnote).foregroundStyle(Theme.text2) }
-                } header: { head("Profil") } footer: { foot("Kalori hesabı için kullanılır; yalnızca bu cihazda tutulur. Aktif kalori = hareketle yakılan enerji (dinlenme enerjisi çıkarılmış), Apple Fitness'taki gibi.") }
+                } header: { head("Vücut bilgileri") } footer: { foot("Kalori hesabı için kullanılır; yalnızca bu cihazda tutulur. Aktif kalori = hareketle yakılan enerji (dinlenme enerjisi çıkarılmış), Apple Fitness'taki gibi.") }
                 .listRowBackground(Theme.card)
 
                 Section {
@@ -822,6 +825,11 @@ struct ActivitySettings: View {
                 }
 
                 Section {
+                    Button { showCam = true } label: { Label("GoPro ile motor sürüşü kaydı", systemImage: "gauge.with.dots.needle.67percent") }
+                } header: { head("Kamera ve telemetri") } footer: { foot("GoPro'yu bağlayıp sürüşü kaydeder; göstergeli video Stüdyo sekmesinde hazırlanır.") }
+                .listRowBackground(Theme.card)
+
+                Section {
                     Button { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) } } label: { Label("Konum izni ayarları", systemImage: "location") }
                 } header: { head("İzinler") } footer: { foot("Kayıt ekran kilitliyken de sürsün diye konum izni \"Her zaman\" olmalı.") }
                 .listRowBackground(Theme.card)
@@ -832,12 +840,13 @@ struct ActivitySettings: View {
             .background(Theme.bg.ignoresSafeArea())
             .safeAreaInset(edge: .top, spacing: 0) {
                 ZStack {
-                    Text("Aktivite ayarları").font(.headline).foregroundStyle(Theme.text)
-                    HStack { Spacer(); Button { dismiss() } label: { Text("Bitti").font(.body.weight(.semibold)).foregroundStyle(Theme.onAcc).padding(.horizontal, 16).frame(height: 36).background(Theme.acc, in: Capsule()) }.buttonStyle(.plain) }
+                    Text(embedded ? "Profil" : "Aktivite ayarları").font(.headline).foregroundStyle(Theme.text)
+                    if !embedded { HStack { Spacer(); Button { dismiss() } label: { Text("Bitti").font(.body.weight(.semibold)).foregroundStyle(Theme.onAcc).padding(.horizontal, 16).frame(height: 36).background(Theme.acc, in: Capsule()) }.buttonStyle(.plain) } }
                 }.padding(.horizontal, 16).frame(height: 56).background(Theme.bg)
             }
             .toolbar(.hidden, for: .navigationBar)
         }
+        .sheet(isPresented: $showCam) { RecordView().environmentObject(model) }
         .presentationDragIndicator(.visible)
     }
     private func head(_ t: String) -> some View { Text(t).foregroundStyle(Theme.text2) }

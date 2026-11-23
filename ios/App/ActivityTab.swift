@@ -661,6 +661,11 @@ struct RecordScreen: View {
                     Button { act.resume() } label: { circle("play.fill", fg: Theme.onAcc, bg: act.type.color, size: 88) }.buttonStyle(.plain)
                 }
             }.padding(.top, 4)
+            if act.type.kind.supportsAutoPause {
+                Toggle("Otomatik duraklat", isOn: $act.autoPause).font(.subheadline).foregroundStyle(Theme.text)
+                    .tint(act.type.color).padding(.horizontal, 14).padding(.vertical, 6)
+                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
             if act.state == .running {
                 Button { confirmEnd = true } label: { Text("Bitir").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text2).frame(height: 36) }
             }

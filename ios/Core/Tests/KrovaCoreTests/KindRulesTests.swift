@@ -8,7 +8,8 @@ final class KindRulesTests: XCTestCase {
             XCTAssertFalse(k.countsCalories)
             XCTAssertFalse(k.countsTowardGoals)
             XCTAssertFalse(k.writesToHealth)
-            XCTAssertFalse(k.supportsAutoPause)
+            XCTAssertTrue(k.supportsAutoPause)
+            XCTAssertFalse(k.autoPauseDefault)
             XCTAssertFalse(k.showsPace)
         }
     }

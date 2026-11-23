@@ -19,9 +19,9 @@ public enum ActivityKind: String, Codable, CaseIterable, Sendable {
     public var countsTowardGoals: Bool { group == .sport }
     /// Apple Sağlık'a antrenman olarak yazılır mı
     public var writesToHealth: Bool { group == .sport }
-    /// Otomatik duraklatma desteklenir mi
-    public var supportsAutoPause: Bool { group == .sport }
-    /// Otomatik duraklatma varsayılanı (yürüyüş ve tırmanmada kapalı: yavaş hareketi durma sanmasın)
+    /// Otomatik duraklatma desteklenir mi (sürüşte de: trafik ışığı, mola)
+    public var supportsAutoPause: Bool { true }
+    /// Otomatik duraklatma varsayılanı (yürüyüş, tırmanış ve sürüşte kapalı: yavaş hareketi durma sanmasın)
     public var autoPauseDefault: Bool { self == .run || self == .bike }
     /// Ana gösterge tempo (dk/km) mi, hız (km/s) mi
     public var showsPace: Bool { self == .walk || self == .run || self == .hike }

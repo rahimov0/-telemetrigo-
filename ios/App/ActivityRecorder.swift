@@ -152,7 +152,9 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         lm.showsBackgroundLocationIndicator = true
         lm.startUpdatingLocation()
         state = .running; lastTick = Date()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.tick() }
+        let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.tick() }
+        RunLoop.main.add(t, forMode: .common)   // kaydırma/dokunma sırasında da akar
+        timer = t
         say("\(type.name) başladı")
     }
     func pause() { guard state == .running else { return }; tick(); engine.breakSegment(); state = .paused; say("Duraklatıldı") }
@@ -192,8 +194,9 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     private func tick() {
+        // Süre sayacı: GPS'ten bağımsız, her saniye akar. Duraklatılmış / otomatik duraklamış süre sayılmaz.
         let now = Date(), dt = now.timeIntervalSince(lastTick); lastTick = now
-        _ = dt   // hareket süresi artık konum zaman damgalarından (DistanceEngine) hesaplanır
+        if state == .running, !(autoPause && autoPaused) { moving += max(dt, 0) }
     }
 
     // MARK: Konum
@@ -238,7 +241,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         guard recording else { return }
         let fix = Fix(t: l.timestamp.timeIntervalSince1970, lat: l.coordinate.latitude, lon: l.coordinate.longitude, hAcc: l.horizontalAccuracy, speed: l.speed)
         engine.add(fix)
-        a.distance = engine.distance; a.maxSpeed = engine.maxSpeed; moving = engine.movingTime
+        a.distance = engine.distance; a.maxSpeed = engine.maxSpeed
         if l.horizontalAccuracy <= 30, route.last.map({ CLLocation(latitude: $0.latitude, longitude: $0.longitude).distance(from: l) >= 3 }) ?? true { route.append(l.coordinate) }
         current = a
         if a.distance >= Double(nextKm) * 1000 {

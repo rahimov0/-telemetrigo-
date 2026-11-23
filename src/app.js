@@ -283,7 +283,7 @@ window.TelemetriGo = {
 function useGpx(text, name) {
   try {
     const g = parseGpx(text);
-    state.gps = g; state.gpxName = name; state.goff = 0; state.gbase = gpsBase(); state.offRemembered = false;
+    state.gps = g; state.gpxName = name; state.goff = 0; state.gbase = gpsBase(); state.offRemembered = false; state.syncMode = null; state.syncScore = 0;
     if (state.syncSrc !== 'kamera') {
       let m = NaN; try { m = parseFloat(localStorage.getItem(offKey())); } catch {}
       if (isFinite(m) && m !== 0) { state.goff = m; state.offRemembered = true; }
@@ -295,7 +295,8 @@ function useGpx(text, name) {
     for (const id of ['speed', 'map', 'compass']) if (!saved?.g?.[id]) opts.g[id].on = true;
     updateGpsUI(); renderGaugeList(); drawPreview();
     const cov = coverage(g, state.gbase, 0, state.info.duration);
-    if (cov < 0.5 && state.tel?.hasAccel && state.syncSrc !== 'kamera') runAutoSync(true);
+    const gd = (g.end - g.start) / 1000;
+    if (state.tel?.hasAccel && state.syncSrc !== 'kamera' && (cov < 0.95 || gd > state.info.duration * 1.5)) runAutoSync(false);
   } catch (e) { setMsg('GPX okunamadı: ' + esc(e.message || e)); }
 }
 function updateGpsUI() {
@@ -311,32 +312,79 @@ function updateGpsUI() {
     + (state.offRemembered ? `<br>Bu kamera için daha önce ayarladığın <b>${state.goff > 0 ? '+' : ''}${state.goff.toFixed(1).replace('.', ',')} sn</b> kaydırma uygulandı.` : '')
     + (g.stillCount || g.dropped ? `<br>Temizlik: ${g.stillCount ? g.stillCount + ' duruş noktasındaki GPS kayması sıfırlandı' : ''}${g.stillCount && g.dropped ? ', ' : ''}${g.dropped ? g.dropped + ' hatalı nokta atıldı' : ''}` : '');
   const vStart = state.gbase - state.goff * 1000;
-  const status = cov >= 0.95 ? ['ok', 'GPX bu videonun tamamını kapsıyor.']
+  const gdur = (g.end - g.start) / 1000, vdur = state.info?.duration || 0;
+  const conf = state.syncMode === 'elle' ? ['ok', 'Elle ayarlandı']
+    : state.syncMode === 'oto' ? [state.syncScore >= 0.6 ? 'ok' : 'warn', `Otomatik eşitlendi (uyum %${Math.round((state.syncScore || 0) * 100)})`]
+    : state.syncSrc === 'kamera' ? ['ok', 'Kesin (kamera uygulamadan başlatıldı)']
+    : state.syncSrc === 'saat' ? ['warn', 'Tahmini (dosyanın saatine göre)'] : ['err', 'Belirsiz (videoda saat bilgisi yok)'];
+  const cut = vdur > 0 && gdur > vdur * 1.5 && !state.syncMode && state.syncSrc !== 'kamera';
+  $('gpsInfo').innerHTML += `<br>Eşleşme güveni: <b>${conf[1]}</b>`;
+  const status = cut ? ['warn', 'GPX videonun tamamını kapsıyor ama video GPX\'ten çok daha kısa; video kesilmiş olabilir ve başlangıç saati güvenilmez. Önizlemede hızı kontrol et; yanlışsa "Otomatik eşitle" ya da "Oynatılan kareyi GPX anına oturt"u kullan.']
+    : cov >= 0.95 ? ['ok', 'GPX bu videonun tamamını kapsıyor.']
     : cov > 0 ? ['warn', `GPX videonun %${Math.round(cov * 100)}'ini kapsıyor; kalan kısımda GPS göstergeleri "—" gösterir.`]
     : ['err', `GPX bu videonun zamanıyla örtüşmüyor. Video ${hhmm(vStart)}'de başlıyor, GPX ${hhmm(g.start)}–${hhmm(g.end)} arası. Doğru GPX'i seçtiğinden emin ol ya da "Otomatik eşitle"yi dene.`];
   if (g.total < 20) status[0] = 'err', status[1] = `Bu GPS kaydında neredeyse hiç hareket yok (${Math.round(g.total)} m). Telefon kayıt sırasında gerçek GPS almamış olabilir (kapalı alan ya da "Kesin Konum" kapalı). ` + (cov > 0 ? 'Hız 0 ve rota tek nokta görünecek.' : status[1]);
   $('gpsCov').className = 'msg ' + status[0]; $('gpsCov').textContent = status[1];
+  const lim = Math.max(60, Math.ceil((Math.abs(state.goff) + 60) / 60) * 60);
+  $('off').min = -lim; $('off').max = lim;
+  $('gAt').max = Math.max(1, Math.floor(gdur)); syncGpsPos();
   $('off').value = state.goff; $('offV').textContent = `${state.goff > 0 ? '+' : ''}${state.goff.toFixed(1).replace('.', ',')} sn`;
 }
 // Elle yapılan kaydırma kamera başına hatırlanır (kamera saati genelde hep aynı yöne kayar)
 const offKey = () => 'tg-off-' + (state.meta?.device || 'Kamera');
 function setOffset(v, remember = true) {
-  state.goff = Math.round(Math.max(-600, Math.min(600, v)) * 10) / 10;
+  state.goff = Math.round(Math.max(-7200, Math.min(7200, v)) * 10) / 10;
+  state.syncMode = remember ? 'elle' : 'oto';
   if (remember && state.syncSrc !== 'kamera') { try { localStorage.setItem(offKey(), String(state.goff)); } catch {} state.offRemembered = false; }
   updateGpsUI(); drawPreview();
 }
+// Videonun o anki karesi GPX'in kaçıncı saniyesine denk geliyor (ve tersi)
+function gpxSecAtVideo(tv) { return tv - (state.gps.start - state.gbase) / 1000 - state.goff; }
+function speedAt(T) {
+  const g = state.gps; let lo = 0, hi = g.n - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (g.t[m] <= T) lo = m; else hi = m; }
+  return g.spd[lo] * 3.6;
+}
+function showGAt(sc) {
+  const g = state.gps; if (!g) return;
+  const T = g.start + sc * 1000;
+  $('gAtV').textContent = `${Math.floor(sc / 60)}:${String(Math.floor(sc % 60)).padStart(2, '0')}`;
+  $('gAtInfo').textContent = `GPX saati ${hhmm(T)} · hız ${Math.round(speedAt(T))} km/h`;
+}
+function syncGpsPos() {
+  if (!state.gps || !state.info) return;
+  const gdur = (state.gps.end - state.gps.start) / 1000;
+  const sc = Math.max(0, Math.min(gdur, gpxSecAtVideo(video.currentTime || 0)));
+  $('gAt').value = sc; showGAt(sc);
+}
+video.addEventListener('seeked', syncGpsPos);
+$('gAt').oninput = e => showGAt(Number(e.target.value));
+$('gSet').onclick = () => {
+  if (!state.gps) return;
+  const sc = Number($('gAt').value), tv = video.currentTime || 0;
+  setOffset(tv - sc - (state.gps.start - state.gbase) / 1000);
+  $('syncMsg').textContent = `Eşleştirildi: videonun ${Math.floor(tv / 60)}:${String(Math.floor(tv % 60)).padStart(2, '0')}. saniyesi = GPX'in ${Math.floor(sc / 60)}:${String(Math.floor(sc % 60)).padStart(2, '0')}. saniyesi.`;
+};
 $('off').oninput = e => setOffset(Number(e.target.value));
 document.querySelectorAll('[data-off]').forEach(b => b.onclick = () => setOffset(state.goff + Number(b.dataset.off)));
 $('gpxRemove').onclick = () => { state.gps = null; updateGpsUI(); renderGaugeList(); drawPreview(); $('syncMsg').textContent = ''; };
 $('autoSync').onclick = () => runAutoSync(false);
 function runAutoSync(silent) {
-  if (!state.gps || !state.tel?.hasAccel) return;
-  const r = autoSync(state.gps, state.gbase, state.tel, { range: 300, step: 0.1 });
+  if (!state.gps || !state.tel?.hasAccel) { if (!silent) $('syncMsg').textContent = 'Bu videoda ivme verisi yok (yalnızca GoPro sensör verisi okunabilir). Kareyi GPX anına oturtarak elle eşleştir.'; return; }
+  const gdur = (state.gps.end - state.gps.start) / 1000;
+  const R = Math.min(3600, Math.max(300, gdur));          // kesilmiş videoda GPX'in tamamı taranır
+  const coarse = autoSync(state.gps, state.gbase, state.tel, { range: R, step: 0.5 });
+  let r = coarse;
+  if (coarse) {
+    const c = coarse.offset, fine = autoSync(state.gps, state.gbase - c * 1000, state.tel, { range: 1.5, step: 0.1 });
+    if (fine && fine.score >= coarse.score - 0.02) r = { offset: Math.round((fine.offset + c) * 10) / 10, score: fine.score, overlap: fine.overlap };
+  }
   const el = $('syncMsg');
   if (!r || r.score < 0.3) {
-    el.textContent = silent ? '' : 'Otomatik eşitleme güvenilir bir sonuç bulamadı. Video kısa olabilir, hız fazla değişmemiş olabilir ya da kamera kaskta olabilir. Kaydırmayı elle ayarla: videoda bir fren/kalkış anında hız göstergesini gerçeğe uydur.';
+    el.textContent = silent ? '' : 'Otomatik eşitleme güvenilir bir sonuç bulamadı (video kısa olabilir, hız fazla değişmemiş olabilir ya da kamera kaskta olabilir). Videoda bir fren/kalkış anına gel, "Videonun şu karesi GPX\'te" kaydırıcısıyla aynı anı seç ve "Oynatılan kareyi bu GPX anına oturt"a bas.';
     return;
   }
+  state.syncScore = r.score;
   setOffset(r.offset, false);
   el.textContent = `Eşitlendi: ${r.offset > 0 ? '+' : ''}${r.offset.toFixed(1).replace('.', ',')} sn · uyum %${Math.round(r.score * 100)}${r.score < 0.6 ? ' (düşük; önizlemede kontrol et)' : ''}`;
 }

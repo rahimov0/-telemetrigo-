@@ -512,7 +512,7 @@ $('goMobile').onclick = () => { $('exportCard').scrollIntoView({ behavior: 'smoo
 new MutationObserver(() => $('gobar').classList.toggle('hidden', $('work').classList.contains('hidden'))).observe($('work'), { attributes: true });
 
 bindSettings(); renderPresets(); renderGaugeList(); updateGpsUI();
-window.__tg = { state, opts, loadFile, setEdit, select, setOffset, // test için
+window.__tg = { state, opts, cards, loadFile, setEdit, select, setOffset, // test için
   snap: (W = 1920, H = 1080) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
     x.drawImage(video, 0, 0, W, H); if (state.mode !== 'card') drawOverlay(x, W, H, video.currentTime, data(), opts, state.meta); if (state.mode !== 'live') drawCards(x, W, H, video.currentTime); return c.toDataURL('image/jpeg', 0.85); } };
 if (new URLSearchParams(location.search).get('gpx') === 'son' && last?.gpx) setMsg(`Aktivitenin GPS kaydı hazır (<b>${esc(last.name || 'GPX')}</b>). Şimdi o sırada çektiğin videoyu seç; zamanı eşleşirse otomatik eklenir.`, 'ok');
@@ -523,7 +523,8 @@ const Q = new URLSearchParams(location.search);
 state.mode = isApp ? (Q.get('mode') === 'card' ? 'card' : 'live') : null;   // uygulamada: canlı veri YA DA kart
 setCardsListener(c => { if (c && c === selCard) { const b = $('cardBusy'); if (b) b.textContent = c.busy ? 'Hazırlanıyor…' : c.err || ''; } drawPreview(); });
 video.addEventListener('seeked', () => drawPreview());
-video.addEventListener('timeupdate', () => { const d = video.duration || 1; document.querySelectorAll('.tlPlay').forEach(p => { p.style.left = (video.currentTime / d * 100) + '%'; }); });
+const movePlayhead = () => { const d = video.duration || 1; document.querySelectorAll('.tlPlay').forEach(p => { p.style.left = (video.currentTime / d * 100) + '%'; }); };
+['timeupdate', 'seeked', 'loadedmetadata'].forEach(ev => video.addEventListener(ev, movePlayhead));
 function slider(label, min, max, step, val, fmt, on) {
   const w = document.createElement('div'); w.className = 'slider';
   w.innerHTML = `<label>${label} <b class="num"></b></label><input type="range" min="${min}" max="${max}" step="${step}">`;

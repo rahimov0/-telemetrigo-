@@ -59,7 +59,7 @@ func generate(_ sc: Scenario, seed: UInt64) -> (fixes: [Fix], truth: Double) {
     return (out, truth)
 }
 
-func run(_ kind: ActivityKind, _ sc: Scenario, seed: UInt64) -> (engine: DistanceEngine, truth: Double) {
+func runScenario(_ kind: ActivityKind, _ sc: Scenario, seed: UInt64) -> (engine: DistanceEngine, truth: Double) {
     let g = generate(sc, seed: seed)
     var e = DistanceEngine(kind: kind)
     for f in g.fixes { e.add(f) }
@@ -70,7 +70,7 @@ func run(_ kind: ActivityKind, _ sc: Scenario, seed: UInt64) -> (engine: Distanc
 func worstErrorPercent(_ kind: ActivityKind, _ sc: Scenario, seeds: Int = 12) -> Double {
     var worst = 0.0
     for s in 0..<seeds {
-        let r = run(kind, sc, seed: UInt64(s) &* 131 &+ 7)
+        let r = runScenario(kind, sc, seed: UInt64(s) &* 131 &+ 7)
         worst = max(worst, abs(r.engine.distance / r.truth - 1) * 100)
     }
     return worst

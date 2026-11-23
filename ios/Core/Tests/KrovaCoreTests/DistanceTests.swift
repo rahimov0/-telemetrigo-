@@ -20,7 +20,7 @@ final class DistanceTests: XCTestCase {
     func testWeakGps() {
         XCTAssertLessThan(worstErrorPercent(.walk, Scenario(hAcc: 20, corrSD: 6)), 3)
     }
-    func testRun() {
+    func testRunSteady() {
         XCTAssertLessThan(worstErrorPercent(.run, Scenario(speed: 3.0, wiggle: 2.0)), 5)
     }
     func testRunWithJumps() {
@@ -34,7 +34,7 @@ final class DistanceTests: XCTestCase {
     }
     func testStandingStillGivesNoPhantomDistance() {
         for s in 0..<12 {
-            let r = run(.walk, Scenario(seconds: 300, speed: 0), seed: UInt64(s) &* 131 &+ 7)
+            let r = runScenario(.walk, Scenario(seconds: 300, speed: 0), seed: UInt64(s) &* 131 &+ 7)
             XCTAssertLessThan(r.engine.distance, 5, "tohum \(s)")
             XCTAssertLessThan(r.engine.movingTime, 10, "tohum \(s)")
         }

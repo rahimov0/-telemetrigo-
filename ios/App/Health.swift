@@ -99,7 +99,10 @@ final class HealthManager: ObservableObject {
             DispatchQueue.main.async { self?.week = days; self?.stepsToday = days.last?.steps ?? 0 }
         }
         store.execute(q)
-        let dq = HKStatisticsQuery(quantityType: walkDist, quantitySamplePredicate: HKQuery.predicateForSamples(withStart: today, end: nil, options: .strictStartDate), options: .cumulativeSum) { [weak self] _, s, _ in
+        // Bu uygulamanın antrenman olarak yazdığı mesafe sayılmaz; yoksa az adımla çok km görünür
+        let own = NSCompoundPredicate(notPredicateWithSubpredicate: HKQuery.predicateForObjects(from: HKSource.default()))
+        let dp = NSCompoundPredicate(andPredicateWithSubpredicates: [HKQuery.predicateForSamples(withStart: today, end: nil, options: .strictStartDate), own])
+        let dq = HKStatisticsQuery(quantityType: walkDist, quantitySamplePredicate: dp, options: .cumulativeSum) { [weak self] _, s, _ in
             let m = s?.sumQuantity()?.doubleValue(for: .meter()) ?? 0
             DispatchQueue.main.async { self?.distToday = m }
         }

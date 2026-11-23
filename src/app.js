@@ -134,8 +134,8 @@ function drawPreview() {
   const cw = Math.round(dw * dpr), ch = Math.round(dh * dpr);
   if (ov.width !== cw || ov.height !== ch) { ov.width = cw; ov.height = ch; }
   const ctx = ov.getContext('2d'); ctx.clearRect(0, 0, cw, ch);
-  state.rects = drawOverlay(ctx, cw, ch, video.currentTime || 0, data(), opts, state.meta, { highlight: state.sel, edit: state.edit });
-  drawCards(ctx, cw, ch, video.currentTime || 0);
+  state.rects = state.mode === 'card' ? [] : drawOverlay(ctx, cw, ch, video.currentTime || 0, data(), opts, state.meta, { highlight: state.sel, edit: state.edit });
+  if (state.mode !== 'live') drawCards(ctx, cw, ch, video.currentTime || 0);
 }
 let raf = 0;
 function loop() { drawPreview(); raf = video.paused ? 0 : requestAnimationFrame(loop); }
@@ -456,7 +456,7 @@ $('go').onclick = async () => {
       input, output,
       video: {
         width: W, height: H, fit: 'fill', codec, bitrate: QUALITY_HIGH, forceTranscode: true, processedWidth: W, processedHeight: H,
-        process: sample => { sample.draw(ctx, 0, 0, W, H); drawOverlay(ctx, W, H, sample.timestamp, D, O, meta); drawCards(ctx, W, H, sample.timestamp); return canvas; },
+        process: sample => { sample.draw(ctx, 0, 0, W, H); if (state.mode !== 'card') drawOverlay(ctx, W, H, sample.timestamp, D, O, meta); if (state.mode !== 'live') drawCards(ctx, W, H, sample.timestamp); return canvas; },
       },
     });
     if (!conv.isValid) throw new Error('Dönüştürme başlatılamadı: ' + conv.discardedTracks.map(d => `${d.track.type}: ${d.reason}`).join(', '));
@@ -514,13 +514,16 @@ new MutationObserver(() => $('gobar').classList.toggle('hidden', $('work').class
 bindSettings(); renderPresets(); renderGaugeList(); updateGpsUI();
 window.__tg = { state, opts, loadFile, setEdit, select, setOffset, // test için
   snap: (W = 1920, H = 1080) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
-    x.drawImage(video, 0, 0, W, H); drawOverlay(x, W, H, video.currentTime, data(), opts, state.meta); drawCards(x, W, H, video.currentTime); return c.toDataURL('image/jpeg', 0.85); } };
+    x.drawImage(video, 0, 0, W, H); if (state.mode !== 'card') drawOverlay(x, W, H, video.currentTime, data(), opts, state.meta); if (state.mode !== 'live') drawCards(x, W, H, video.currentTime); return c.toDataURL('image/jpeg', 0.85); } };
 if (new URLSearchParams(location.search).get('gpx') === 'son' && last?.gpx) setMsg(`Aktivitenin GPS kaydı hazır (<b>${esc(last.name || 'GPX')}</b>). Şimdi o sırada çektiğin videoyu seç; zamanı eşleşirse otomatik eklenir.`, 'ok');
 
 // ---- aktivite kartı paneli ----
 let selCard = null;
+const Q = new URLSearchParams(location.search);
+state.mode = isApp ? (Q.get('mode') === 'card' ? 'card' : 'live') : null;   // uygulamada: canlı veri YA DA kart
 setCardsListener(c => { if (c && c === selCard) { const b = $('cardBusy'); if (b) b.textContent = c.busy ? 'Hazırlanıyor…' : c.err || ''; } drawPreview(); });
 video.addEventListener('seeked', () => drawPreview());
+video.addEventListener('timeupdate', () => { const d = video.duration || 1; document.querySelectorAll('.tlPlay').forEach(p => { p.style.left = (video.currentTime / d * 100) + '%'; }); });
 function slider(label, min, max, step, val, fmt, on) {
   const w = document.createElement('div'); w.className = 'slider';
   w.innerHTML = `<label>${label} <b class="num"></b></label><input type="range" min="${min}" max="${max}" step="${step}">`;
@@ -528,67 +531,113 @@ function slider(label, min, max, step, val, fmt, on) {
   inp.oninput = () => { out.textContent = fmt(+inp.value); on(+inp.value); };
   return w;
 }
-function field(label, el) { const d = document.createElement('div'); d.innerHTML = `<div class="field-l">${label}</div>`; d.append(el); return d; }
+function field(label, el) { const d = document.createElement('div'); d.className = 'fld'; d.innerHTML = `<div class="field-l">${label}</div>`; d.append(el); return d; }
 function showAt(c) { video.pause(); video.currentTime = Math.min(Math.max(0, (video.duration || 0) - .05), c.t0 + Math.min(.8, c.dur / 2)); }
+const tfmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}${t % 1 ? ',' + Math.round(t % 1 * 10) : ''}`;
+/** Zaman çizelgesi: kartın hangi saniyede başlayıp ne kadar kalacağı. Gövdeyi sürükle = kaydır, kenarları sürükle = süreyi ayarla. */
+function timeline(c, dur) {
+  const w = document.createElement('div'); w.className = 'tl';
+  w.innerHTML = '<div class="tlTrack"><div class="tlSeg"><i class="tlH l"></i><i class="tlH r"></i></div><div class="tlPlay"></div></div><div class="tlRead"></div><div class="tlAxis"><span>0:00</span><span></span></div>';
+  const track = w.querySelector('.tlTrack'), seg = w.querySelector('.tlSeg'), read = w.querySelector('.tlRead');
+  w.querySelector('.tlAxis span:last-child').textContent = tfmt(dur);
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v)), snap = v => Math.round(v * 2) / 2;
+  const draw = () => { seg.style.left = c.t0 / dur * 100 + '%'; seg.style.width = c.dur / dur * 100 + '%'; read.innerHTML = `<span><small>Başlar</small><b>${tfmt(c.t0)}</b></span><span><small>Süre</small><b>${c.dur.toFixed(1).replace('.', ',')} sn</b></span><span><small>Biter</small><b>${tfmt(c.t0 + c.dur)}</b></span>`; };
+  const at = e => { const r = track.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width * dur, 0, dur); };
+  let mode = null, off = 0;
+  track.onpointerdown = e => {
+    track.setPointerCapture(e.pointerId); const t = at(e), h = e.target.closest('.tlH');
+    if (h) mode = h.classList.contains('l') ? 'l' : 'r';
+    else { mode = 'm'; off = e.target.closest('.tlSeg') ? t - c.t0 : c.dur / 2; if (!e.target.closest('.tlSeg')) c.t0 = clamp(snap(t - off), 0, dur - c.dur); }
+    draw(); drawPreview();
+  };
+  track.onpointermove = e => {
+    if (!mode) return; const t = snap(at(e));
+    if (mode === 'm') c.t0 = clamp(snap(at(e) - off), 0, Math.max(0, dur - c.dur));
+    else if (mode === 'l') { const end = c.t0 + c.dur, n = clamp(t, 0, end - 1); c.dur = end - n; c.t0 = n; }
+    else c.dur = clamp(t - c.t0, 1, dur - c.t0);
+    draw(); drawPreview();
+  };
+  track.onpointerup = track.onpointercancel = () => { if (mode) { mode = null; showAt(c); } };
+  draw(); return w;
+}
 async function renderCards() {
-  const box = $('cardsBox'); if (!box) return; box.innerHTML = '';
+  const bc = $('cbC'), bt = $('cbT'), bl = $('cbL'); if (!bc) return;
+  [bc, bt, bl].forEach(b => { b.innerHTML = ''; });
   const acts = await activityChoices(), dur = video.duration || state.info?.duration || 60;
-  const p = document.createElement('p'); p.className = 'muted small'; p.style.margin = '0 2px 10px';
-  p.textContent = 'Fotoğraftaki gibi sabit bir görsel: aktivitenin rotası ve değerleri videonun istediğin saniyesinde belirir, istediğin süre kalır.'; box.append(p);
-  if (!acts.length) { const m = document.createElement('div'); m.className = 'msg warn'; m.textContent = 'Henüz kayıtlı aktivite yok. Özet sekmesinden bir kayıt yap ya da Stüdyo > Görsel bölümünden bir aktivite aç.'; box.append(m); return; }
-  const row = document.createElement('div'); row.className = 'chipsrow'; row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px';
-  cards.forEach((c, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm' + (c === selCard ? ' primary' : ''); b.textContent = 'Kart ' + (i + 1); b.onclick = () => { selCard = c; renderCards(); showAt(c); }; row.append(b); });
-  if (cards.length < 3) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.textContent = '+ Kart ekle'; b.onclick = async () => { selCard = await addCard(acts[0].id, dur); selCard.t0 = Math.min(video.currentTime || 0, Math.max(0, dur - selCard.dur)); renderCards(); showAt(selCard); }; row.append(b); }
-  box.append(row);
+  if (!acts.length) { const m = document.createElement('div'); m.className = 'empty-note'; m.innerHTML = '<b>Henüz kayıtlı aktivite yok</b><span>Özet sekmesinden bir kayıt yap; sonra burada kart olarak kullanabilirsin.</span>'; bc.append(m); return; }
+  if (!cards.length && state.mode === 'card') { selCard = await addCard(acts[0].id, 6); selCard.t0 = 0; }
+  if (!selCard && cards.length) selCard = cards[0];
+  const row = document.createElement('div'); row.className = 'crow';
+  cards.forEach((c, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'pill' + (c === selCard ? ' on' : ''); b.textContent = 'Kart ' + (i + 1); b.onclick = () => { selCard = c; renderCards(); showAt(c); }; row.append(b); });
+  if (cards.length < 3) { const b = document.createElement('button'); b.type = 'button'; b.className = 'pill add'; b.textContent = '+ Kart'; b.onclick = async () => { selCard = await addCard(acts[0].id, Math.min(6, dur)); selCard.t0 = Math.min(Math.round((video.currentTime || 0) * 2) / 2, Math.max(0, dur - selCard.dur)); renderCards(); showAt(selCard); }; row.append(b); }
+  bc.append(row);
   const c = selCard; if (!c) return;
   const sel = document.createElement('select'); sel.className = 'typesel'; sel.style.width = '100%';
   sel.innerHTML = acts.map(a => `<option value="${a.id}" ${a.id === c.actId ? 'selected' : ''}>${esc(titleFor(a.type, a.start))} · ${esc(dateStr(a.start))}</option>`).join('');
   sel.onchange = () => { c.actId = sel.value; rebuild(c); };
-  box.append(field('Aktivite', sel));
+  bc.append(field('Aktivite', sel));
   const mk = (items, get, set) => { const d = document.createElement('div'); d.className = 'seg wrap'; seg(d, items, get, v => { set(v); rebuild(c); }); return d; };
-  box.append(field('Şablon', mk(CARD_TPLS, () => c.tpl, v => { c.tpl = v; })));
-  box.append(field('Harita', mk(Object.fromEntries(Object.entries(CARD_MAPS).map(([k, v]) => [k, v.name])), () => c.mapStyle, v => { c.mapStyle = v; })));
-  box.append(field('Biçim', mk(SHAPES, () => c.shape, v => { c.shape = v; })));
+  bc.append(field('Şablon', mk(CARD_TPLS, () => c.tpl, v => { c.tpl = v; })));
+  bc.append(field('Harita', mk(Object.fromEntries(Object.entries(CARD_MAPS).map(([k, v]) => [k, v.name])), () => c.mapStyle, v => { c.mapStyle = v; })));
+  bc.append(field('Biçim', mk(SHAPES, () => c.shape, v => { c.shape = v; })));
   const cc = document.createElement('div'); cc.className = 'chips';
   for (const [k, hx] of Object.entries(CARD_COLORS)) { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (c.color === k ? ' on' : ''); b.style.background = hx; b.onclick = () => { c.color = k; cc.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); rebuild(c); }; cc.append(b); }
-  box.append(field('Rota rengi', cc));
-  box.append(field('Yazı rengi', mk(Object.fromEntries(Object.entries(TEXT_COLORS).filter(([k]) => k !== 'otomatik')), () => c.textColor, v => { c.textColor = v; })));
-  const st = document.createElement('p'); st.id = 'cardBusy'; st.className = 'muted small'; st.style.margin = '4px 2px'; st.textContent = c.busy ? 'Hazırlanıyor…' : c.err || ''; box.append(st);
-  const f1 = s => `${s.toFixed(1).replace('.', ',')} sn`;
-  box.append(slider('Başlangıç', 0, Math.floor(dur * 2) / 2, 0.5, c.t0, f1, v => { c.t0 = v; if (c.t0 + c.dur > dur) c.dur = Math.max(1, dur - c.t0); showAt(c); }));
-  const nowBtn = document.createElement('button'); nowBtn.type = 'button'; nowBtn.className = 'btn sm'; nowBtn.textContent = 'Başlangıcı oynatılan an yap';
-  nowBtn.onclick = () => { c.t0 = Math.round((video.currentTime || 0) * 2) / 2; renderCards(); drawPreview(); }; box.append(nowBtn);
-  box.append(slider('Ekranda kalma süresi', 1, Math.max(2, Math.min(60, Math.floor(dur))), 0.5, Math.min(c.dur, 60), f1, v => { c.dur = v; showAt(c); }));
-  box.append(field('Geçiş', mk({ 0: 'Yok', 0.5: 'Kısa', 1: 'Uzun' }, () => String(c.fade), v => { c.fade = +v; })));
-  box.append(slider('Boyut', 20, 100, 5, Math.round(c.size * 100), v => `%${v}`, v => { c.size = v / 100; drawPreview(); }));
-  const pos = document.createElement('div'); pos.className = 'seg wrap';
-  const P = [['Sol üst', 'l', 't'], ['Üst', 'c', 't'], ['Sağ üst', 'r', 't'], ['Orta', 'c', 'm'], ['Sol alt', 'l', 'b'], ['Alt', 'c', 'b'], ['Sağ alt', 'r', 'b']];
-  P.forEach(([n, x, y]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.onclick = () => {
+  bc.append(field('Rota rengi', cc));
+  bc.append(field('Yazı rengi', mk(Object.fromEntries(Object.entries(TEXT_COLORS).filter(([k]) => k !== 'otomatik')), () => c.textColor, v => { c.textColor = v; })));
+  const st = document.createElement('p'); st.id = 'cardBusy'; st.className = 'muted small'; st.style.margin = '4px 2px'; st.textContent = c.busy ? 'Hazırlanıyor…' : c.err || ''; bc.append(st);
+  const del = document.createElement('button'); del.type = 'button'; del.className = 'btn ghost block'; del.textContent = 'Bu kartı kaldır';
+  del.onclick = () => { removeCard(c); selCard = cards[0] || null; renderCards(); }; bc.append(del);
+  // zaman
+  const hint = document.createElement('p'); hint.className = 'muted small'; hint.style.margin = '0 2px 10px'; hint.textContent = 'Kartın videonun hangi kısmında, ne kadar süre görüneceğini ayarla. Ortadan sürükle: kaydır. Kenarlardan sürükle: süreyi değiştir.'; bt.append(hint);
+  bt.append(timeline(c, dur));
+  const nowBtn = document.createElement('button'); nowBtn.type = 'button'; nowBtn.className = 'btn block'; nowBtn.textContent = 'Başlangıcı oynatılan an yap';
+  nowBtn.onclick = () => { c.t0 = Math.min(Math.round((video.currentTime || 0) * 2) / 2, Math.max(0, dur - c.dur)); renderCards(); drawPreview(); }; bt.append(nowBtn);
+  bt.append(field('Geçiş', mk({ y: 'Yok', k: 'Kısa', u: 'Uzun' }, () => ({ 0: 'y', 0.5: 'k', 1: 'u' }[c.fade] || 'k'), v => { c.fade = { y: 0, k: 0.5, u: 1 }[v]; })));
+  // yerleşim
+  bl.append(slider('Boyut', 20, 100, 5, Math.round(c.size * 100), v => `%${v}`, v => { c.size = v / 100; drawPreview(); }));
+  const pos = document.createElement('div'); pos.className = 'posgrid';
+  const P = [['Sol üst', 'l', 't'], ['Üst', 'c', 't'], ['Sağ üst', 'r', 't'], ['Sol', 'l', 'm'], ['Orta', 'c', 'm'], ['Sağ', 'r', 'm'], ['Sol alt', 'l', 'b'], ['Alt', 'c', 'b'], ['Sağ alt', 'r', 'b']];
+  P.forEach(([n, x, y]) => { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', n); b.innerHTML = `<i style="left:${x === 'l' ? 14 : x === 'r' ? 66 : 40}%;top:${y === 't' ? 16 : y === 'b' ? 66 : 40}%"></i>`; b.onclick = () => {
     const vw = state.info.width, vh = state.info.height, hf = c.bmp ? c.size * c.bmp.height / c.bmp.width * vw / vh : .2;
     c.cx = x === 'l' ? .04 + c.size / 2 : x === 'r' ? .96 - c.size / 2 : .5; c.cy = y === 't' ? .05 + hf / 2 : y === 'b' ? .95 - hf / 2 : .5; drawPreview(); }; pos.append(b); });
-  box.append(field('Konum', pos));
-  const del = document.createElement('button'); del.type = 'button'; del.className = 'btn ghost block'; del.textContent = 'Bu kartı kaldır';
-  del.onclick = () => { removeCard(c); selCard = cards[0] || null; renderCards(); }; box.append(del);
+  bl.append(field('Konum', pos));
 }
 importNative().then(() => { if (!$('work').classList.contains('hidden')) renderCards(); });
 
-// ---- Uygulama içi video editörü: sabit önizleme + sekmeli alt panel ----
+// ---- Uygulama içi video editörü: sabit önizleme + mod seçimi + sekmeli alt panel ----
 function buildVideoDock() {
   const root = $('work'); if (root.dataset.dock) return; root.dataset.dock = '1';
   const mk = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
-  const cardEls = [...root.querySelectorAll('.right > section.card')];   // GPS, Göstergeler, Görünüm, Dışa aktar
+  const cardEls = [...root.querySelectorAll('.right > section.card')];   // GPS, Göstergeler, Kart, Görünüm, Dışa aktar
   const prev = root.querySelector('.previewcard'), info = root.querySelector('.infocard'), again = $('again');
-  const dock = mk('div', 'vdock'), tabs = mk('div', 'dockTabs'), pane = mk('div', 'vdPane');
-  const defs = [['GPS', [cardEls[0], info]], ['Göstergeler', [cardEls[1]]], ['Kart', [cardEls[2]]], ['Görünüm', [cardEls[3]]], ['Dışa aktar', [cardEls[4], again]]];
-  const parts = {};
-  defs.forEach(([n, els]) => { const w = mk('div', 'dk-g'); w.append(...els); parts[n] = w; pane.append(w); });
-  const show = n => { Object.entries(parts).forEach(([k, w]) => { w.hidden = k !== n; }); [...tabs.children].forEach(b => b.classList.toggle('on', b.textContent === n)); pane.scrollTop = 0; };
-  defs.forEach(([n]) => { const b = mk('button'); b.type = 'button'; b.textContent = n; b.onclick = () => show(n); tabs.append(b); });
-  const bar = $('gobar'); dock.append(tabs, pane, bar);
-  root.replaceChildren(prev, dock);
+  const dock = mk('div', 'vdock'), modes = mk('div', 'modes'), tabs = mk('div', 'dockTabs'), pane = mk('div', 'vdPane');
+  const g = (...els) => { const w = mk('div', 'dk-g'); w.append(...els); w.hidden = true; pane.append(w); return w; };
   cardEls.forEach(c => c.querySelector('.sec-h')?.remove());
+  const W = { Göstergeler: g(cardEls[1]), Hizalama: g(cardEls[0], info), Görünüm: g(cardEls[3]), İçerik: g($('cbC')), Zaman: g($('cbT')), Yerleşim: g($('cbL')), 'Dışa aktar': g(cardEls[4], again) };
+  cardEls[2].remove();
+  const TABS = { live: ['Göstergeler', 'Hizalama', 'Görünüm', 'Dışa aktar'], card: ['İçerik', 'Zaman', 'Yerleşim', 'Dışa aktar'] };
+  let tab = null;
+  const show = n => { tab = n; Object.entries(W).forEach(([k, w]) => { w.hidden = k !== n; }); [...tabs.children].forEach(b => b.classList.toggle('on', b.textContent === n)); pane.scrollTop = 0;
+    if (n === 'Zaman' && selCard) showAt(selCard); };
+  const setMode = m => {
+    state.mode = m; state.sel = null; if (state.edit) setEdit(false);
+    [...modes.children].forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    tabs.replaceChildren(...TABS[m].map(n => { const b = mk('button'); b.type = 'button'; b.textContent = n; b.onclick = () => show(n); return b; }));
+    $('editBtn').closest('.toolbar')?.classList.toggle('hidden', m === 'card');
+    renderCards().then(() => { show(TABS[m][0]); if (m === 'card' && selCard) showAt(selCard); drawPreview(); });
+  };
+  [['live', 'Canlı veri'], ['card', 'Aktivite kartı']].forEach(([m, n]) => { const b = mk('button'); b.type = 'button'; b.dataset.m = m; b.textContent = n; b.onclick = () => setMode(m); modes.append(b); });
+  const bar = $('gobar'); dock.append(modes, tabs, pane, bar);
+  root.replaceChildren(prev, dock);
   $('goMobile').onclick = () => { show('Dışa aktar'); if (!$('go').disabled) $('go').click(); };
-  show(new URLSearchParams(location.search).has('gpx') ? 'GPS' : 'Göstergeler');
-  window.__tgShowTab = show;
+  window.__tgShowTab = show; window.__tgSetMode = setMode;
+  window.__tgInitDock = () => setMode(state.mode || 'live');
+  setMode(state.mode || 'live');
 }
-if (isApp) buildVideoDock();
+if (isApp) {
+  buildVideoDock();
+  $('pickCard').append(fileEl);
+  $('pkText').textContent = state.mode === 'card'
+    ? 'Aktivitenin rota ve değerleri, videonun istediğin kısmında kart olarak belirir. Hangi saniyede başlayacağını ve ne kadar kalacağını sonra ayarlarsın.'
+    : 'GoPro sensör verisi ya da GPS kaydıyla hız, rota ve eğim göstergeleri video boyunca canlı akar.';
+}

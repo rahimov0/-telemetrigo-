@@ -114,7 +114,7 @@ struct ActivityTab: View {
     @State private var weekBack = 0
 
     enum Period: String, CaseIterable { case day = "Gün", week = "Hafta", month = "Ay", year = "Yıl" }
-    @State private var period: Period = .week
+    @State private var period: Period = .day
     @State private var monthBack = 0
     @State private var yearBack = 0
     @AppStorage("ozetGroup") private var groupRaw = "sport"

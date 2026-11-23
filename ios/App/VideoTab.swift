@@ -5,15 +5,19 @@ import WebKit
 /// Kayıt sekmesindeki GPX buraya aktarılır; oluşturulan video paylaşım ekranıyla kaydedilir.
 struct VideoTab: View {
     @EnvironmentObject var model: AppModel
+    var mode: String = "live"
+    var lead: Activity? = nil
     var body: some View {
-        WebView(pending: $model.pendingGpx, actsJSON: Self.actsJSON(model.activity)).background(Color.black.ignoresSafeArea()).environment(\.colorScheme, .dark)
+        WebView(pending: $model.pendingGpx, actsJSON: Self.actsJSON(model.activity, lead: lead), mode: mode).background(Color.black.ignoresSafeArea()).environment(\.colorScheme, .dark)
     }
 }
 
 extension VideoTab {
     /// Son aktiviteler: video editöründe "aktivite kartı" olarak kullanılır.
-    static func actsJSON(_ act: ActivityRecorder) -> String {
-        let list: [[String: Any]] = act.activities.prefix(6).map { a in
+    static func actsJSON(_ act: ActivityRecorder, lead: Activity?) -> String {
+        var all = act.activities
+        if let l = lead { all.removeAll { $0.id == l.id }; all.insert(l, at: 0) }   // seçilen aktivite ilk kart olur
+        let list: [[String: Any]] = all.prefix(6).map { a in
             ["name": a.type.title(a.start), "type": a.type.rawValue, "gpx": act.gpxText(a)]
         }
         guard let d = try? JSONSerialization.data(withJSONObject: list), let s = String(data: d, encoding: .utf8) else { return "[]" }
@@ -24,7 +28,8 @@ extension VideoTab {
 struct WebView: UIViewRepresentable {
     @Binding var pending: (name: String, text: String)?
     var actsJSON: String = "[]"
-    static let home = URL(string: "https://telemetrigo.rahimov.tr/?app=1")!
+    var mode: String = "live"
+    var home: URL { URL(string: "https://telemetrigo.rahimov.tr/?app=1&mode=\(mode)")! }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -48,7 +53,7 @@ struct WebView: UIViewRepresentable {
         rc.addTarget(context.coordinator, action: #selector(Coordinator.reload(_:)), for: .valueChanged)
         wv.scrollView.refreshControl = rc
         context.coordinator.web = wv
-        wv.load(URLRequest(url: Self.home, cachePolicy: .reloadRevalidatingCacheData))  // her açılışta güncel sürümü kontrol et
+        wv.load(URLRequest(url: home, cachePolicy: .reloadRevalidatingCacheData))  // her açılışta güncel sürümü kontrol et
         return wv
     }
 

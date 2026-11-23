@@ -31,6 +31,30 @@
   html.inapp .vdock .gobar { position: static; flex: none; padding: 6px 12px calc(10px + env(safe-area-inset-bottom)); background: transparent; backdrop-filter: none; }
   html.inapp .vdock .gobar.hidden { display: none; }
   .seg.wrap { flex-wrap: wrap; } .seg.wrap button { flex: 1 1 auto; white-space: nowrap; }
+
+  html.inapp .modes { display: flex; gap: 4px; margin: 12px 14px 2px; padding: 3px; background: var(--raised); border-radius: 14px; flex: none; }
+  html.inapp .modes button { flex: 1; border: 0; background: transparent; color: var(--text-2); font: 650 14px/1 inherit; padding: 11px 8px; border-radius: 11px; }
+  html.inapp .modes button.on { background: var(--panel); color: var(--text); box-shadow: 0 0 0 1px var(--line-2); }
+  .crow { display: flex; gap: 8px; flex-wrap: wrap; } .pill { border: 0; border-radius: 999px; padding: 8px 14px; background: var(--raised); color: var(--text-2); font: 600 13.5px/1 inherit; } .pill.on { background: var(--text); color: var(--bg); } .pill.add { background: transparent; box-shadow: inset 0 0 0 1px var(--line-2); }
+  .fld .field-l { margin: 4px 0 6px; font-size: 12.5px; color: var(--text-3); }
+  .empty-note { display: grid; gap: 4px; padding: 16px; border-radius: 14px; background: var(--raised); } .empty-note span { color: var(--text-2); font-size: 13.5px; }
+  .tl { display: grid; gap: 8px; margin-bottom: 12px; }
+  .tlTrack { position: relative; height: 54px; border-radius: 14px; background: repeating-linear-gradient(90deg, var(--raised) 0 8px, color-mix(in srgb, var(--raised) 85%, var(--text) 15%) 8px 9px); touch-action: none; overflow: hidden; }
+  .tlSeg { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--acc) 35%, transparent); border: 2px solid var(--acc); border-radius: 12px; cursor: grab; }
+  .tlH { position: absolute; top: 0; bottom: 0; width: 26px; } .tlH::after { content: ""; position: absolute; top: 14px; bottom: 14px; left: 10px; width: 5px; border-radius: 3px; background: var(--acc); }
+  .tlH.l { left: -4px; } .tlH.r { right: -4px; }
+  .tlPlay { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); pointer-events: none; opacity: .85; }
+  .tlRead { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; } .tlRead small { display: block; color: var(--text-3); font-size: 11.5px; } .tlRead b { font-size: 17px; font-variant-numeric: tabular-nums; }
+  .tlAxis { display: flex; justify-content: space-between; color: var(--text-3); font-size: 11.5px; margin-top: -4px; }
+  .posgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; } .posgrid button { position: relative; height: 54px; border: 0; border-radius: 12px; background: var(--raised); } .posgrid button i { position: absolute; width: 14px; height: 14px; border-radius: 4px; background: var(--acc); transform: translate(-50%, -50%); }
+  /* uygulama içi seçim ekranı */
+  html.inapp #pickCard { min-height: 100dvh; display: grid; place-content: center; text-align: center; padding: 0 28px; gap: 14px; }
+  html.inapp #pickCard .ph, html.inapp #pickCard .start { display: none; } html:not(.inapp) .pk { display: none; }
+  html.inapp #pickCard .pk { display: grid; gap: 12px; justify-items: center; }
+  html.inapp .pkIc { width: 84px; height: 84px; border-radius: 26px; display: grid; place-items: center; background: color-mix(in srgb, var(--acc) 16%, transparent); color: var(--acc); }
+  html.inapp .pkIc svg { width: 38px; height: 38px; } html.inapp .pk h1 { margin: 6px 0 0; font-size: 26px; } html.inapp .pk p { margin: 0; color: var(--text-2); max-width: 300px; line-height: 1.45; }
+  html.inapp .pk .big { margin-top: 10px; min-width: 240px; justify-content: center; } html.inapp .pk small { color: var(--text-3); }
+  html.inapp .pk .two { display: grid; gap: 8px; width: 100%; max-width: 320px; margin-top: 6px; } html.inapp .pk .two div { text-align: left; padding: 12px 14px; border-radius: 14px; background: var(--raised); font-size: 13.5px; color: var(--text-2); } html.inapp .pk .two b { color: var(--text); display: block; }
   .layout { display: grid; gap: var(--s3); }
   @media (min-width: 900px) { .layout { grid-template-columns: minmax(0, 1.6fr) minmax(340px, 1fr); align-items: start; } .layout > .left { position: sticky; top: 72px; } }
   @media (max-width: 899px) {
@@ -111,6 +135,13 @@
 </div></header>
 <main>
   <div id="pickCard">
+    <div class="pk" id="pk">
+      <div class="pkIc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9.5 4.5 2.5-4.5 2.5z"/></svg></div>
+      <h1>Videonu seç</h1>
+      <p id="pkText"></p>
+      <label class="btn primary lg big" for="file">Video seç</label>
+      <small>Video hiçbir yere yüklenmez; işlem bu cihazda yapılır.</small>
+    </div>
     <div class="ph">
       <div class="eyebrow">Video</div>
       <h1>Videona telemetri ekle</h1>
@@ -204,7 +235,7 @@
 
         <section class="card" id="cardsCard">
           <h2 class="sec-h"><span class="idx">03</span>Aktivite kartı<span class="opt">isteğe bağlı</span></h2>
-          <div id="cardsBox"></div>
+          <div id="cbC"></div><div id="cbT"></div><div id="cbL"></div>
         </section>
 
         <section class="card">

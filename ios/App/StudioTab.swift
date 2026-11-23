@@ -1,135 +1,175 @@
 import SwiftUI
 import KrovaCore
 
-/// Stüdyo: aktiviteden paylaşılabilir görsel + videoya telemetri. Düzenleme motorları web tabanlıdır; bu ekran onları tek yerde toplar.
+/// Stüdyo: bir aktiviteden ya da bir videodan başla. Fotoğraf, video kartı ve canlı veri tek yerden.
 struct StudioTab: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject var act: ActivityRecorder
-    @State private var mode = 0                 // 0 görsel, 1 video
-    @State private var editing: Activity?
-    @State private var showVideo = false
+    @State private var picked: Activity?          // seçenek sayfası
+    @State private var editing: Activity?         // fotoğraf editörü
+    @State private var video: VideoRoute?         // video editörü
     @State private var showCam = false
+
+    struct VideoRoute: Identifiable { let id = UUID(); var mode: String; var lead: Activity? }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("Stüdyo").font(.system(size: 30, weight: .bold)).foregroundStyle(Theme.text)
-                    Spacer()
+            VStack(alignment: .leading, spacing: 22) {
+                Text("Stüdyo").font(.system(size: 30, weight: .bold)).foregroundStyle(Theme.text)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    sectionTitle("Videodan başla")
+                    Button { video = VideoRoute(mode: "live", lead: nil) } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: "film.stack.fill").font(.system(size: 22)).foregroundStyle(Theme.onAcc)
+                                .frame(width: 52, height: 52).background(Color.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Video seç").font(.headline).foregroundStyle(Theme.onAcc)
+                                Text("GoPro sensör verisi ya da GPS ile canlı göstergeler").font(.caption).foregroundStyle(Theme.onAcc.opacity(0.75))
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.onAcc.opacity(0.6))
+                        }
+                        .padding(16).background(Theme.acc, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    }.buttonStyle(.plain)
+                    Button { showCam = true } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "gauge.with.dots.needle.67percent").font(.title3).foregroundStyle(ActType.motor.color).frame(width: 52)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("GoPro ile sürüş kaydı").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                                Text("Kamerayı bağla, GPS ile birlikte başlat").font(.caption).foregroundStyle(Theme.text2)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.text3)
+                        }.padding(14).background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }.buttonStyle(.plain)
                 }
-                HStack(spacing: 2) {
-                    seg("Görsel", 0); seg("Video", 1)
-                }.padding(3).background(Theme.card, in: Capsule())
-                if mode == 0 { imageMode } else { videoMode }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    sectionTitle("Aktiviteden başla")
+                    Text("Bir aktiviteye dokun: fotoğrafa ya da videoya ekle.").font(.subheadline).foregroundStyle(Theme.text2)
+                    if act.activities.isEmpty {
+                        Panel {
+                            VStack(spacing: 8) {
+                                Image(systemName: "photo.on.rectangle.angled").font(.system(size: 30)).foregroundStyle(Theme.text3)
+                                Text("Henüz aktivite yok").font(.headline).foregroundStyle(Theme.text)
+                                Text("Özet sekmesinden bir kayıt başlat; bitince burada görünür.").font(.subheadline).foregroundStyle(Theme.text2).multilineTextAlignment(.center)
+                            }.frame(maxWidth: .infinity).padding(.vertical, 10)
+                        }
+                    } else {
+                        ForEach(act.activities.prefix(30)) { a in
+                            Button { picked = a } label: { row(a) }.buttonStyle(.plain)
+                        }
+                    }
+                }
             }
-            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 24)
+            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 130)
         }
         .background(Theme.bg.ignoresSafeArea())
+        .sheet(item: $picked) { a in
+            SourceSheet(a: a) { choice in
+                picked = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    switch choice {
+                    case .photo: editing = a
+                    case .card: video = VideoRoute(mode: "card", lead: a)
+                    case .live:
+                        model.pendingGpx = (name: a.type.title(a.start), text: act.gpxText(a))
+                        video = VideoRoute(mode: "live", lead: a)
+                    }
+                }
+            }
+            .presentationDetents([.height(330), .medium]).presentationDragIndicator(.visible)
+        }
         .sheet(item: $editing) { a in
             PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue, steps: nil, kcal: Cal.active(a))
                 .environmentObject(model)
         }
-        .fullScreenCover(isPresented: $showVideo) {
+        .fullScreenCover(item: $video) { v in
             VStack(spacing: 0) {
                 HStack {
-                    Button { showVideo = false } label: {
+                    Button { video = nil } label: {
                         Text("Kapat").font(.body.weight(.medium)).foregroundStyle(.white).padding(.horizontal, 14).frame(height: 34)
                             .background(Color.white.opacity(0.14), in: Capsule())
                     }
                     Spacer()
-                    Text("Video").font(.headline).foregroundStyle(.white)
+                    Text(v.mode == "card" ? "Aktivite kartı" : "Canlı veri").font(.headline).foregroundStyle(.white)
                     Spacer()
                     Color.clear.frame(width: 66, height: 1)
                 }.padding(.horizontal, 16).padding(.vertical, 8)
-                VideoTab().environmentObject(model)
+                VideoTab(mode: v.mode, lead: v.lead).environmentObject(model)
             }.background(Color.black.ignoresSafeArea())
         }
         .sheet(isPresented: $showCam) { RecordView().environmentObject(model) }
-        .onChange(of: model.pendingGpx == nil) { _, none in if !none { mode = 1; showVideo = true } }
-        .onAppear { if model.pendingGpx != nil { mode = 1; showVideo = true } }
+        .onAppear { if model.pendingGpx != nil && video == nil { video = VideoRoute(mode: "live", lead: nil) } }
+        .onChange(of: model.pendingGpx == nil) { _, none in if !none && video == nil { video = VideoRoute(mode: "live", lead: nil) } }
     }
 
-    private func seg(_ t: String, _ i: Int) -> some View {
-        Button { withAnimation(.easeOut(duration: 0.15)) { mode = i } } label: {
-            Text(t).font(.subheadline.weight(.semibold)).foregroundStyle(mode == i ? Theme.text : Theme.text3)
-                .frame(maxWidth: .infinity).frame(height: 34).background(mode == i ? Theme.card2 : .clear, in: Capsule())
-        }.buttonStyle(.plain)
-    }
-
-    // MARK: Görsel
-    @ViewBuilder private var imageMode: some View {
-        Text("Bir aktivite seç; fotoğrafına rotayı ve değerleri ekle, şablon ve rengi ayarla, paylaş.")
-            .font(.subheadline).foregroundStyle(Theme.text2)
-        if act.activities.isEmpty {
-            Panel {
-                VStack(spacing: 8) {
-                    Image(systemName: "photo.on.rectangle.angled").font(.system(size: 30)).foregroundStyle(Theme.text3)
-                    Text("Henüz aktivite yok").font(.headline).foregroundStyle(Theme.text)
-                    Text("Özet sekmesinden bir kayıt başlat; bitince burada görünür.").font(.subheadline).foregroundStyle(Theme.text2).multilineTextAlignment(.center)
-                }.frame(maxWidth: .infinity).padding(.vertical, 10)
-            }
-        } else {
-            ForEach(act.activities) { a in
-                Button { editing = a } label: { row(a) }.buttonStyle(.plain)
-            }
-        }
+    private func sectionTitle(_ t: String) -> some View {
+        Text(t.uppercased()).font(.caption.weight(.bold)).foregroundStyle(Theme.text3).tracking(1.2)
     }
 
     private func row(_ a: Activity) -> some View {
         HStack(spacing: 12) {
-            RouteThumb(act: act, a: a).frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            RouteThumb(act: act, a: a).frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(a.type.title(a.start)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
                 Text(a.start.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(Theme.text2)
                 Text("\(Fmt.km(a.distance)) km · \(Fmt.dur(a.moving))").font(.caption.weight(.semibold)).foregroundStyle(Theme.cDist).monospacedDigit()
             }
             Spacer()
-            Image(systemName: "photo.badge.plus").foregroundStyle(a.type.color)
+            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.text3)
         }
         .padding(10).background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
+}
 
-    // MARK: Video
-    @ViewBuilder private var videoMode: some View {
-        Text("Videona iki şekilde ekleme yapabilirsin: canlı veri göstergeleri (hız, rota, eğim) ya da istediğin saniyede belirip kaybolan sabit aktivite kartı. Video cihazından çıkmaz.")
-            .font(.subheadline).foregroundStyle(Theme.text2)
-        Button { showVideo = true } label: {
-            VStack(spacing: 10) {
-                Image(systemName: "film.stack.fill").font(.system(size: 30)).foregroundStyle(Theme.onAcc)
-                Text("Video seç").font(.headline).foregroundStyle(Theme.onAcc)
-                Text("GoPro ise sensör verisi videodan okunur").font(.caption).foregroundStyle(Theme.onAcc.opacity(0.75))
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 28)
-            .background(Theme.acc, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        }.buttonStyle(.plain)
-        Panel {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Nasıl çalışır").font(.headline).foregroundStyle(Theme.text)
-                step("1", "Canlı göstergeler", "GoPro sensör verisi ya da GPS kaydıyla hız, rota ve eğim video boyunca akar.")
-                step("2", "Aktivite kartı", "Fotoğraftaki gibi rota ve değerler; hangi saniyede başlayacağını ve ne kadar kalacağını sen seçersin.")
-                step("3", "Videoyu seç", "Sıkıştırılmamış orijinal dosya en iyi sonucu verir. İkisini birlikte de kullanabilirsin.")
-            }
-        }
-        Button { showCam = true } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "gauge.with.dots.needle.67percent").font(.title3).foregroundStyle(ActType.motor.color)
+enum SourceChoice { case photo, card, live }
+
+/// "Bu aktiviteyle ne yapalım?" iki adımlı seçim: Fotoğraf / Video → Kart / Canlı veri
+struct SourceSheet: View {
+    let a: Activity
+    let pick: (SourceChoice) -> Void
+    @State private var step = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                if step == 1 {
+                    Button { withAnimation(.easeOut(duration: 0.15)) { step = 0 } } label: { Image(systemName: "chevron.left").font(.body.weight(.semibold)) }
+                        .foregroundStyle(Theme.text2)
+                }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("GoPro ile sürüş kaydı").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
-                    Text("Kamerayı bağla, GPS ile birlikte başlat").font(.caption).foregroundStyle(Theme.text2)
+                    Text(step == 0 ? "Ne ekleyelim?" : "Videoya nasıl eklensin?").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Text(a.type.title(a.start)).font(.subheadline).foregroundStyle(Theme.text2)
+                }
+                Spacer()
+            }.padding(.top, 22)
+            if step == 0 {
+                option("photo.on.rectangle.angled", "Fotoğrafa ekle", "Rota ve değerlerle paylaşılabilir görsel", Theme.acc) { pick(.photo) }
+                option("film.stack.fill", "Videoya ekle", "Kart ya da canlı veri", ActType.motor.color) { withAnimation(.easeOut(duration: 0.15)) { step = 1 } }
+            } else {
+                option("rectangle.on.rectangle.angled", "Aktivite kartı", "Rota ve değerler sabit kart olarak belirir; hangi saniyede ve ne kadar süre kalacağını sen seçersin", Theme.acc) { pick(.card) }
+                option("speedometer", "Canlı veri", "Hız, rota ve eğim göstergeleri videoyla birlikte akar", ActType.motor.color) { pick(.live) }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 18).background(Theme.bg.ignoresSafeArea())
+    }
+
+    private func option(_ icon: String, _ title: String, _ sub: String, _ tint: Color, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon).font(.system(size: 20, weight: .semibold)).foregroundStyle(tint)
+                    .frame(width: 48, height: 48).background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.headline).foregroundStyle(Theme.text)
+                    Text(sub).font(.caption).foregroundStyle(Theme.text2).multilineTextAlignment(.leading)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.text3)
-            }.padding(14).background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }.buttonStyle(.plain)
-    }
-
-    private func step(_ n: String, _ t: String, _ d: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(n).font(.caption.weight(.bold)).foregroundStyle(Theme.acc).frame(width: 22, height: 22).background(Theme.acc.opacity(0.15), in: Circle())
-            VStack(alignment: .leading, spacing: 2) {
-                Text(t).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
-                Text(d).font(.caption).foregroundStyle(Theme.text2)
             }
-        }
+            .padding(14).background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }.buttonStyle(.plain)
     }
 }

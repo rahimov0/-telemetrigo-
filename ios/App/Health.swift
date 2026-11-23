@@ -23,6 +23,9 @@ final class HealthManager: ObservableObject {
     /// Kullanıcı bağlanmayı seçti mi (okuma izni sistemden sorgulanamaz, bu yüzden kendimiz tutuyoruz)
     @Published var connected = UserDefaults.standard.bool(forKey: "healthOn")
     @Published var write = UserDefaults.standard.object(forKey: "healthWrite") as? Bool ?? true { didSet { UserDefaults.standard.set(write, forKey: "healthWrite") } }
+    /// Kaloriyi Sağlık'a yazmayı kapatmak: saat zaten ölçüyorsa çift sayılmasın
+    @Published var writeEnergy = UserDefaults.standard.object(forKey: "healthWriteEnergy") as? Bool ?? true { didSet { UserDefaults.standard.set(writeEnergy, forKey: "healthWriteEnergy") } }
+    @Published var weekFlights: [Date: Double] = [:]
     @Published var stepsToday: Int = 0
     @Published var distToday: Double = 0
     @Published var week: [(day: Date, steps: Int)] = []
@@ -37,7 +40,7 @@ final class HealthManager: ObservableObject {
 
     /// İzinleri (yeni türler dahil) yeniden ister, sonra kilo/boyu okur
     func fetchProfile(_ done: @escaping (Double?, Double?, String?) -> Void) {
-        let read: Set<HKObjectType> = [stepType, walkDist, energyType, HKObjectType.activitySummaryType(), massType, heightType]
+        let read: Set<HKObjectType> = [stepType, walkDist, energyType, HKQuantityType(.flightsClimbed), HKObjectType.activitySummaryType(), massType, heightType]
         let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
         store.requestAuthorization(toShare: share, read: read) { [weak self] _, err in
             guard let self else { return }
@@ -66,7 +69,7 @@ final class HealthManager: ObservableObject {
 
     func connect() {
         guard Self.available else { lastError = "Bu cihazda Sağlık verisi yok."; return }
-        let read: Set<HKObjectType> = [stepType, walkDist, energyType, HKObjectType.activitySummaryType(), massType, heightType]
+        let read: Set<HKObjectType> = [stepType, walkDist, energyType, HKQuantityType(.flightsClimbed), HKObjectType.activitySummaryType(), massType, heightType]
         let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
         store.requestAuthorization(toShare: share, read: read) { [weak self] ok, err in
             DispatchQueue.main.async {
@@ -89,11 +92,11 @@ final class HealthManager: ObservableObject {
     private var loadedWeek: Date?
     func refresh() {
         // Kalori okuma izni sonradan eklendi: bağlı olanlara bir kez sorulur
-        if connected, !UserDefaults.standard.bool(forKey: "healthEnergyAsked2") {
-            let read: Set<HKObjectType> = [stepType, walkDist, energyType, HKObjectType.activitySummaryType(), massType, heightType]
+        if connected, !UserDefaults.standard.bool(forKey: "healthEnergyAsked3") {
+            let read: Set<HKObjectType> = [stepType, walkDist, energyType, HKQuantityType(.flightsClimbed), HKObjectType.activitySummaryType(), massType, heightType]
             let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
             store.requestAuthorization(toShare: share, read: read) { [weak self] ok, _ in
-                DispatchQueue.main.async { if ok { UserDefaults.standard.set(true, forKey: "healthEnergyAsked2") }; self?.loadWeek(containing: Date(), force: true) }
+                DispatchQueue.main.async { if ok { UserDefaults.standard.set(true, forKey: "healthEnergyAsked3") }; self?.loadWeek(containing: Date(), force: true) }
             }
         }
         loadWeek(containing: Date(), force: true)
@@ -135,6 +138,14 @@ final class HealthManager: ObservableObject {
             DispatchQueue.main.async { self?.weekEnergy.merge(m) { _, new in new } }
         }
         store.execute(eq)
+        let fq = HKStatisticsCollectionQuery(quantityType: HKQuantityType(.flightsClimbed), quantitySamplePredicate: range, options: .cumulativeSum,
+                                             anchorDate: from, intervalComponents: DateComponents(day: 1))
+        fq.initialResultsHandler = { [weak self] _, res, _ in
+            var m: [Date: Double] = [:]
+            res?.enumerateStatistics(from: from, to: to) { s, _ in m[Calendar.current.startOfDay(for: s.startDate)] = s.sumQuantity()?.doubleValue(for: .count()) ?? 0 }
+            DispatchQueue.main.async { self?.weekFlights.merge(m) { _, new in new } }
+        }
+        store.execute(fq)
         // Fitness'taki Hareket halkasının kendisi: Watch/iPhone kaynaklarını Apple'ın kendi yöntemiyle birleştirir
         let c = Calendar.current
         for i in 0..<7 {
@@ -170,7 +181,7 @@ final class HealthManager: ObservableObject {
         builder.beginCollection(withStart: a.start) { [weak self] ok, _ in
             guard let self, ok else { return }
             var samples: [HKSample] = []
-            if let kc = Cal.active(a), kc > 1 {
+            if writeEnergy, let kc = Cal.active(a), kc > 1 {
                 samples.append(HKQuantitySample(type: self.energyType, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: kc), start: a.start, end: end))
             }
             if a.distance > 10 {

@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import AVFoundation
+import CoreMotion
 import KrovaCore
 
 /// Aktivite türleri (web tarafıyla aynı anahtarlar). Kurallar çekirdekteki `ActivityKind` üzerinden gelir.
@@ -52,6 +53,8 @@ struct Activity: Codable, Identifiable, Hashable {
     var moving: Double = 0       // sn
     var gain: Double = 0         // m
     var maxSpeed: Double = 0     // m/s
+    var weakPct: Double? = nil   // GPS doğruluğu zayıf noktaların oranı (0–1)
+    var baro: Bool? = nil        // yükseliş barometreden mi
     var preview: [[Double]]? = nil   // rota küçük resmi için seyreltilmiş [enlem, boylam]
     var gpxName: String { "Aktivite_\(Session.nameFmt.string(from: start)).gpx" }
 }
@@ -101,6 +104,10 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     @Published var accuracy: Double?
     @Published var activities: [Activity] = []
     @Published var route: [CLLocationCoordinate2D] = []
+    @Published var lastNote: String?
+    private let altimeter = CMAltimeter()
+    private var baroGain = GainAccumulator(threshold: 1.0)
+    private var baroRecent: [Double] = []
 
     private let lm = CLLocationManager()
     private var handle: FileHandle?
@@ -152,6 +159,14 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         lm.showsBackgroundLocationIndicator = true
         lm.startUpdatingLocation()
         state = .running; lastTick = Date()
+        baroGain = GainAccumulator(threshold: 1.0); baroRecent = []
+        if CMAltimeter.isRelativeAltitudeAvailable() {
+            altimeter.startRelativeAltitudeUpdates(to: .main) { [weak self] d, _ in
+                guard let self, let m = d?.relativeAltitude.doubleValue, self.state == .running else { return }
+                self.baroRecent.append(m); if self.baroRecent.count > 5 { self.baroRecent.removeFirst() }
+                self.baroGain.add(self.baroRecent.reduce(0, +) / Double(self.baroRecent.count))   // 5 örnek ortalaması: gürültüyü azaltır
+            }
+        }
         let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(t, forMode: .common)   // kaydırma/dokunma sırasında da akar
         timer = t
@@ -167,14 +182,18 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         tick()
         timer?.invalidate(); timer = nil
         try? handle?.close(); handle = nil
+        altimeter.stopRelativeAltitudeUpdates()
         lm.allowsBackgroundLocationUpdates = false
         lm.stopUpdatingLocation()
         state = .idle; current = nil; autoPaused = false
         let pts = readPoints(a.id)
-        guard pts.count >= 2, !Validity.isTooShort(distance: a.distance, movingTime: moving) else { delete(a); return nil }
+        guard pts.count >= 2, !Validity.isTooShort(distance: a.distance, movingTime: moving) else {
+            delete(a); lastNote = "Kayıt çok kısaydı (20 m'den az ya da 15 sn'den kısa hareket), bu yüzden kaydedilmedi."; return nil
+        }
         a.end = Date(timeIntervalSince1970: pts.last!.t)
         a.moving = moving
-        a.gain = Self.gain(pts)
+        if baroGain.count >= 10 { a.gain = baroGain.gain; a.baro = true } else { a.gain = Self.gain(pts) }
+        a.weakPct = Double(pts.filter { $0.ha > 30 }.count) / Double(pts.count)
         a.preview = Self.thumb(pts)
         saveMeta(a); writeGPX(a, pts)
         activities.insert(a, at: 0)
@@ -184,9 +203,16 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         guard let a = current else { return }
         timer?.invalidate(); timer = nil
         try? handle?.close(); handle = nil
+        altimeter.stopRelativeAltitudeUpdates()
         lm.allowsBackgroundLocationUpdates = false; lm.stopUpdatingLocation()
         state = .idle; current = nil
         delete(a)
+    }
+    /// Tür düzeltme: kalori yeni türe göre yeniden hesaplanır, GPX etiketi güncellenir
+    func setType(_ id: String, to t: ActType) {
+        guard let i = activities.firstIndex(where: { $0.id == id }) else { return }
+        activities[i].type = t
+        saveMeta(activities[i]); writeGPX(activities[i], readPoints(id))
     }
     func delete(_ a: Activity) {
         for u in [pointsURL(a.id), metaURL(a.id), gpxURL(a)] { try? FileManager.default.removeItem(at: u) }

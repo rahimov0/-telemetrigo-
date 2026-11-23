@@ -186,6 +186,9 @@ struct ActivityTab: View {
             }
         }
         .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
+        .alert("Kayıt kaydedilmedi", isPresented: Binding(get: { act.lastNote != nil }, set: { if !$0 { act.lastNote = nil } })) {
+            Button("Tamam") {}
+        } message: { Text(act.lastNote ?? "") }
         .onAppear { health.refresh(); health.loadWeek(containing: selDay, force: true); loadDaySteps(); if act.state != .idle { showRecord = true } }
         .onChange(of: selDay) { _, d in
             loadDaySteps()
@@ -488,6 +491,7 @@ struct ActivityTab: View {
                     HStack(alignment: .top) {
                         StatCell(label: isToday ? "Bugün" : selDay.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)), value: steps.formatted(), unit: "adım", tint: Theme.cSteps, big: true)
                         StatCell(label: "Yürünen", value: Fmt.km(dist), unit: "km", tint: Theme.cDist, big: true)
+                        StatCell(label: "Çıkılan kat", value: Int(health.weekFlights[cal.startOfDay(for: selDay)] ?? 0).formatted(), tint: Theme.cElev, big: true)
                     }
                     Chart(health.week, id: \.day) { d in
                         BarMark(x: .value("Gün", d.day, unit: .day), y: .value("Adım", max(d.steps, 60)), width: .ratio(0.55))
@@ -715,7 +719,11 @@ struct ActivityDetail: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject var act: ActivityRecorder
     @ObservedObject var health: HealthManager
-    let a: Activity
+    private let a0: Activity
+    private var a: Activity { act.activities.first { $0.id == a0.id } ?? a0 }
+    init(act: ActivityRecorder, health: HealthManager, a: Activity) {
+        _act = ObservedObject(wrappedValue: act); _health = ObservedObject(wrappedValue: health); a0 = a
+    }
     @State private var coords: [CLLocationCoordinate2D] = []
     @State private var segs: [RouteSeg] = []
     @State private var splits: [Split] = []
@@ -740,7 +748,9 @@ struct ActivityDetail: View {
                             Text(a.start.formatted(date: .long, time: .shortened)).font(.subheadline).foregroundStyle(Theme.text2)
                         }
                     }
+                    typeSuggestion
                     statsPanel
+                    qualityNote
                     VStack(spacing: 10) {
                         Button { photo = true } label: { Label("Fotoğrafa ekle", systemImage: "photo") }.buttonStyle(AccButton(height: 52))
                         Button { videoPick = true } label: { Label("Videoya ekle", systemImage: "film") }.buttonStyle(GhostButton(height: 52))
@@ -813,6 +823,28 @@ struct ActivityDetail: View {
         }
     }
 
+    /// Hıza göre daha uygun tür öneri satırı
+    @ViewBuilder private var typeSuggestion: some View {
+        if a.moving >= 60, let k = a.type.kind.suggested(avgSpeed: a.distance / max(1, a.moving)),
+           let t = ActType.allCases.first(where: { $0.kind == k }) {
+            Panel {
+                HStack(spacing: 12) {
+                    Image(systemName: t.icon).font(.title3.weight(.bold)).foregroundStyle(t.color)
+                    Text("Bu hızda \(t.name.lowercased()) gibi görünüyor. Türü değiştirirsen kalori de ona göre hesaplanır.").font(.subheadline).foregroundStyle(Theme.text2)
+                    Button("Değiştir") { act.setType(a.id, to: t) }.font(.subheadline.weight(.bold)).foregroundStyle(Theme.acc).buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// GPS çok zayıfsa kullanıcı bilsin: mesafe ve rota eksik olabilir
+    @ViewBuilder private var qualityNote: some View {
+        if let w = a.weakPct, w >= 0.2 {
+            Label("GPS sinyali kaydın %\(Int((w * 100).rounded()))'inde zayıftı; mesafe ve rota gerçekten biraz farklı olabilir.", systemImage: "antenna.radiowaves.left.and.right.slash")
+                .font(.footnote).foregroundStyle(Theme.text2)
+        }
+    }
+
     private var statsPanel: some View {
         let avg = a.distance / max(1, a.moving)
         let kcal = Cal.active(a)
@@ -829,7 +861,7 @@ struct ActivityDetail: View {
                     else if a.type.kind.countsCalories { Button { showSettings = true } label: { StatCell(label: "Aktif kalori", value: "—", unit: "kilonu gir", tint: Theme.cKcal, big: true) }.buttonStyle(.plain) }
                     if a.type.pace { StatCell(label: "Ort. tempo", value: Fmt.pace(avg), unit: "/km", tint: Theme.cPace, big: true) }
                     else { StatCell(label: "Ort. hız", value: Fmt.num(avg * 3.6, 1), unit: "km/h", tint: Theme.cPace, big: true) }
-                    StatCell(label: "Yükseliş", value: Fmt.num(a.gain), unit: "m", tint: Theme.cElev, big: true)
+                    StatCell(label: a.baro == true ? "Yükseliş (barometre)" : "Yükseliş", value: Fmt.num(a.gain), unit: "m", tint: Theme.cElev, big: true)
                     if a.type.pace { StatCell(label: "En iyi tempo", value: Fmt.pace(min(a.maxSpeed, a.type.maxPlausible)), unit: "/km", tint: Theme.cMax, big: true) }
                     else { StatCell(label: "Maks hız", value: Fmt.num(min(a.maxSpeed, a.type.maxPlausible) * 3.6), unit: "km/h", tint: Theme.cMax, big: true) }
                     if let s = steps, s > 0 { StatCell(label: "Adım", value: s.formatted(), tint: Theme.cSteps, big: true) }
@@ -1071,6 +1103,7 @@ struct ActivitySettings: View {
                         if health.connected {
                             Toggle("Adım kartını göster", isOn: $showSteps)
                             Toggle("Aktiviteyi Sağlık'a kaydet", isOn: $health.write)
+                            Toggle("Kaloriyi de yaz (saat takıyorsan kapat)", isOn: $health.writeEnergy).disabled(!health.write)
                             Button("Bağlantıyı kes", role: .destructive) { health.disconnect() }
                         } else {
                             Button { health.connect() } label: { Label("Apple Sağlık'a bağlan", systemImage: "heart.fill").foregroundStyle(Theme.acc) }

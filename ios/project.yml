@@ -46,6 +46,7 @@ targets:
         NSCameraUsageDescription: "Aktivitene eklemek üzere fotoğraf çekmek için kamera kullanılır."
         NSPhotoLibraryUsageDescription: "Rotayı ve değerleri üstüne ekleyeceğin fotoğrafı seçmek için kullanılır."
         NSPhotoLibraryAddUsageDescription: "Göstergeli videoyu Fotoğraflar'a kaydetmek için kullanılır."
+        NSMotionUsageDescription: "Yürüyüş ve tırmanışta çıkılan yüksekliği barometreyle doğru ölçmek için hareket sensörleri kullanılır."
         NSHealthShareUsageDescription: "Günlük adım, mesafe ve aktif kalori değerlerini göstermek için Sağlık verilerin okunur."
         NSHealthUpdateUsageDescription: "Bitirdiğin yürüyüş, koşu ve bisiklet aktiviteleri Sağlık uygulamasına antrenman olarak kaydedilir."
         UIFileSharingEnabled: true

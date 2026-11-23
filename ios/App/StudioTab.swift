@@ -30,12 +30,18 @@ struct StudioTab: View {
                 .environmentObject(model)
         }
         .fullScreenCover(isPresented: $showVideo) {
-            ZStack(alignment: .topLeading) {
+            VStack(spacing: 0) {
+                HStack {
+                    Button { showVideo = false } label: {
+                        Text("Kapat").font(.body.weight(.medium)).foregroundStyle(.white).padding(.horizontal, 14).frame(height: 34)
+                            .background(Color.white.opacity(0.14), in: Capsule())
+                    }
+                    Spacer()
+                    Text("Video").font(.headline).foregroundStyle(.white)
+                    Spacer()
+                    Color.clear.frame(width: 66, height: 1)
+                }.padding(.horizontal, 16).padding(.vertical, 8)
                 VideoTab().environmentObject(model)
-                Button { showVideo = false } label: {
-                    Text("Kapat").font(.body.weight(.medium)).foregroundStyle(.white).padding(.horizontal, 14).frame(height: 36)
-                        .background(.black.opacity(0.55), in: Capsule())
-                }.padding(.leading, 16).padding(.top, 8)
             }.background(Color.black.ignoresSafeArea())
         }
         .sheet(isPresented: $showCam) { RecordView().environmentObject(model) }

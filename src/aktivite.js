@@ -294,7 +294,7 @@ function drawEd() {
   if (!cur || $('vEdit').classList.contains('hidden')) return;
   const cv = $('ed'), [W, H] = edSize();
   // önizleme: ekrana sığan boyutta (hızlı), dışa aktarma tam boyutta
-  const box = cv.parentElement.getBoundingClientRect(), maxH = innerWidth < 900 ? innerHeight * .42 : innerHeight * .7;
+  const box = cv.parentElement.getBoundingClientRect(), maxH = isApp ? Math.max(180, cv.parentElement.clientHeight - 28) : innerWidth < 900 ? innerHeight * .42 : innerHeight * .7;
   const k = Math.min((box.width - 24) / W, maxH / H), d = Math.min(2, devicePixelRatio || 1);
   cv.style.width = Math.round(W * k) + 'px'; cv.style.height = Math.round(H * k) + 'px';
   cv.width = Math.round(W * k * d); cv.height = Math.round(H * k * d);
@@ -347,7 +347,7 @@ async function renderFull() {
   const png = ed.tpl === 'saydam';
   const blob = await cv.convertToBlob({ type: png ? 'image/png' : 'image/jpeg', quality: .92 });
   const d = new Date(cur.g.start), pad = n => String(n).padStart(2, '0');
-  return new File([blob], `TelemetriGo_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${ed.tpl}.${png ? 'png' : 'jpg'}`, { type: blob.type });
+  return new File([blob], `KROVA_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${ed.tpl}.${png ? 'png' : 'jpg'}`, { type: blob.type });
 }
 $('exp').onclick = async () => {
   const b = $('exp'); b.disabled = true;
@@ -386,5 +386,34 @@ async function route() {
   try { await openDetail(id, sub === 'foto'); } catch (e) { setMsg('Aktivite açılamadı: ' + esc(e.message)); show('vList'); renderList(); }
 }
 addEventListener('hashchange', route);
+
+// ---- Uygulama içi editör: sabit önizleme + alt araç çubuğu (uzun form yerine) ----
+function buildDock() {
+  const root = $('vEdit'); if (root.dataset.dock) return; root.dataset.dock = '1';
+  const mk = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
+  const info = $('expInfo'); const top = mk('div', 'edTop');
+  const back = $('edBack'); back.textContent = ''; back.innerHTML = '<svg class="i"><use href="#i-chev"/></svg>Geri'; 
+  const stage = mk('div', 'edStage'); stage.append(document.querySelector('#vEdit .canvasbox'));
+  const dock = mk('div', 'dock'), tabs = mk('div', 'dockTabs'), pane = mk('div', 'dockPane'), act = mk('div', 'dockAct');
+  const groups = [
+    ['Şablon', () => [$('tpl')]],
+    ['Boyut', () => [$('fmt')]],
+    ['Harita', () => [$('edMap')]],
+    ['Renk', () => [$('edColor')]],
+    ['Değerler', () => [mk('p', 'dk-h', 'En fazla 4 değer seç'), $('fields'), $('scaleRow')]],
+    ['Fotoğraf', () => [$('photoCard')]],
+    ['Gizlilik', () => [...document.querySelectorAll('#vEdit .opt-row')]],
+  ];
+  const parts = {}; groups.forEach(([n, f]) => { const w = mk('div', 'dk-g'); w.append(...f()); parts[n] = w; pane.append(w); });
+  const show = n => { Object.entries(parts).forEach(([k, w]) => { w.hidden = k !== n; }); [...tabs.children].forEach(b => b.classList.toggle('on', b.textContent === n)); pane.scrollTop = 0; };
+  groups.forEach(([n]) => { const b = mk('button', '', n); b.type = 'button'; b.onclick = () => show(n); tabs.append(b); });
+  const prof = $('expProfile'); prof.className = 'btn primary'; prof.textContent = 'Profilde paylaş'; prof.style.cssText = '';
+  $('exp').className = 'btn'; $('exp').textContent = 'Paylaş'; $('expDl').className = 'btn'; $('expDl').textContent = 'İndir';
+  act.append(prof, $('exp'), $('expDl'));
+  root.replaceChildren(stage, dock, back); dock.append(tabs, pane, act, info);
+  info.className = 'dk-info'; show('Şablon');
+}
+if (isApp) buildDock();
+
 (isApp ? route() : syncLast().finally(route));
 window.__act = { get cur() { return cur; }, ed, importGpx, compose };

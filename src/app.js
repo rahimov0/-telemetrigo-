@@ -514,3 +514,24 @@ window.__tg = { state, opts, loadFile, setEdit, select, setOffset, // test için
   snap: (W = 1920, H = 1080) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
     x.drawImage(video, 0, 0, W, H); drawOverlay(x, W, H, video.currentTime, data(), opts, state.meta); return c.toDataURL('image/jpeg', 0.85); } };
 if (new URLSearchParams(location.search).get('gpx') === 'son' && last?.gpx) setMsg(`Aktivitenin GPS kaydı hazır (<b>${esc(last.name || 'GPX')}</b>). Şimdi o sırada çektiğin videoyu seç; zamanı eşleşirse otomatik eklenir.`, 'ok');
+
+// ---- Uygulama içi video editörü: sabit önizleme + sekmeli alt panel ----
+function buildVideoDock() {
+  const root = $('work'); if (root.dataset.dock) return; root.dataset.dock = '1';
+  const mk = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
+  const cards = [...root.querySelectorAll('.right > section.card')];   // GPS, Göstergeler, Görünüm, Dışa aktar
+  const prev = root.querySelector('.previewcard'), info = root.querySelector('.infocard'), again = $('again');
+  const dock = mk('div', 'vdock'), tabs = mk('div', 'dockTabs'), pane = mk('div', 'vdPane');
+  const defs = [['GPS', [cards[0], info]], ['Göstergeler', [cards[1]]], ['Görünüm', [cards[2]]], ['Dışa aktar', [cards[3], again]]];
+  const parts = {};
+  defs.forEach(([n, els]) => { const w = mk('div', 'dk-g'); w.append(...els); parts[n] = w; pane.append(w); });
+  const show = n => { Object.entries(parts).forEach(([k, w]) => { w.hidden = k !== n; }); [...tabs.children].forEach(b => b.classList.toggle('on', b.textContent === n)); pane.scrollTop = 0; };
+  defs.forEach(([n]) => { const b = mk('button'); b.type = 'button'; b.textContent = n; b.onclick = () => show(n); tabs.append(b); });
+  const bar = $('gobar'); dock.append(tabs, pane, bar);
+  root.replaceChildren(prev, dock);
+  cards.forEach(c => c.querySelector('.sec-h')?.remove());
+  $('goMobile').onclick = () => { show('Dışa aktar'); if (!$('go').disabled) $('go').click(); };
+  show(new URLSearchParams(location.search).has('gpx') ? 'GPS' : 'Göstergeler');
+  window.__tgShowTab = show;
+}
+if (isApp) buildVideoDock();

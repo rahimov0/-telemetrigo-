@@ -80,7 +80,7 @@ export function compose(ctx, s, data, { fetchTiles = true } = {}) {
   }
   if (s.sign !== false) {
     const dark = s.tpl === 'saydam' ? false : true;
-    txt(ctx, 'TelemetriGo', W - 36 * u, H - 34 * u, 22 * u, 600, dark ? 'rgba(255,255,255,.6)' : 'rgba(255,255,255,.75)', 'right', 'alphabetic', 0.5 * u);
+    txt(ctx, 'KROVA', W - 36 * u, H - 34 * u, 22 * u, 600, dark ? 'rgba(255,255,255,.6)' : 'rgba(255,255,255,.75)', 'right', 'alphabetic', 0.5 * u);
   }
   return boxes;
 }

@@ -43,7 +43,7 @@ final class HealthManager: ObservableObject {
             guard let self else { return }
             if let err { DispatchQueue.main.async { done(nil, nil, err.localizedDescription) }; return }
             self.loadProfile { w, h in
-                if w == nil && h == nil { done(nil, nil, "Sağlık'ta kilo/boy bulunamadı ya da erişim kapalı. iPhone Ayarlar > Sağlık > Veri Erişimi > TelemetriGo'dan aç; ya da elle gir.") }
+                if w == nil && h == nil { done(nil, nil, "Sağlık'ta kilo/boy bulunamadı ya da erişim kapalı. iPhone Ayarlar > Sağlık > Veri Erişimi > KROVA'dan aç; ya da elle gir.") }
                 else { done(w, h, "Sağlık'tan alındı.") }
             }
         }

@@ -113,22 +113,37 @@ struct ActivityTab: View {
     @State private var daySteps = 0
     @State private var weekBack = 0
 
-    private var dayList: [Activity] { act.activities.filter { Calendar.current.isDate($0.start, inSameDayAs: selDay) } }
+    enum Period: String, CaseIterable { case day = "Gün", week = "Hafta", month = "Ay", year = "Yıl" }
+    @State private var period: Period = .week
+    @State private var monthBack = 0
+    @State private var yearBack = 0
+    @AppStorage("ozetGroup") private var groupRaw = "sport"
+    private var group: ActivityGroup { groupRaw == "drive" ? .drive : .sport }
+    /// Seçili gruba (Spor / Sürüş) ait aktiviteler; iki grup hiçbir yerde karışmaz
+    private var acts: [Activity] { act.activities.filter { $0.type.kind.group == group } }
+    private var dayList: [Activity] { acts.filter { Calendar.current.isDate($0.start, inSameDayAs: selDay) } }
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    weekCard
-                    todayCard
-                    if !dayList.isEmpty {
-                        ForEach(dayList) { a in
-                            NavigationLink(value: a) { ActivityCard(act: act, a: a) }.buttonStyle(.plain)
-                        }
-                    } else if !act.activities.isEmpty {
-                        Panel { Text("Bu gün kayıtlı aktivite yok.").font(.subheadline).foregroundStyle(Theme.text2).frame(maxWidth: .infinity) }
+                    header
+                    periodPicker
+                    switch period {
+                    case .day:
+                        dayNav
+                        if group == .sport { todayCard }
+                        dayActivities
+                    case .week:
+                        weekCard
+                        if group == .sport { todayCard }
+                        dayActivities
+                    case .month:
+                        monthCard
+                    case .year:
+                        yearCard
                     }
-                    if HealthManager.available && showSteps { stepsCard }
+                    if group == .sport && (period == .day || period == .week) && HealthManager.available && showSteps { stepsCard }
                     if act.activities.isEmpty {
                         Panel {
                             VStack(spacing: 8) {
@@ -141,7 +156,7 @@ struct ActivityTab: View {
                 }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 130)
             }
             .background(Glow())
-            .navigationTitle("Aktivite")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -167,7 +182,12 @@ struct ActivityTab: View {
         }
         .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
         .onAppear { health.refresh(); loadDaySteps(); if act.state != .idle { showRecord = true } }
-        .onChange(of: selDay) { _, _ in loadDaySteps() }
+        .onChange(of: selDay) { _, d in
+            loadDaySteps()
+            var cal = Calendar(identifier: .iso8601); cal.locale = Locale(identifier: "tr_TR")
+            let a = cal.dateInterval(of: .weekOfYear, for: d)?.start ?? d, b = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+            weekBack = max(0, (cal.dateComponents([.weekOfYear], from: a, to: b).weekOfYear ?? 0))
+        }
         .onChange(of: health.connected) { _, _ in loadDaySteps() }
     }
 
@@ -179,7 +199,7 @@ struct ActivityTab: View {
 
     // Bugün: kalori, süre, adım hedefleri
     private var todayCard: some View {
-        let list = dayList.filter { $0.type.kind.countsTowardGoals }
+        let list = dayList
         let kcal = list.reduce(0.0) { $0 + (Cal.active($1) ?? 0) }
         let mins = list.reduce(0.0) { $0 + $1.moving } / 60
         let steps = Double(daySteps)
@@ -220,7 +240,7 @@ struct ActivityTab: View {
         let thisWk = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
         let wk = cal.date(byAdding: .weekOfYear, value: -weekBack, to: thisWk) ?? thisWk
         let wkEnd = cal.date(byAdding: .day, value: 7, to: wk) ?? wk
-        let w = act.activities.filter { $0.start >= wk && $0.start < wkEnd }
+        let w = acts.filter { $0.start >= wk && $0.start < wkEnd }
         let days = (0..<7).map { i -> (date: Date, km: Double) in
             let d0 = cal.date(byAdding: .day, value: i, to: wk) ?? wk, d1 = cal.date(byAdding: .day, value: 1, to: d0) ?? d0
             return (d0, w.filter { $0.start >= d0 && $0.start < d1 }.reduce(0) { $0 + $1.distance } / 1000)
@@ -256,6 +276,159 @@ struct ActivityTab: View {
                                 Text(d.formatted(.dateTime.day())).font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(future ? Theme.text3 : Theme.text)
                             }.frame(maxWidth: .infinity).contentShape(Rectangle())
                         }.buttonStyle(.plain).disabled(future)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Üst başlık, dönem seçici, gün/ay/yıl kartları
+    private var header: some View {
+        HStack {
+            Text("Özet").font(.system(size: 30, weight: .bold)).foregroundStyle(Theme.text)
+            Spacer()
+            HStack(spacing: 2) {
+                ForEach([("sport", "Spor"), ("drive", "Sürüş")], id: \.0) { g in
+                    Button { withAnimation(.easeOut(duration: 0.15)) { groupRaw = g.0 } } label: {
+                        Text(g.1).font(.subheadline.weight(.semibold))
+                            .foregroundStyle(groupRaw == g.0 ? Theme.text : Theme.text3)
+                            .padding(.horizontal, 14).frame(height: 32)
+                            .background(groupRaw == g.0 ? Theme.card2 : .clear, in: Capsule())
+                    }.buttonStyle(.plain)
+                }
+            }.padding(3).background(Theme.card, in: Capsule())
+        }
+    }
+
+    private var periodPicker: some View {
+        HStack(spacing: 0) {
+            ForEach(Period.allCases, id: \.self) { p in
+                Button { withAnimation(.easeOut(duration: 0.15)) { period = p } } label: {
+                    VStack(spacing: 8) {
+                        Text(p.rawValue).font(.subheadline.weight(.semibold)).foregroundStyle(period == p ? Theme.text : Theme.text3)
+                        Rectangle().fill(period == p ? Theme.acc : .clear).frame(height: 2)
+                    }.frame(maxWidth: .infinity).contentShape(Rectangle())
+                }.buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func navArrows(canForward: Bool, back: @escaping () -> Void, forward: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            Button(action: back) { Image(systemName: "chevron.left").font(.system(size: 14, weight: .bold)).frame(width: 36, height: 36).background(Theme.card2, in: Circle()) }.buttonStyle(.plain)
+            Button(action: forward) { Image(systemName: "chevron.right").font(.system(size: 14, weight: .bold)).frame(width: 36, height: 36).background(Theme.card2, in: Circle()) }
+                .buttonStyle(.plain).opacity(canForward ? 1 : 0.3).disabled(!canForward)
+        }.foregroundStyle(Theme.text)
+    }
+
+    private func totals(_ list: [Activity]) -> some View {
+        HStack(alignment: .top) {
+            StatCell(label: "Mesafe", value: Fmt.km(list.reduce(0) { $0 + $1.distance }), unit: "km", tint: Theme.cDist, big: true)
+            StatCell(label: "Süre", value: Fmt.dur(list.reduce(0) { $0 + $1.moving }), tint: Theme.cTime, big: true)
+            StatCell(label: "Aktivite", value: "\(list.count)", big: true)
+        }
+    }
+
+    private var dayNav: some View {
+        let today = Calendar.current.startOfDay(for: Date())
+        return Panel {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Calendar.current.isDateInToday(selDay) ? "Bugün" : selDay.formatted(.dateTime.weekday(.wide))).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Text(selDay.formatted(.dateTime.day().month(.wide).year())).font(.subheadline).foregroundStyle(Theme.text2)
+                }
+                Spacer()
+                navArrows(canForward: selDay < today,
+                          back: { selDay = Calendar.current.date(byAdding: .day, value: -1, to: selDay) ?? selDay },
+                          forward: { selDay = min(today, Calendar.current.date(byAdding: .day, value: 1, to: selDay) ?? selDay) })
+            }
+        }
+    }
+
+    @ViewBuilder private var dayActivities: some View {
+        if !dayList.isEmpty {
+            ForEach(dayList) { a in
+                NavigationLink(value: a) { ActivityCard(act: act, a: a) }.buttonStyle(.plain)
+            }
+        } else if !act.activities.isEmpty {
+            Panel { Text(group == .sport ? "Bu gün kayıtlı spor aktivitesi yok." : "Bu gün kayıtlı sürüş yok.").font(.subheadline).foregroundStyle(Theme.text2).frame(maxWidth: .infinity) }
+        }
+    }
+
+    private var monthCard: some View {
+        let cal = Calendar.current
+        let thisM = cal.dateInterval(of: .month, for: Date())?.start ?? Date()
+        let m0 = cal.date(byAdding: .month, value: -monthBack, to: thisM) ?? thisM
+        let m1 = cal.date(byAdding: .month, value: 1, to: m0) ?? m0
+        let list = acts.filter { $0.start >= m0 && $0.start < m1 }
+        let n = cal.range(of: .day, in: .month, for: m0)?.count ?? 30
+        let perDay = (0..<n).map { i -> Double in
+            let d0 = cal.date(byAdding: .day, value: i, to: m0) ?? m0, d1 = cal.date(byAdding: .day, value: 1, to: d0) ?? d0
+            return list.filter { $0.start >= d0 && $0.start < d1 }.reduce(0) { $0 + $1.distance } / 1000
+        }
+        let mx = max(perDay.max() ?? 0, 0.1)
+        return VStack(alignment: .leading, spacing: 14) {
+            Panel {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text(m0.formatted(.dateTime.month(.wide).year())).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                        Spacer()
+                        navArrows(canForward: monthBack > 0, back: { monthBack += 1 }, forward: { monthBack = max(0, monthBack - 1) })
+                    }
+                    totals(list)
+                    HStack(alignment: .bottom, spacing: 2) {
+                        ForEach(0..<n, id: \.self) { i in
+                            Capsule().fill(perDay[i] > 0 ? Theme.cDist : Color.white.opacity(0.07))
+                                .frame(height: perDay[i] > 0 ? max(6, 56 * perDay[i] / mx) : 6)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }.frame(height: 56, alignment: .bottom)
+                    HStack { Text("1"); Spacer(); Text("\(n)") }.font(.caption2).foregroundStyle(Theme.text3)
+                }
+            }
+            if list.isEmpty {
+                Panel { Text(group == .sport ? "Bu ay kayıtlı spor aktivitesi yok." : "Bu ay kayıtlı sürüş yok.").font(.subheadline).foregroundStyle(Theme.text2).frame(maxWidth: .infinity) }
+            } else {
+                ForEach(list) { a in NavigationLink(value: a) { ActivityCard(act: act, a: a) }.buttonStyle(.plain) }
+            }
+        }
+    }
+
+    private var yearCard: some View {
+        let cal = Calendar.current
+        let thisY = cal.dateInterval(of: .year, for: Date())?.start ?? Date()
+        let y0 = cal.date(byAdding: .year, value: -yearBack, to: thisY) ?? thisY
+        let y1 = cal.date(byAdding: .year, value: 1, to: y0) ?? y0
+        let list = acts.filter { $0.start >= y0 && $0.start < y1 }
+        let months = (0..<12).map { i -> (date: Date, km: Double) in
+            let m0 = cal.date(byAdding: .month, value: i, to: y0) ?? y0, m1 = cal.date(byAdding: .month, value: 1, to: m0) ?? m0
+            return (m0, list.filter { $0.start >= m0 && $0.start < m1 }.reduce(0) { $0 + $1.distance } / 1000)
+        }
+        let mx = max(months.map { $0.km }.max() ?? 0, 0.1)
+        return Panel {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text(y0.formatted(.dateTime.year())).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Spacer()
+                    navArrows(canForward: yearBack > 0, back: { yearBack += 1 }, forward: { yearBack = max(0, yearBack - 1) })
+                }
+                totals(list)
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach(months.indices, id: \.self) { i in
+                        let m = months[i]
+                        Button {
+                            let nowM = cal.dateInterval(of: .month, for: Date())?.start ?? Date()
+                            monthBack = max(0, cal.dateComponents([.month], from: m.date, to: nowM).month ?? 0)
+                            period = .month
+                        } label: {
+                            VStack(spacing: 6) {
+                                ZStack(alignment: .bottom) {
+                                    Capsule().fill(Color.white.opacity(0.07)).frame(height: 90)
+                                    Capsule().fill(Theme.cDist).frame(height: m.km > 0 ? max(8, 90 * m.km / mx) : 0)
+                                }
+                                Text(m.date.formatted(.dateTime.month(.narrow))).font(.caption2.weight(.semibold)).foregroundStyle(Theme.text2)
+                            }.frame(maxWidth: .infinity).contentShape(Rectangle())
+                        }.buttonStyle(.plain)
                     }
                 }
             }

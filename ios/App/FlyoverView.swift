@@ -1,6 +1,8 @@
 import SwiftUI
 import MapKit
 import KrovaCore
+import ReplayKit
+import Photos
 
 /// K rota logosu (uygulama ikonuyla aynı çizim): dikey gövde + ortadan çıkan iki rota kolu
 struct KrovaMark: View {
@@ -46,6 +48,8 @@ struct FlyoverView: View {
     @State private var base = 0.0
     @State private var seconds = 30.0
     @State private var done = false
+    @State private var recording = false
+    @State private var message: String?
 
     private let orange = Color(red: 1.0, green: 0.353, blue: 0.122)
 
@@ -69,6 +73,47 @@ struct FlyoverView: View {
             start(from: 0)
         }
         .statusBarHidden()
+        .onChange(of: done) { _, d in
+            if d && recording { DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { stopRecord() } }
+        }
+        .alert("Flyover", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
+            Button("Tamam") {}
+        } message: { Text(message ?? "") }
+    }
+
+    // MARK: Kaydet: uygulama içi ekran kaydı, bitince Fotoğraflar'a
+    private func startRecord() {
+        let r = RPScreenRecorder.shared()
+        guard r.isAvailable else { message = "Ekran kaydı bu cihazda şu an kullanılamıyor."; return }
+        playing = false; base = 0
+        r.isMicrophoneEnabled = false
+        r.startRecording { err in
+            DispatchQueue.main.async {
+                if let err { message = "Kayıt başlatılamadı: \(err.localizedDescription)"; return }
+                recording = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { start(from: 0) }
+            }
+        }
+    }
+    private func stopRecord() {
+        guard recording else { return }
+        recording = false
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("KROVA-Flyover-\(Int(Date().timeIntervalSince1970)).mp4")
+        try? FileManager.default.removeItem(at: url)
+        RPScreenRecorder.shared().stopRecording(withOutput: url) { err in
+            DispatchQueue.main.async {
+                if let err { message = "Kayıt kaydedilemedi: \(err.localizedDescription)"; return }
+                PHPhotoLibrary.requestAuthorization(for: .addOnly) { st in
+                    guard st == .authorized || st == .limited else {
+                        DispatchQueue.main.async { message = "Fotoğraflar'a kaydetme izni verilmedi. iPhone Ayarlar > KROVA > Fotoğraflar'dan izin ver." }
+                        return
+                    }
+                    PHPhotoLibrary.shared().performChanges({ PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url) }) { ok, e in
+                        DispatchQueue.main.async { message = ok ? "Flyover videosu Fotoğraflar'a kaydedildi." : "Kaydedilemedi: \(e?.localizedDescription ?? "bilinmeyen hata")" }
+                    }
+                }
+            }
+        }
     }
 
     private func progress(at d: Date) -> Double {
@@ -128,7 +173,7 @@ struct FlyoverView: View {
                     stat("Mesafe", Fmt.num(pos.dist / 1000, pos.dist < 10_000 ? 2 : 1), "km")
                 }.padding(.horizontal, 24)
                 Spacer()
-                controls(p)
+                if !recording { controls(p) }
             }
             .padding(.top, 56).padding(.bottom, 28)
             .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
@@ -155,6 +200,7 @@ struct FlyoverView: View {
                     Image(systemName: playing ? "pause.fill" : done ? "arrow.counterclockwise" : "play.fill")
                         .font(.title2.weight(.bold)).frame(width: 64, height: 64).background(orange, in: Circle())
                 }
+                Button { startRecord() } label: { Image(systemName: "square.and.arrow.down").frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }
                 Menu {
                     ForEach([15.0, 30.0, 60.0], id: \.self) { s in Button("\(Int(s)) sn") { let cur = progress(at: Date()); seconds = s; if playing { start(from: cur) } } }
                 } label: { Text("\(Int(seconds)) sn").font(.subheadline.weight(.bold)).frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }

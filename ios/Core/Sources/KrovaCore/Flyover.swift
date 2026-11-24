@@ -23,12 +23,13 @@ public struct FlyoverTrack: Sendable {
         return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
     }
 
-    public init?(points: [Input], count: Int = 400) {
+    /// lookMeters / smoothMeters: kameranın baktığı ileri mesafe ve yön yumuşatma penceresi (metre). Verilmezse rotanın uzunluğuna göre.
+    public init?(points: [Input], count: Int? = nil, lookMeters: Double? = nil, smoothMeters: Double? = nil) {
         guard points.count >= 2 else { return nil }
         var cum = [0.0]
         for i in 1..<points.count { cum.append(cum[i - 1] + Self.meters((points[i - 1].lat, points[i - 1].lon), (points[i].lat, points[i].lon))) }
         guard let total = cum.last, total > 5 else { return nil }
-        let n = max(count, 20)
+        let n = max(count ?? min(1200, max(400, Int(total / 15))), 20), spacing = total / Double(n - 1)
         var raw: [Sample] = []
         var j = 0
         var acc = GainAccumulator(threshold: 1.5)
@@ -44,7 +45,8 @@ public struct FlyoverTrack: Sendable {
                               time: (a.t + (b.t - a.t) * u) - points[0].t, ele: lastEle, gain: acc.gain, heading: 0))
         }
         // Yön: ileriye bakan ortalama; ani dönüşlerde kamera sallanmasın diye birim vektörlerle yumuşatılır
-        let look = max(4, n / 25), win = max(3, n / 20)
+        let look = lookMeters.map { max(2, Int($0 / spacing)) } ?? max(4, n / 25)
+        let win = smoothMeters.map { max(2, Int($0 / spacing)) } ?? max(3, n / 20)
         var dir: [Double] = []
         for k in 0..<n {
             let to = min(n - 1, k + look), from = k

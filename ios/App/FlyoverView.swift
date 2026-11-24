@@ -48,6 +48,7 @@ struct FlyoverView: View {
     @State private var base = 0.0
     @State private var seconds = 30.0
     @State private var done = false
+    @State private var follow = 800.0
     @State private var recording = false
     @State private var message: String?
 
@@ -68,7 +69,14 @@ struct FlyoverView: View {
         }
         .task {
             let pts = points.filter { $0.ha <= 30 }.map { FlyoverTrack.Input(lat: $0.la, lon: $0.lo, t: $0.t, ele: $0.al) }
-            track = FlyoverTrack(points: pts)
+            guard let first = FlyoverTrack(points: pts) else { return }
+            // Yakınlık: tür başına taban; uzun rotada kamera biraz daha yukarıdan bakar ki harita yetişsin
+            let base: Double = a.type.kind.group == .drive ? 2200 : a.type.kind == .bike ? 1300 : 700
+            let f = min(6000, max(base, first.totalDistance / 18))
+            follow = f
+            // Yön, kameranın önündeki yola göre ve hızlı virajları geriden izlemeyecek kadar kısa pencereyle
+            track = FlyoverTrack(points: pts, lookMeters: f * 0.3, smoothMeters: f * 0.12)
+            seconds = min(60, max(20, (first.totalDistance / 1000 * 2).rounded()))
             try? await Task.sleep(nanoseconds: 900_000_000)
             start(from: 0)
         }
@@ -135,12 +143,15 @@ struct FlyoverView: View {
         let mid = (lat: (lats.min()! + lats.max()!) / 2, lon: (lons.min()! + lons.max()!) / 2)
         let extent = max(FlyoverTrack.meters((lats.min()!, lons.min()!), (lats.max()!, lons.max()!)), 300)
         let wide = min(max(extent * 2.4, 1500), 90_000)
-        let follow: Double = a.type.kind.group == .drive ? 2600 : a.type.kind == .bike ? 1500 : 800
         let intro = ease(p / 0.12), outro = ease((p - 0.9) / 0.1)
-        let look = min(0.08, follow * 0.35 / max(tr.totalDistance, 1))
-        let pos = tr.state(at: p), ahead = tr.state(at: min(1, p + look))
-        var lat = mix(mid.lat, ahead.lat, intro), lon = mix(mid.lon, ahead.lon, intro)
-        var dist = mix(wide, follow, intro), pitch = mix(0, 62, intro), head = mixAngle(0, pos.heading, intro)
+        let pos = tr.state(at: p)
+        var head = mixAngle(0, pos.heading, intro), dist = mix(wide, follow, intro), pitch = mix(0, 60, intro)
+        // Merkez, noktanın kamera yönünde biraz ilerisinde: nokta her zaman ekranın alt ortasında kalır
+        func shifted(_ lat: Double, _ lon: Double, _ h: Double, _ m: Double) -> (Double, Double) {
+            (lat + cos(h * .pi / 180) * m / 111_195, lon + sin(h * .pi / 180) * m / (111_195 * max(cos(lat * .pi / 180), 0.2)))
+        }
+        let fc = shifted(pos.lat, pos.lon, head, follow * 0.16)
+        var lat = mix(mid.lat, fc.0, intro), lon = mix(mid.lon, fc.1, intro)
         if outro > 0 {
             lat = mix(lat, mid.lat, outro); lon = mix(lon, mid.lon, outro)
             dist = mix(dist, wide, outro); pitch = mix(pitch, 35, outro); head = mixAngle(head, 0, outro)

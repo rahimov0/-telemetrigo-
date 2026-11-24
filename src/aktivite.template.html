@@ -199,7 +199,14 @@
         </section>
         <section class="card">
           <label class="opt-row"><span>Başlangıç ve bitişi gizle<small>Evinin veya işyerinin yeri belli olmasın (200 m)</small></span><input type="checkbox" class="switch" id="hide" checked></label>
-          <label class="opt-row"><span>İmza<small>Köşede küçük "KROVA" yazısı</small></span><input type="checkbox" class="switch" id="sign" checked></label>
+          <label class="opt-row"><span>İmza<small>K rota logosu ve KROVA yazısı</small></span><input type="checkbox" class="switch" id="sign" checked></label>
+          <div id="signBox">
+            <div class="field-l">İmza stili</div><div class="seg wrap" id="signStyle"></div>
+            <div class="field-l">Yazı</div><div class="seg wrap" id="signText"></div>
+            <div class="field-l">Konum</div><div class="seg wrap" id="signPos"></div>
+            <div class="field-l">Boyut</div><div class="seg" id="signSize"></div>
+            <div class="field-l">Rota çizgisi</div><div class="seg" id="signLine"></div>
+          </div>
         </section>
         <section class="card">
           <button id="expProfile" class="btn primary lg" style="display:none;width:100%;margin-bottom:var(--s2)"><svg class="i"><use href="#i-share"/></svg>Profilde paylaş</button>

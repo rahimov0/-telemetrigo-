@@ -92,10 +92,64 @@ export function compose(ctx, s, data, { fetchTiles = true } = {}) {
     DRAW[id](ctx, b.w, b.h, s, data, col, fetchTiles, tc);
     ctx.restore();
   }
-  if (s.sign !== false && !s.transparent) {
-    txt(ctx, 'KROVA', W - 36 * u, H - 34 * u, 22 * u, 600, s.tpl === 'saydam' ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.6)', 'right', 'alphabetic', 0.5 * u);
-  }
+  if (s.sign !== false && !s.transparent) drawSignature(ctx, W, H, s);
   return boxes;
+}
+
+/** KROVA imzası: K rota logosu (+ ROVA / KROVA yazısı, isteğe bağlı rota çizgisi). Stil, konum, boyut seçilebilir. */
+export function drawSignature(ctx, W, H, s) {
+  const u = W / 1080, h = ({ k: 36, o: 46, b: 64 }[s.signSize] || 46) * u, sc = h / 80.2;
+  const label = s.signText === 'logo' ? '' : s.signText === 'krova' ? 'KROVA' : 'ROVA', fs = h * 0.72, gap = h * 0.14;
+  const markW = 60.1 * sc;
+  ctx.save();
+  ctx.font = `500 ${fs}px ${FONT}`; if ('letterSpacing' in ctx) ctx.letterSpacing = `${h * 0.1}px`;
+  const tw = label ? ctx.measureText(label).width : 0, totalW = markW + (label ? gap + tw : 0);
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  const tall = H > W * 1.6, mx = 36 * u, bottom = H - (tall ? H * 0.11 : Math.max(H * 0.032, 30 * u));
+  const pos = s.signPos || 'altorta';
+  let x = pos === 'solalt' ? mx : pos === 'sagalt' ? W - mx - totalW : (W - totalW) / 2;
+  let y = pos === 'ust' ? Math.max(H * 0.06, 48 * u) : bottom - h;
+  if (pos === 'solalt' || pos === 'sagalt') y = H - Math.max(H * 0.04, 36 * u) - h;
+  // otomatik: arkadaki görüntünün parlaklığına bakıp açık/koyu seç
+  let st = s.signStyle || 'renkli';
+  if (st === 'oto') {
+    st = 'beyaz';
+    try {
+      const t = ctx.getTransform(), a = Math.max(1, Math.round(x * t.a + t.e)), b = Math.max(1, Math.round(y * t.d + t.f));
+      const d = ctx.getImageData(a, b, Math.max(1, Math.round(totalW * t.a)), Math.max(1, Math.round(h * t.d))).data;
+      let sum = 0, n = 0; for (let i = 0; i < d.length; i += 16) { sum += (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000; n++; }
+      if (n && sum / n > 165) st = 'siyah';
+    } catch {}
+  }
+  const orange = '#FF5A1F', ink = '#15171B';
+  const C = st === 'siyah' ? { bar: ink, arm: ink, dot: '#E9E6DD', text: ink, sh: 'rgba(255,255,255,.35)' }
+    : st === 'beyaz' ? { bar: '#fff', arm: '#fff', dot: '#15171B', text: '#fff', sh: 'rgba(0,0,0,.4)' }
+    : { bar: '#fff', arm: orange, dot: '#fff', text: '#fff', sh: 'rgba(0,0,0,.5)' };
+  ctx.translate(x, y);
+  ctx.shadowColor = C.sh; ctx.shadowBlur = 14 * u; ctx.shadowOffsetY = 2 * u;
+  const P = (px, py) => [(px - 36) * sc, (py - 26.9) * sc];
+  ctx.fillStyle = C.bar; ctx.beginPath(); ctx.roundRect(0, (28 - 26.9) * sc, 12 * sc, 74 * sc, 6 * sc); ctx.fill();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = C.arm; ctx.lineWidth = 12 * sc;
+  ctx.beginPath(); ctx.moveTo(...P(50, 66)); ctx.lineTo(...P(88, 33)); ctx.moveTo(...P(50, 66)); ctx.lineTo(...P(90, 101)); ctx.stroke();
+  for (const [px, py] of [[88, 33], [90, 101]]) { const [cx, cy] = P(px, py); ctx.fillStyle = C.dot; ctx.beginPath(); ctx.arc(cx, cy, 6.1 * sc, 0, 7); ctx.fill(); }
+  if (label) {
+    ctx.shadowColor = C.sh;
+    ctx.font = `500 ${fs}px ${FONT}`; ctx.fillStyle = C.text; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${h * 0.1}px`;
+    ctx.fillText(label, markW + gap, h * 0.5 + fs * 0.04);
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  }
+  // rota çizgisi: alt koldaki noktadan çıkıp yazının altından akar (yazı varsa)
+  if (label && (s.signLine || 'alt') === 'alt') {
+    const [sx, sy] = P(90, 101), ex = markW + gap + tw, ey = h * 0.96;
+    ctx.strokeStyle = C.arm; ctx.lineWidth = Math.max(2, h * 0.07);
+    ctx.beginPath(); ctx.moveTo(sx, sy);
+    const w = ex - sx;
+    ctx.bezierCurveTo(sx + w * .18, h * 1.08, sx + w * .3, h * .88, sx + w * .55, h * .98);
+    ctx.bezierCurveTo(sx + w * .75, h * 1.06, sx + w * .9, h * .93, ex, ey); ctx.stroke();
+    ctx.fillStyle = C.dot; ctx.beginPath(); ctx.arc(ex, ey, h * 0.06, 0, 7); ctx.fill();
+  }
+  ctx.restore();
 }
 
 function shadowOn(ctx, on = true, color = 'rgba(0,0,0,.45)') { ctx.shadowColor = on ? color : 'transparent'; ctx.shadowBlur = on ? 18 : 0; ctx.shadowOffsetY = on ? 2 : 0; }

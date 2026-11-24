@@ -231,6 +231,7 @@ $('pinIn').onchange = async () => {
 const ed = {
   tpl: prefs.tpl || 'rota', fmt: prefs.fmt || (isApp ? '3:4' : '9:16'), mapStyle: prefs.edMap || 'yok', color: prefs.color || 'turuncu', shape: prefs.shape || 'yuvarlak', textColor: prefs.textColor || 'otomatik', font: prefs.font || 'standart',
   fields: prefs.fields || ['dist', 'time', 'pace'], hide: prefs.hide !== false, sign: prefs.sign !== false,
+  signStyle: prefs.signStyle || 'renkli', signText: prefs.signText || 'rova', signPos: prefs.signPos || 'altorta', signSize: prefs.signSize || 'o', signLine: prefs.signLine || 'alt',
   photo: null, pan: { x: 0, y: 0, z: 1 }, pos: {}, scale: {}, sel: null, boxes: {},
 };
 function openEditor() {
@@ -248,8 +249,14 @@ function openEditor() {
     b.onclick = () => { ed.color = k; prefs.color = k; savePrefs(); cc.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); scheduleEd(); };
     cc.appendChild(b);
   }
+  const sg = (id, set, key) => segButtons($(id), set, () => ed[key], v => { ed[key] = prefs[key] = v; savePrefs(); scheduleEd(); });
+  sg('signStyle', { renkli: 'Renkli', beyaz: 'Beyaz', siyah: 'Siyah', oto: 'Otomatik' }, 'signStyle');
+  sg('signText', { rova: 'Logo + ROVA', logo: 'Sadece logo', krova: 'Logo + KROVA' }, 'signText');
+  sg('signPos', { altorta: 'Alt orta', solalt: 'Sol alt', sagalt: 'Sağ alt', ust: 'Üst orta' }, 'signPos');
+  sg('signSize', { k: 'Küçük', o: 'Orta', b: 'Büyük' }, 'signSize');
+  sg('signLine', { alt: 'Açık', yok: 'Kapalı' }, 'signLine');
   renderFields(); $('addPh').classList.toggle('hidden', !!ed.photo);
-  $('hide').checked = ed.hide; $('sign').checked = ed.sign;
+  $('hide').checked = ed.hide; $('sign').checked = ed.sign; $('signBox').classList.toggle('hidden', !ed.sign);
   $('edBack').href = '#' + cur.rec.id;
   scheduleEd();
 }
@@ -269,7 +276,7 @@ function renderFields() {
   }
 }
 $('hide').onchange = () => { ed.hide = prefs.hide = $('hide').checked; savePrefs(); scheduleEd(); };
-$('sign').onchange = () => { ed.sign = prefs.sign = $('sign').checked; savePrefs(); scheduleEd(); };
+$('sign').onchange = () => { ed.sign = prefs.sign = $('sign').checked; $('signBox').classList.toggle('hidden', !ed.sign); savePrefs(); scheduleEd(); };
 $('photoBtn').onclick = () => $('photoIn').click();
 // Boş durumda yalnızca önizlemedeki büyük "Fotoğraf seç" görünsün; ikinci düğme tekrar olmasın
 { const sync = () => $('photoCard').classList.toggle('hidden', !$('addPh').classList.contains('hidden')); new MutationObserver(sync).observe($('addPh'), { attributes: true, attributeFilter: ['class'] }); sync(); }
@@ -410,7 +417,8 @@ function buildDock() {
     ['Yazı', () => [$('txtColor'), $('font')]],
     ['Değerler', () => [mk('p', 'dk-h', 'En fazla 6 değer seç'), $('fields'), $('scaleRow')]],
     ['Fotoğraf', () => [$('photoCard')]],
-    ['Gizlilik', () => [...document.querySelectorAll('#vEdit .opt-row')]],
+    ['İmza', () => [$('sign').closest('.opt-row'), $('signBox')]],
+    ['Gizlilik', () => [$('hide').closest('.opt-row')]],
   ];
   const parts = {}; groups.forEach(([n, f]) => { const w = mk('div', 'dk-g'); w.append(...f()); parts[n] = w; pane.append(w); });
   const show = n => { Object.entries(parts).forEach(([k, w]) => { w.hidden = k !== n; }); [...tabs.children].forEach(b => b.classList.toggle('on', b.textContent === n)); pane.scrollTop = 0; };

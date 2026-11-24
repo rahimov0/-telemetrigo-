@@ -164,14 +164,16 @@ struct FlyoverView: View {
         let route = tr.path(upTo: p).map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
         let all = tr.samples.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
         let v = tr.speed(at: p)
+        let cam = camera(tr, p: p)
         return ZStack {
-            Map(position: .constant(.camera(camera(tr, p: p))), interactionModes: []) {
+            Map(position: .constant(.camera(cam)), interactionModes: []) {
                 MapPolyline(coordinates: all).stroke(.white.opacity(0.28), lineWidth: 3)
                 MapPolyline(coordinates: route).stroke(.black.opacity(0.55), style: StrokeStyle(lineWidth: 11, lineCap: .round, lineJoin: .round))
                 MapPolyline(coordinates: route).stroke(orange, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
-                Annotation("", coordinate: CLLocationCoordinate2D(latitude: pos.lat, longitude: pos.lon)) {
-                    Circle().fill(orange).frame(width: 20, height: 20).overlay(Circle().stroke(.white, lineWidth: 4))
-                }
+                // Nokta haritanın kendi çiziminde: her karede yeni bir görünüm oluşmaz, video kaydında çift görünmez
+                MapCircle(center: CLLocationCoordinate2D(latitude: pos.lat, longitude: pos.lon), radius: max(cam.distance * 0.011, 2))
+                    .foregroundStyle(orange)
+                    .stroke(.white, lineWidth: 4)
             }
             .mapStyle(.hybrid(elevation: .realistic, pointsOfInterest: .excludingAll))
             .ignoresSafeArea()

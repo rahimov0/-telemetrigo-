@@ -734,6 +734,7 @@ struct ActivityDetail: View {
     @State private var videoPick = false
     @State private var showSettings = false
     @State private var confirmDel = false
+    @State private var flyover = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -754,6 +755,7 @@ struct ActivityDetail: View {
                     VStack(spacing: 10) {
                         Button { photo = true } label: { Label("Fotoğrafa ekle", systemImage: "photo") }.buttonStyle(AccButton(height: 52))
                         Button { videoPick = true } label: { Label("Videoya ekle", systemImage: "film") }.buttonStyle(GhostButton(height: 52))
+                        if coords.count > 1 { Button { flyover = true } label: { Label("Flyover videosu", systemImage: "globe.europe.africa.fill") }.buttonStyle(GhostButton(height: 52)) }
                     }
                     if elev.count > 2 {
                         Panel {
@@ -791,6 +793,7 @@ struct ActivityDetail: View {
             .presentationDetents([.height(330), .medium]).presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
+        .fullScreenCover(isPresented: $flyover) { FlyoverView(a: a, points: act.readPoints(a.id)) }
         .confirmationDialog("Aktivite silinsin mi? Bu işlem geri alınamaz.", isPresented: $confirmDel, titleVisibility: .visible) {
             Button("Sil", role: .destructive) { act.delete(a); dismiss() }
         }

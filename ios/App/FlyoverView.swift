@@ -50,6 +50,8 @@ struct FlyoverView: View {
     @State private var done = false
     @State private var follow = 800.0
     @State private var recording = false
+    @State private var exporting = false
+    @State private var cancelExport = false
     @State private var message: String?
 
     private let orange = Color(red: 1.0, green: 0.353, blue: 0.122)
@@ -103,6 +105,42 @@ struct FlyoverView: View {
             }
         }
     }
+    private func saveToPhotos(_ url: URL) {
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { st in
+            guard st == .authorized || st == .limited else {
+                DispatchQueue.main.async { message = "Fotoğraflar'a kaydetme izni verilmedi. iPhone Ayarlar > KROVA > Fotoğraflar'dan izin ver." }
+                return
+            }
+            PHPhotoLibrary.shared().performChanges({ PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url) }) { ok, e in
+                DispatchQueue.main.async { message = ok ? "Flyover videosu Fotoğraflar'a kaydedildi." : "Kaydedilemedi: \(e?.localizedDescription ?? "bilinmeyen hata")" }
+            }
+        }
+    }
+
+    // MARK: Kaydet (otomatik): ekran kaydı izni istemeden kareleri tek tek videoya yazar
+    private func exportDirect() {
+        guard track != nil, !exporting, !recording, let ov = ExportOverlay() else { return }
+        playing = false; done = false; exporting = true; cancelExport = false
+        UIApplication.shared.isIdleTimerDisabled = true
+        ov.onCancel = { cancelExport = true }
+        let fps = 24, total = max(2, Int(seconds * Double(fps)))
+        Task { @MainActor in
+            defer { ov.close(); exporting = false; UIApplication.shared.isIdleTimerDisabled = false }
+            do {
+                let url = try await FlyoverExporter.render(frames: total, fps: fps,
+                    step: { i in base = Double(i) / Double(total - 1) },
+                    progress: { n in ov.update(n * 100 / total) },
+                    cancelled: { cancelExport })
+                base = 1; done = true
+                saveToPhotos(url)
+            } catch is CancellationError {
+                base = 0
+            } catch {
+                base = 0; message = "Video hazırlanamadı: \(error.localizedDescription)"
+            }
+        }
+    }
+
     private func stopRecord() {
         guard recording else { return }
         recording = false
@@ -111,15 +149,7 @@ struct FlyoverView: View {
         RPScreenRecorder.shared().stopRecording(withOutput: url) { err in
             DispatchQueue.main.async {
                 if let err { message = "Kayıt kaydedilemedi: \(err.localizedDescription)"; return }
-                PHPhotoLibrary.requestAuthorization(for: .addOnly) { st in
-                    guard st == .authorized || st == .limited else {
-                        DispatchQueue.main.async { message = "Fotoğraflar'a kaydetme izni verilmedi. iPhone Ayarlar > KROVA > Fotoğraflar'dan izin ver." }
-                        return
-                    }
-                    PHPhotoLibrary.shared().performChanges({ PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url) }) { ok, e in
-                        DispatchQueue.main.async { message = ok ? "Flyover videosu Fotoğraflar'a kaydedildi." : "Kaydedilemedi: \(e?.localizedDescription ?? "bilinmeyen hata")" }
-                    }
-                }
+                saveToPhotos(url)
             }
         }
     }
@@ -186,7 +216,7 @@ struct FlyoverView: View {
                     stat("Mesafe", Fmt.num(pos.dist / 1000, pos.dist < 10_000 ? 2 : 1), "km")
                 }.padding(.horizontal, 24)
                 Spacer()
-                if !recording { controls(p) }
+                if !recording && !exporting { controls(p) }
             }
             .padding(.top, 56).padding(.bottom, 28)
             .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
@@ -213,7 +243,10 @@ struct FlyoverView: View {
                     Image(systemName: playing ? "pause.fill" : done ? "arrow.counterclockwise" : "play.fill")
                         .font(.title2.weight(.bold)).frame(width: 64, height: 64).background(orange, in: Circle())
                 }
-                Button { startRecord() } label: { Image(systemName: "square.and.arrow.down").frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }
+                Menu {
+                    Button { exportDirect() } label: { Label("Videoyu kaydet (otomatik)", systemImage: "square.and.arrow.down") }
+                    Button { startRecord() } label: { Label("Ekran kaydı ile kaydet", systemImage: "record.circle") }
+                } label: { Image(systemName: "square.and.arrow.down").frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }
                 Menu {
                     ForEach([15.0, 30.0, 60.0], id: \.self) { s in Button("\(Int(s)) sn") { let cur = progress(at: Date()); seconds = s; if playing { start(from: cur) } } }
                 } label: { Text("\(Int(seconds)) sn").font(.subheadline.weight(.bold)).frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }

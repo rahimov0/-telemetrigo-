@@ -99,6 +99,7 @@ struct TypeIcon: View {
 // MARK: Aktivite akışı (ana ekran)
 
 struct ActivityTab: View {
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var model: AppModel
     @ObservedObject var act: ActivityRecorder
     @ObservedObject var health: HealthManager
@@ -198,6 +199,11 @@ struct ActivityTab: View {
             weekBack = max(0, (cal.dateComponents([.weekOfYear], from: a, to: b).weekOfYear ?? 0))
         }
         .onChange(of: health.connected) { _, _ in loadDaySteps() }
+        .onChange(of: health.tick) { _, _ in health.loadWeek(containing: selDay, force: true); loadDaySteps() }
+        .onChange(of: scenePhase) { _, p in if p == .active { health.refresh(); loadDaySteps() } }
+        .onReceive(Timer.publish(every: 20, on: .main, in: .common).autoconnect()) { _ in
+            if health.connected, scenePhase == .active { health.loadWeek(containing: selDay, force: true); loadDaySteps() }
+        }
     }
 
     private func loadDaySteps() {

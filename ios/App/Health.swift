@@ -77,7 +77,7 @@ final class HealthManager: ObservableObject {
                 if let err { self.lastError = err.localizedDescription; return }
                 self.connected = ok
                 UserDefaults.standard.set(ok, forKey: "healthOn")
-                if ok { self.refresh() }
+                if ok { self.refresh(); self.startLive() }
             }
         }
     }
@@ -90,6 +90,20 @@ final class HealthManager: ObservableObject {
     @Published var weekEnergy: [Date: Double] = [:]
     @Published var weekMove: [Date: Double] = [:]   // Hareket halkası (HKActivitySummary)
     private var loadedWeek: Date?
+    /// Sağlık'a yeni adım/enerji/kat verisi düştüğünde artar; ekranlar bunu izleyip kendini yeniler
+    @Published var tick = 0
+    private var observers: [HKObserverQuery] = []
+    /// Uygulama açıkken Sağlık'taki değişiklikleri canlı izler (Fitness gibi anında güncellenir)
+    func startLive() {
+        guard connected, Self.available, observers.isEmpty else { return }
+        for t in [stepType, energyType, HKQuantityType(.flightsClimbed)] {
+            let q = HKObserverQuery(sampleType: t, predicate: nil) { [weak self] _, done, _ in
+                DispatchQueue.main.async { self?.tick += 1 }
+                done()
+            }
+            store.execute(q); observers.append(q)
+        }
+    }
     func refresh() {
         // Kalori okuma izni sonradan eklendi: bağlı olanlara bir kez sorulur
         if connected, !UserDefaults.standard.bool(forKey: "healthEnergyAsked3") {
@@ -99,6 +113,7 @@ final class HealthManager: ObservableObject {
                 DispatchQueue.main.async { if ok { UserDefaults.standard.set(true, forKey: "healthEnergyAsked3") }; self?.loadWeek(containing: Date(), force: true) }
             }
         }
+        startLive()
         loadWeek(containing: Date(), force: true)
     }
 

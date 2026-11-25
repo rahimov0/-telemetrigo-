@@ -945,10 +945,14 @@ struct PhotoEditorSheet: View {
     var steps: Int? = nil
     var kcal: Double? = nil
     var lead: Activity? = nil
+    var replacing: ProfilePost? = nil      // profildeki bir paylaşımı düzenliyorsak: yeni görsel onun yerine geçer
+    @State private var shareData: (Data, String)?
+    @State private var caption = ""
+    @State private var askCaption = false
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                Text("Fotoğrafa ekle").font(.headline).foregroundStyle(Theme.text)
+                Text(replacing == nil ? "Fotoğrafa ekle" : "Paylaşımı düzenle").font(.headline).foregroundStyle(Theme.text)
                 HStack {
                     Button { dismiss() } label: { Text("Kapat").font(.body.weight(.medium)).foregroundStyle(Theme.text).padding(.horizontal, 14).frame(height: 36).background(Theme.card2, in: Capsule()) }.buttonStyle(.plain)
                     Spacer()
@@ -961,13 +965,22 @@ struct PhotoEditorSheet: View {
                     if let l = lead { model.openVideo(mode: "live", lead: l) } else { model.pendingGpx = (n, g); model.tab = 1; model.openVideo(mode: "live", lead: nil) }
                 }
             }, onImage: { _ in }, onProfile: { d, ext in
-                model.profile.add(data: d, ext: ext, title: name, type: type)
-                model.tab = 2; dismiss()
+                shareData = (d, ext); caption = replacing?.caption ?? ""; askCaption = true
             })
         }
         .background(Theme.bg.ignoresSafeArea())
         .environment(\.colorScheme, .dark)
         .presentationDragIndicator(.visible)
+        .alert(replacing == nil ? "Açıklama ekle" : "Açıklamayı düzenle", isPresented: $askCaption) {
+            TextField("İsteğe bağlı", text: $caption)
+            Button(replacing == nil ? "Profilde paylaş" : "Güncelle") {
+                guard let (d, ext) = shareData else { return }
+                if let r = replacing { model.profile.replace(r, data: d, ext: ext, caption: caption) }
+                else { model.profile.add(data: d, ext: ext, title: name, type: type, caption: caption, activityId: lead?.id) }
+                model.tab = 2; dismiss()
+            }
+            Button("Vazgeç", role: .cancel) {}
+        }
     }
 }
 

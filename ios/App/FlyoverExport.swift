@@ -88,9 +88,18 @@ enum FlyoverExporter {
         try await Task.sleep(nanoseconds: 1_500_000_000)   // ilk görüntünün karoları yüklensin
         for i in 0..<frames {
             if cancelled() { writer.cancelWriting(); throw CancellationError() }
+            // Uygulamadan çıkılırsa (arama, bildirim merkezi, kilit) iptal etmek yerine duraklar, geri dönünce kaldığı kareden sürer
             if UIApplication.shared.applicationState != .active {
-                writer.cancelWriting()
-                throw ExportError(msg: "Uygulamadan çıkıldığı veya ekran kapandığı için kayıt iptal edildi. Tekrar dene ve ekranı açık tut.")
+                let t0 = Date()
+                while UIApplication.shared.applicationState != .active {
+                    if cancelled() { writer.cancelWriting(); throw CancellationError() }
+                    if Date().timeIntervalSince(t0) > 600 {
+                        writer.cancelWriting()
+                        throw ExportError(msg: "Uygulamaya 10 dakikadır dönülmediği için kayıt iptal edildi.")
+                    }
+                    try await Task.sleep(nanoseconds: 300_000_000)
+                }
+                try await Task.sleep(nanoseconds: 800_000_000)   // geri dönünce harita kendine gelsin
             }
             step(i)
             try await Task.sleep(nanoseconds: wait)

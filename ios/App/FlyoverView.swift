@@ -126,7 +126,7 @@ struct FlyoverView: View {
         } message: {
             Text(pendingExport == .screen
                  ? "Sistem bir izin penceresi gösterecek, \"Kaydı Başlat\"a bas. Kayıt bitene kadar ekranı kapatma ve uygulamadan çıkma; yoksa kayıt iptal olur."
-                 : "Video hazırlanırken ekranı kapatma, uygulamadan çıkma ve başka uygulamaya geçme; yoksa kayıt iptal olur. Hızlı yaklaşık 1–2, kaliteli 3–5 dakika sürer.")
+                 : "Video hazırlanırken uygulamayı açık tut. Başka uygulamaya geçersen veya ekran kapanırsa kayıt duraklar, geri dönünce kaldığı yerden devam eder. Hızlı yaklaşık 1–2, kaliteli 3–5 dakika sürer." + powerNote)
         }
         .sheet(isPresented: $showStyle) { styleSheet }
     }
@@ -136,6 +136,15 @@ struct FlyoverView: View {
         guard track != nil, !warming else { return }
         savedSeconds = seconds; seconds = 8; warming = true
         start(from: 0)
+    }
+
+    /// Şarj düşükse veya Düşük Güç Modu açıksa uyarı
+    private var powerNote: String {
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        let low = UIDevice.current.batteryLevel >= 0 && UIDevice.current.batteryLevel < 0.25 && UIDevice.current.batteryState != .charging
+        if low { return " Şarjın düşük, şarja takman önerilir." }
+        if ProcessInfo.processInfo.isLowPowerModeEnabled { return " Düşük Güç Modu açık, kayıt yavaşlayabilir." }
+        return ""
     }
 
     private func startExport(_ m: FlyExport) {

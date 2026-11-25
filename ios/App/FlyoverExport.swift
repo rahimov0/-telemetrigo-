@@ -6,43 +6,47 @@ struct ExportError: LocalizedError {
     var errorDescription: String? { msg }
 }
 
-/// Dışa aktarma sırasında ekranın altında görünen küçük ilerleme çubuğu (ayrı pencere: karelere girmez)
+/// Dışa aktarma sırasında ekranın ortasında görünen büyük yüzde (ayrı pencere: karelere girmez)
 @MainActor
 final class ExportOverlay {
     private let window: UIWindow
-    private let label = UILabel()
+    private let pct = UILabel()
     var onCancel: () -> Void = {}
 
     init?() {
         guard let sc = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return nil }
-        let b = sc.screen.bounds
+        let b = sc.screen.bounds, w: CGFloat = min(b.width - 48, 300), h: CGFloat = 230
         window = UIWindow(windowScene: sc)
-        window.frame = CGRect(x: 16, y: b.height - 96, width: b.width - 32, height: 52)
+        window.frame = CGRect(x: (b.width - w) / 2, y: (b.height - h) / 2, width: w, height: h)
         window.windowLevel = .alert + 1
         window.backgroundColor = .clear
         let vc = UIViewController()
-        vc.view.backgroundColor = UIColor.black.withAlphaComponent(0.7)
-        vc.view.layer.cornerRadius = 26
-        label.textColor = .white
-        label.font = .systemFont(ofSize: 15, weight: .semibold)
-        label.text = "Video hazırlanıyor…"
+        vc.view.backgroundColor = UIColor.black.withAlphaComponent(0.78)
+        vc.view.layer.cornerRadius = 28
+        pct.textColor = .white
+        pct.font = .monospacedDigitSystemFont(ofSize: 64, weight: .bold)
+        pct.text = "%0"
+        let title = UILabel(); title.text = "Video hazırlanıyor"; title.textColor = .white
+        title.font = .systemFont(ofSize: 17, weight: .semibold)
+        let note = UILabel(); note.text = "Ekranı kapatma, uygulamadan çıkma"; note.textColor = UIColor.white.withAlphaComponent(0.7)
+        note.font = .systemFont(ofSize: 13, weight: .medium)
         let cancel = UIButton(type: .system)
         cancel.setTitle("İptal", for: .normal)
+        cancel.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
         cancel.tintColor = UIColor(red: 1, green: 0.353, blue: 0.122, alpha: 1)
         cancel.addAction(UIAction { [weak self] _ in self?.onCancel() }, for: .touchUpInside)
-        let row = UIStackView(arrangedSubviews: [label, cancel])
-        row.axis = .horizontal; row.distribution = .equalSpacing; row.alignment = .center
-        row.translatesAutoresizingMaskIntoConstraints = false
-        vc.view.addSubview(row)
+        let col = UIStackView(arrangedSubviews: [title, pct, note, cancel])
+        col.axis = .vertical; col.alignment = .center; col.spacing = 6
+        col.translatesAutoresizingMaskIntoConstraints = false
+        vc.view.addSubview(col)
         NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo: vc.view.leadingAnchor, constant: 20),
-            row.trailingAnchor.constraint(equalTo: vc.view.trailingAnchor, constant: -20),
-            row.centerYAnchor.constraint(equalTo: vc.view.centerYAnchor)
+            col.centerXAnchor.constraint(equalTo: vc.view.centerXAnchor),
+            col.centerYAnchor.constraint(equalTo: vc.view.centerYAnchor)
         ])
         window.rootViewController = vc
         window.isHidden = false
     }
-    func update(_ pct: Int) { label.text = "Video hazırlanıyor  %\(pct)" }
+    func update(_ p: Int) { pct.text = "%\(p)" }
     func close() { window.isHidden = true }
 }
 
@@ -84,6 +88,10 @@ enum FlyoverExporter {
         try await Task.sleep(nanoseconds: 1_500_000_000)   // ilk görüntünün karoları yüklensin
         for i in 0..<frames {
             if cancelled() { writer.cancelWriting(); throw CancellationError() }
+            if UIApplication.shared.applicationState != .active {
+                writer.cancelWriting()
+                throw ExportError(msg: "Uygulamadan çıkıldığı veya ekran kapandığı için kayıt iptal edildi. Tekrar dene ve ekranı açık tut.")
+            }
             step(i)
             try await Task.sleep(nanoseconds: wait)
             while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 10_000_000) }

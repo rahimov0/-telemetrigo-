@@ -37,6 +37,27 @@ struct KrovaSignature: View {
     }
 }
 
+/// Flyover'da gösterilebilen bilgiler
+enum FlyStat: String, CaseIterable, Identifiable {
+    case speed, gain, dist, time, alt
+    var id: String { rawValue }
+    func title(pace: Bool) -> String {
+        switch self { case .speed: return pace ? "Tempo" : "Hız"; case .gain: return "Yükseliş"; case .dist: return "Mesafe"; case .time: return "Süre"; case .alt: return "Yükseklik" }
+    }
+}
+enum FlyPalette {
+    static let all: [(key: String, name: String, color: Color)] = [
+        ("white", "Beyaz", .white), ("orange", "Turuncu", Color(red: 1.0, green: 0.353, blue: 0.122)),
+        ("yellow", "Sarı", Color(red: 1.0, green: 0.82, blue: 0.2)), ("blue", "Mavi", Color(red: 0.35, green: 0.7, blue: 1.0)),
+        ("green", "Yeşil", Color(red: 0.4, green: 0.9, blue: 0.55)), ("pink", "Pembe", Color(red: 1.0, green: 0.45, blue: 0.7))
+    ]
+    static func color(_ k: String) -> Color { all.first { $0.key == k }?.color ?? .white }
+}
+enum FlyExport: Identifiable {
+    case fast, quality, screen
+    var id: Int { switch self { case .fast: return 0; case .quality: return 1; case .screen: return 2 } }
+}
+
 /// Flyover: rotanın başından sonuna kuş bakışı, 3D uydu haritada akan video
 struct FlyoverView: View {
     @Environment(\.dismiss) private var dismiss
@@ -51,6 +72,13 @@ struct FlyoverView: View {
     @State private var follow = 800.0
     @State private var recording = false
     @State private var exporting = false
+    @State private var showStyle = false
+    @State private var pendingExport: FlyExport?
+    @AppStorage("flyStats") private var statsRaw = "speed,gain,dist"
+    @AppStorage("flyTextColor") private var textKey = "white"
+    @AppStorage("flyRouteColor") private var routeKey = "orange"
+    @AppStorage("flyFont") private var fontKey = "round"
+    @AppStorage("flySign") private var showSign = true
     @State private var cancelExport = false
     @State private var message: String?
 
@@ -89,6 +117,23 @@ struct FlyoverView: View {
         .alert("Flyover", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("Tamam") {}
         } message: { Text(message ?? "") }
+        .alert("Kaydetmeden önce", isPresented: Binding(get: { pendingExport != nil }, set: { if !$0 { pendingExport = nil } })) {
+            Button("Başla") { let m = pendingExport; pendingExport = nil; if let m { startExport(m) } }
+            Button("Vazgeç", role: .cancel) {}
+        } message: {
+            Text(pendingExport == .screen
+                 ? "Sistem bir izin penceresi gösterecek, \"Kaydı Başlat\"a bas. Kayıt bitene kadar ekranı kapatma ve uygulamadan çıkma; yoksa kayıt iptal olur."
+                 : "Video hazırlanırken ekranı kapatma, uygulamadan çıkma ve başka uygulamaya geçme; yoksa kayıt iptal olur. Hızlı yaklaşık 1–2, kaliteli 3–5 dakika sürer.")
+        }
+        .sheet(isPresented: $showStyle) { styleSheet }
+    }
+
+    private func startExport(_ m: FlyExport) {
+        switch m {
+        case .screen: startRecord()
+        case .fast: exportDirect(fps: 15, wait: 130_000_000)
+        case .quality: exportDirect(fps: 24, wait: 230_000_000)
+        }
     }
 
     // MARK: Kaydet: uygulama içi ekran kaydı, bitince Fotoğraflar'a
@@ -118,16 +163,16 @@ struct FlyoverView: View {
     }
 
     // MARK: Kaydet (otomatik): ekran kaydı izni istemeden kareleri tek tek videoya yazar
-    private func exportDirect() {
+    private func exportDirect(fps: Int, wait: UInt64) {
         guard track != nil, !exporting, !recording, let ov = ExportOverlay() else { return }
         playing = false; done = false; exporting = true; cancelExport = false
         UIApplication.shared.isIdleTimerDisabled = true
         ov.onCancel = { cancelExport = true }
-        let fps = 24, total = max(2, Int(seconds * Double(fps)))
+        let total = max(2, Int(seconds * Double(fps)))
         Task { @MainActor in
             defer { ov.close(); exporting = false; UIApplication.shared.isIdleTimerDisabled = false }
             do {
-                let url = try await FlyoverExporter.render(frames: total, fps: fps,
+                let url = try await FlyoverExporter.render(frames: total, fps: fps, wait: wait,
                     step: { i in base = Double(i) / Double(total - 1) },
                     progress: { n in ov.update(n * 100 / total) },
                     cancelled: { cancelExport })
@@ -172,7 +217,7 @@ struct FlyoverView: View {
         let lats = tr.samples.map { $0.lat }, lons = tr.samples.map { $0.lon }
         let mid = (lat: (lats.min()! + lats.max()!) / 2, lon: (lons.min()! + lons.max()!) / 2)
         let extent = max(FlyoverTrack.meters((lats.min()!, lons.min()!), (lats.max()!, lons.max()!)), 300)
-        let wide = min(max(extent * 2.4, 1500), 90_000)
+        let wide = min(max(extent * 3.4, 1800), 120_000)
         let intro = ease(p / 0.12), outro = ease((p - 0.9) / 0.1)
         let pos = tr.state(at: p)
         var head = mixAngle(0, pos.heading, intro), dist = mix(wide, follow, intro), pitch = mix(0, 60, intro)
@@ -184,7 +229,7 @@ struct FlyoverView: View {
         var lat = mix(mid.lat, fc.0, intro), lon = mix(mid.lon, fc.1, intro)
         if outro > 0 {
             lat = mix(lat, mid.lat, outro); lon = mix(lon, mid.lon, outro)
-            dist = mix(dist, wide, outro); pitch = mix(pitch, 35, outro); head = mixAngle(head, 0, outro)
+            dist = mix(dist, wide, outro); pitch = mix(pitch, 0, outro); head = mixAngle(head, 0, outro)
         }
         return MapCamera(centerCoordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon), distance: dist, heading: head, pitch: pitch)
     }
@@ -195,26 +240,25 @@ struct FlyoverView: View {
         let all = tr.samples.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
         let v = tr.speed(at: p)
         let cam = camera(tr, p: p)
+        let rc = FlyPalette.color(routeKey)
         return ZStack {
             Map(position: .constant(.camera(cam)), interactionModes: []) {
                 MapPolyline(coordinates: all).stroke(.white.opacity(0.28), lineWidth: 3)
                 MapPolyline(coordinates: route).stroke(.black.opacity(0.55), style: StrokeStyle(lineWidth: 11, lineCap: .round, lineJoin: .round))
-                MapPolyline(coordinates: route).stroke(orange, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                MapPolyline(coordinates: route).stroke(rc, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
                 // Nokta haritanın kendi çiziminde: her karede yeni bir görünüm oluşmaz, video kaydında çift görünmez
                 MapCircle(center: CLLocationCoordinate2D(latitude: pos.lat, longitude: pos.lon), radius: max(cam.distance * 0.011, 2))
-                    .foregroundStyle(orange)
+                    .foregroundStyle(rc)
                     .stroke(.white, lineWidth: 4)
             }
             .mapStyle(.hybrid(elevation: .realistic, pointsOfInterest: .excludingAll))
             .ignoresSafeArea()
             VStack(spacing: 14) {
-                KrovaSignature(height: 30)
-                Text(a.type.title(a.start)).font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.92))
+                if showSign { KrovaSignature(height: 30) }
+                Text(a.type.title(a.start)).font(.subheadline.weight(.semibold)).foregroundStyle(FlyPalette.color(textKey).opacity(0.92))
                 HStack(alignment: .top) {
-                    stat(a.type.pace ? "Tempo" : "Hız", a.type.pace ? Fmt.pace(v) : Fmt.num(v * 3.6, 1), a.type.pace ? "/km" : "km/s")
-                    stat("Yükseliş", Fmt.num(pos.gain), "m")
-                    stat("Mesafe", Fmt.num(pos.dist / 1000, pos.dist < 10_000 ? 2 : 1), "km")
-                }.padding(.horizontal, 24)
+                    ForEach(stats) { st in statView(st, pos: pos, v: v) }
+                }.padding(.horizontal, 16)
                 Spacer()
                 if !recording && !exporting { controls(p) }
             }
@@ -223,12 +267,74 @@ struct FlyoverView: View {
         }
     }
 
-    private func stat(_ label: String, _ value: String, _ unit: String) -> some View {
-        VStack(spacing: 2) {
-            Text(label).font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
-            Text(value).font(.system(size: 38, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(.white)
-            Text(unit).font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
+    private var stats: [FlyStat] { statsRaw.split(separator: ",").compactMap { FlyStat(rawValue: String($0)) } }
+    private var fontDesign: Font.Design {
+        switch fontKey { case "std": return .default; case "mono": return .monospaced; case "serif": return .serif; default: return .rounded }
+    }
+
+    private func statView(_ st: FlyStat, pos: FlyoverTrack.Sample, v: Double) -> some View {
+        let pace = a.type.pace
+        let (val, unit): (String, String) = {
+            switch st {
+            case .speed: return (pace ? Fmt.pace(v) : Fmt.num(v * 3.6, 1), pace ? "/km" : "km/s")
+            case .gain: return (Fmt.num(pos.gain), "m")
+            case .dist: return (Fmt.num(pos.dist / 1000, pos.dist < 10_000 ? 2 : 1), "km")
+            case .time: return (Fmt.dur(pos.time), "")
+            case .alt: return (Fmt.num(pos.ele), "m")
+            }
+        }()
+        return stat(st.title(pace: pace), val, unit, big: stats.count <= 3)
+    }
+
+    private func stat(_ label: String, _ value: String, _ unit: String, big: Bool) -> some View {
+        let c = FlyPalette.color(textKey)
+        return VStack(spacing: 2) {
+            Text(label).font(.footnote.weight(.semibold)).foregroundStyle(c.opacity(0.85))
+            Text(value).font(.system(size: big ? 38 : 30, weight: .bold, design: fontDesign)).monospacedDigit().minimumScaleFactor(0.6).lineLimit(1).foregroundStyle(c)
+            Text(unit.isEmpty ? " " : unit).font(.footnote.weight(.semibold)).foregroundStyle(c.opacity(0.85))
         }.frame(maxWidth: .infinity)
+    }
+
+    // MARK: Görünüm ayarları
+    private func swatches(_ sel: Binding<String>) -> some View {
+        HStack(spacing: 12) {
+            ForEach(FlyPalette.all, id: \.key) { c in
+                Button { sel.wrappedValue = c.key } label: {
+                    Circle().fill(c.color).frame(width: 34, height: 34)
+                        .overlay(Circle().stroke(Color.primary.opacity(0.25), lineWidth: 1))
+                        .overlay { if sel.wrappedValue == c.key { Image(systemName: "checkmark").font(.footnote.weight(.bold)).foregroundStyle(c.key == "white" || c.key == "yellow" ? .black : .white) } }
+                }.buttonStyle(.plain)
+            }
+        }
+    }
+    private var styleSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Gösterilecek bilgiler (en fazla 4)") {
+                    ForEach(FlyStat.allCases) { st in
+                        Toggle(st.title(pace: a.type.pace), isOn: Binding(
+                            get: { stats.contains(st) },
+                            set: { on in
+                                var cur = stats
+                                if on { if cur.count < 4 { cur.append(st) } } else if cur.count > 1 { cur.removeAll { $0 == st } }
+                                statsRaw = FlyStat.allCases.filter { cur.contains($0) }.map(\.rawValue).joined(separator: ",")
+                            }))
+                    }
+                }
+                Section("Yazı") {
+                    swatches($textKey)
+                    Picker("Yazı tipi", selection: $fontKey) {
+                        Text("Yuvarlak").tag("round"); Text("Standart").tag("std"); Text("Mono").tag("mono"); Text("Serif").tag("serif")
+                    }.pickerStyle(.segmented)
+                }
+                Section("Rota rengi") { swatches($routeKey) }
+                Section { Toggle("KROVA imzası", isOn: $showSign) }
+            }
+            .navigationTitle("Görünüm")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Bitti") { showStyle = false } } }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     private func controls(_ p: Double) -> some View {
@@ -244,9 +350,11 @@ struct FlyoverView: View {
                         .font(.title2.weight(.bold)).frame(width: 64, height: 64).background(orange, in: Circle())
                 }
                 Menu {
-                    Button { exportDirect() } label: { Label("Videoyu kaydet (otomatik)", systemImage: "square.and.arrow.down") }
-                    Button { startRecord() } label: { Label("Ekran kaydı ile kaydet", systemImage: "record.circle") }
+                    Button { pendingExport = .fast } label: { Label("Hızlı kaydet (15 kare/sn)", systemImage: "hare") }
+                    Button { pendingExport = .quality } label: { Label("Kaliteli kaydet (24 kare/sn)", systemImage: "sparkles") }
+                    Button { pendingExport = .screen } label: { Label("Ekran kaydı ile (gerçek zamanlı)", systemImage: "record.circle") }
                 } label: { Image(systemName: "square.and.arrow.down").frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }
+                Button { if playing { base = progress(at: Date()); playing = false }; showStyle = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }
                 Menu {
                     ForEach([15.0, 30.0, 60.0], id: \.self) { s in Button("\(Int(s)) sn") { let cur = progress(at: Date()); seconds = s; if playing { start(from: cur) } } }
                 } label: { Text("\(Int(seconds)) sn").font(.subheadline.weight(.bold)).frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }

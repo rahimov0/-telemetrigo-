@@ -73,6 +73,8 @@ struct FlyoverView: View {
     @State private var recording = false
     @State private var exporting = false
     @State private var showStyle = false
+    @State private var warming = false
+    @State private var savedSeconds = 30.0
     @State private var pendingExport: FlyExport?
     @AppStorage("flyStats") private var statsRaw = "speed,gain,dist"
     @AppStorage("flyTextColor") private var textKey = "white"
@@ -112,7 +114,8 @@ struct FlyoverView: View {
         }
         .statusBarHidden()
         .onChange(of: done) { _, d in
-            if d && recording { DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { stopRecord() } }
+            if d && warming { warming = false; seconds = savedSeconds; base = 0; DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { startRecord() } }
+            else if d && recording { DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { stopRecord() } }
         }
         .alert("Flyover", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("Tamam") {}
@@ -128,9 +131,16 @@ struct FlyoverView: View {
         .sheet(isPresented: $showStyle) { styleSheet }
     }
 
+    /// Gerçek zamanlı kayıtta harita karoları yetişmezse gri/bulanık kareler olur: önce rota kısa sürede (8 sn) sessizce gezilir, karolar önbelleğe alınır, sonra kayıt başlar
+    private func warmThenRecord() {
+        guard track != nil, !warming else { return }
+        savedSeconds = seconds; seconds = 8; warming = true
+        start(from: 0)
+    }
+
     private func startExport(_ m: FlyExport) {
         switch m {
-        case .screen: startRecord()
+        case .screen: warmThenRecord()
         case .fast: exportDirect(fps: 15, wait: 130_000_000)
         case .quality: exportDirect(fps: 24, wait: 230_000_000)
         }
@@ -140,13 +150,13 @@ struct FlyoverView: View {
     private func startRecord() {
         let r = RPScreenRecorder.shared()
         guard r.isAvailable else { message = "Ekran kaydı bu cihazda şu an kullanılamıyor."; return }
-        playing = false; base = 0
+        playing = false; base = 0; done = false
+        recording = true          // alt çubuk videonun başında görünmesin: izin penceresinden önce gizlenir
         r.isMicrophoneEnabled = false
         r.startRecording { err in
             DispatchQueue.main.async {
-                if let err { message = "Kayıt başlatılamadı: \(err.localizedDescription)"; return }
-                recording = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { start(from: 0) }
+                if let err { recording = false; message = "Kayıt başlatılamadı: \(err.localizedDescription)"; return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) { start(from: 0) }   // ilk kare yüklensin
             }
         }
     }
@@ -260,7 +270,9 @@ struct FlyoverView: View {
                     ForEach(stats) { st in statView(st, pos: pos, v: v) }
                 }.padding(.horizontal, 16)
                 Spacer()
-                if !recording && !exporting { controls(p) }
+                if warming { Text("Harita hazırlanıyor…").font(.subheadline.weight(.semibold)).padding(.horizontal, 16).padding(.vertical, 10)
+                    .background(.black.opacity(0.55), in: Capsule()).foregroundStyle(.white).padding(.bottom, 24) }
+                else if !recording && !exporting { controls(p) }
             }
             .padding(.top, 56).padding(.bottom, 28)
             .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
@@ -337,28 +349,34 @@ struct FlyoverView: View {
         .presentationDetents([.medium, .large])
     }
 
+    /// Uzun rotada kısa süre seçilirse harita karoları yetişmez: en az ~1 sn / km
+    private var durations: [Double] {
+        let km = (track?.totalDistance ?? 0) / 1000
+        return [15.0, 30.0, 45.0, 60.0].filter { $0 >= min(45, km * 1.0) }
+    }
+
     private func controls(_ p: Double) -> some View {
         VStack(spacing: 14) {
             ProgressView(value: p).tint(orange).padding(.horizontal, 32)
-            HStack(spacing: 18) {
-                Button { dismiss() } label: { Image(systemName: "xmark").frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }
+            HStack(spacing: 10) {
+                Button { dismiss() } label: { Image(systemName: "xmark").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
                 Button {
                     if playing { base = progress(at: Date()); playing = false }
                     else { start(from: done || base >= 1 ? 0 : base) }
                 } label: {
                     Image(systemName: playing ? "pause.fill" : done ? "arrow.counterclockwise" : "play.fill")
-                        .font(.title2.weight(.bold)).frame(width: 64, height: 64).background(orange, in: Circle())
+                        .font(.title2.weight(.bold)).frame(width: 58, height: 58).background(orange, in: Circle())
                 }
                 Menu {
                     Button { pendingExport = .fast } label: { Label("Hızlı kaydet (15 kare/sn)", systemImage: "hare") }
                     Button { pendingExport = .quality } label: { Label("Kaliteli kaydet (24 kare/sn)", systemImage: "sparkles") }
                     Button { pendingExport = .screen } label: { Label("Ekran kaydı ile (gerçek zamanlı)", systemImage: "record.circle") }
-                } label: { Image(systemName: "square.and.arrow.down").frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }
-                Button { if playing { base = progress(at: Date()); playing = false }; showStyle = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }
+                } label: { Image(systemName: "square.and.arrow.down").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
+                Button { if playing { base = progress(at: Date()); playing = false }; showStyle = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
                 Menu {
-                    ForEach([15.0, 30.0, 60.0], id: \.self) { s in Button("\(Int(s)) sn") { let cur = progress(at: Date()); seconds = s; if playing { start(from: cur) } } }
-                } label: { Text("\(Int(seconds)) sn").font(.subheadline.weight(.bold)).frame(width: 48, height: 48).background(.black.opacity(0.45), in: Circle()) }
-            }.foregroundStyle(.white)
+                    ForEach(durations, id: \.self) { s in Button("\(Int(s)) sn") { let cur = progress(at: Date()); seconds = s; if playing { start(from: cur) } } }
+                } label: { Text("\(Int(seconds)) sn").font(.subheadline.weight(.bold)).frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
+            }.foregroundStyle(.white).buttonStyle(.plain).frame(maxWidth: .infinity)
         }
     }
 }

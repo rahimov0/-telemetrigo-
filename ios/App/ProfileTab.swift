@@ -66,7 +66,7 @@ final class ProfileStore: ObservableObject {
     }
 
     /// Editörden gelen görseli (ham veri) galeriye ekler
-    func add(data: Data, ext: String, title: String, type: String, caption: String = , activityId: String? = nil) {
+    func add(data: Data, ext: String, title: String, type: String, caption: String = "", activityId: String? = nil) {
         let id = UUID().uuidString, file = "\(id).\(ext == "png" ? "png" : "jpg")"
         do { try data.write(to: Self.dir.appendingPathComponent(file), options: .atomic) } catch { return }
         DispatchQueue.main.async {

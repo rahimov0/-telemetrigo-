@@ -14,12 +14,16 @@ settings:
 packages:
   KrovaCore:
     path: Core
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads.git
+    exactVersion: 11.13.0
 targets:
   TelemetriGo:
     type: application
     platform: iOS
     dependencies:
       - package: KrovaCore
+      - package: GoogleMobileAds
     sources:
       - path: App
       - path: Resources
@@ -32,6 +36,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: KROVA
+        GADApplicationIdentifier: ca-app-pub-3940256099942544~1458002511
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDevelopmentRegion: tr

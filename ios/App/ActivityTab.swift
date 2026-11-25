@@ -1,4 +1,5 @@
 import SwiftUI
+import Photos
 import KrovaCore
 import MapKit
 import Charts
@@ -1025,6 +1026,23 @@ struct ActivityWeb: UIViewRepresentable {
             guard let b = m.body as? [String: Any] else { return }
             if b["action"] as? String == "profile", let s = b["image"] as? String, let d = Data(base64Encoded: s) {
                 p.onProfile?(d, b["ext"] as? String ?? "jpg"); return
+            }
+            if b["action"] as? String == "savephoto", let s = b["image"] as? String, let d = Data(base64Encoded: s) {
+                let ext = (b["ext"] as? String) == "png" ? "png" : "jpg"
+                PHPhotoLibrary.requestAuthorization(for: .addOnly) { [weak self] st in
+                    func reply(_ ok: Bool, _ err: String = "") {
+                        let e = err.replacingOccurrences(of: "'", with: " ").replacingOccurrences(of: "\n", with: " ")
+                        DispatchQueue.main.async { self?.web?.evaluateJavaScript("window.tgSaved && tgSaved(\(ok), '\(e)')") }
+                    }
+                    guard st == .authorized || st == .limited else { reply(false, "Fotoğraflar izni verilmedi (Ayarlar > KROVA > Fotoğraflar)"); return }
+                    let url = FileManager.default.temporaryDirectory.appendingPathComponent("KROVA-\(Int(Date().timeIntervalSince1970)).\(ext)")
+                    do { try d.write(to: url, options: .atomic) } catch { reply(false, error.localizedDescription); return }
+                    PHPhotoLibrary.shared().performChanges({ PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url) }) { ok, e in
+                        try? FileManager.default.removeItem(at: url)
+                        reply(ok, e?.localizedDescription ?? "")
+                    }
+                }
+                return
             }
             guard b["action"] as? String == "video", let g = b["gpx"] as? String else { return }
             p.toVideo(g, b["name"] as? String ?? "aktivite.gpx")

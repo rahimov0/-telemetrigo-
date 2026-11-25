@@ -142,7 +142,7 @@ function setupCanvas(cv) {
   cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d);
   const ctx = cv.getContext('2d'); ctx.setTransform(d, 0, 0, d, 0, 0); return [ctx, r.width, r.height];
 }
-const mapStyle = () => prefs.map || 'koyu';
+const mapStyle = () => MAP_STYLES[prefs.map] ? prefs.map : 'koyu';
 function drawMap() {
   if (!cur || $('vDetail').classList.contains('hidden')) return;
   const [ctx, w, h] = setupCanvas($('map')), { g, A } = cur, style = mapStyle();
@@ -229,7 +229,7 @@ $('pinIn').onchange = async () => {
 
 // ---------- fotoğraf editörü ----------
 const ed = {
-  tpl: prefs.tpl || 'rota', fmt: prefs.fmt || (isApp ? '3:4' : '9:16'), mapStyle: prefs.edMap || 'yok', color: prefs.color || 'turuncu', shape: prefs.shape || 'yuvarlak', textColor: prefs.textColor || 'otomatik', font: prefs.font || 'standart',
+  tpl: prefs.tpl || 'rota', fmt: prefs.fmt || (isApp ? '3:4' : '9:16'), mapStyle: (prefs.edMap === 'yok' || MAP_STYLES[prefs.edMap]) ? (prefs.edMap || 'yok') : 'yok', color: prefs.color || 'turuncu', shape: prefs.shape || 'yuvarlak', textColor: prefs.textColor || 'otomatik', font: prefs.font || 'standart',
   fields: prefs.fields || ['dist', 'time', 'pace'], hide: prefs.hide !== false, sign: prefs.sign !== false,
   signStyle: prefs.signStyle || 'renkli', signText: prefs.signText || 'rova', signPos: prefs.signPos || 'altorta', signSize: prefs.signSize || 'o', signLine: prefs.signLine || 'alt',
   photo: null, pan: { x: 0, y: 0, z: 1 }, pos: {}, scale: {}, sel: null, boxes: {},
@@ -384,9 +384,20 @@ $('expProfile').onclick = async () => {
   b.disabled = false;
 };
 $('expDl').onclick = async e => {
-  e.preventDefault(); const f = await renderFull();
-  const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  e.preventDefault(); const b = $('expDl'); if (b.dataset.busy) return; b.dataset.busy = '1';
+  try {
+    const f = await renderFull();
+    if (isApp) {   // iOS uygulaması: paylaşım menüsü açmadan doğrudan Fotoğraflar'a kaydet
+      const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
+      window.webkit.messageHandlers.tg.postMessage({ action: 'savephoto', ext: f.type === 'image/png' ? 'png' : 'jpg', image: data });
+    } else {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    }
+  } catch (err) { setMsg('Görsel oluşturulamadı: ' + esc(err.message)); }
+  delete b.dataset.busy;
 };
+// iOS Fotoğraflar'a kaydetme sonucu (yerel koddan çağrılır)
+window.tgSaved = (ok, err) => ok ? setMsg('Fotoğraflar\'a kaydedildi.', 'ok') : setMsg('Kaydedilemedi: ' + esc(err || 'izin verilmedi'));
 
 // ---------- yönlendirme ----------
 function show(v) { for (const id of ['vList', 'vDetail', 'vEdit']) $(id).classList.toggle('hidden', id !== v); scrollTo(0, 0); }

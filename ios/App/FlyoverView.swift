@@ -129,6 +129,7 @@ struct FlyoverView: View {
                  : "Video hazırlanırken uygulamayı açık tut. Başka uygulamaya geçersen veya ekran kapanırsa kayıt duraklar, geri dönünce kaldığı yerden devam eder. Hızlı yaklaşık 1–2, kaliteli 3–5 dakika sürer." + powerNote)
         }
         .sheet(isPresented: $showStyle) { styleSheet }
+        .onAppear { FlyoverAd.shared.prepare() }
     }
 
     /// Gerçek zamanlı kayıtta harita karoları yetişmezse gri/bulanık kareler olur: önce rota kısa sürede (8 sn) sessizce gezilir, karolar önbelleğe alınır, sonra kayıt başlar
@@ -176,7 +177,11 @@ struct FlyoverView: View {
                 return
             }
             PHPhotoLibrary.shared().performChanges({ PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url) }) { ok, e in
-                DispatchQueue.main.async { message = ok ? "Flyover videosu Fotoğraflar'a kaydedildi." : "Kaydedilemedi: \(e?.localizedDescription ?? "bilinmeyen hata")" }
+                DispatchQueue.main.async {
+                    let text = ok ? "Flyover videosu Fotoğraflar'a kaydedildi." : "Kaydedilemedi: \(e?.localizedDescription ?? "bilinmeyen hata")"
+                    // reklam yalnızca kayıt başarılıysa gösterilir
+                    if ok { FlyoverAd.shared.show { message = text } } else { message = text }
+                }
             }
         }
     }

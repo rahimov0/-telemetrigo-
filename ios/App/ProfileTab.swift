@@ -220,8 +220,8 @@ struct ProfileTab: View {
         if shownPosts.isEmpty {
             VStack(spacing: 8) {
                 Image(systemName: "photo.on.rectangle.angled").font(.system(size: 34)).foregroundStyle(Theme.text3)
-                Text("Henüz paylaşım yok").font(.headline).foregroundStyle(Theme.text)
-                Text("Bir aktiviteyi fotoğrafa ekleyip Paylaş'a bastığında görsel burada birikir.")
+                Text(store.posts.isEmpty ? "Henüz paylaşım yok" : "Bu türde paylaşım yok").font(.headline).foregroundStyle(Theme.text)
+                Text(store.posts.isEmpty ? "Bir aktiviteyi fotoğrafa ekleyip Paylaş'a bastığında görsel burada birikir." : "Üstteki seçimi \"Hepsi\" yaparak tüm paylaşımlarını görebilirsin.")
                     .font(.subheadline).foregroundStyle(Theme.text2).multilineTextAlignment(.center)
             }.padding(.vertical, 40).padding(.horizontal, 20)
         } else {
@@ -253,7 +253,7 @@ struct PostThumb: View {
                 }
             }
             .clipped()
-            .task { img = await Task.detached { ProfileStore.thumbnail(url, maxPixel: 500) }.value }
+            .task(id: url) { img = await Task.detached { ProfileStore.thumbnail(url, maxPixel: 500) }.value }
     }
 }
 

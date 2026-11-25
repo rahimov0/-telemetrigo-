@@ -82,7 +82,7 @@ final class HealthManager: ObservableObject {
         }
     }
 
-    func disconnect() { connected = false; UserDefaults.standard.set(false, forKey: "healthOn"); stepsToday = 0; week = [] }
+    func disconnect() { observers.forEach { store.stop($0) }; observers = []; connected = false; UserDefaults.standard.set(false, forKey: "healthOn"); stepsToday = 0; week = [] }
 
     /// Seçili günün haftası (Pzt–Paz): günlük adım ve yürüme mesafesi
     @Published var weekDist: [Date: Double] = [:]
@@ -93,12 +93,17 @@ final class HealthManager: ObservableObject {
     /// Sağlık'a yeni adım/enerji/kat verisi düştüğünde artar; ekranlar bunu izleyip kendini yeniler
     @Published var tick = 0
     private var observers: [HKObserverQuery] = []
+    private var lastTick = Date.distantPast
     /// Uygulama açıkken Sağlık'taki değişiklikleri canlı izler (Fitness gibi anında güncellenir)
     func startLive() {
         guard connected, Self.available, observers.isEmpty else { return }
         for t in [stepType, energyType, HKQuantityType(.flightsClimbed)] {
             let q = HKObserverQuery(sampleType: t, predicate: nil) { [weak self] _, done, _ in
-                DispatchQueue.main.async { self?.tick += 1 }
+                DispatchQueue.main.async {
+                    // Yürürken sürekli tetiklenir: en fazla 3 sn'de bir yenile
+                    guard let self, Date().timeIntervalSince(self.lastTick) > 3 else { return }
+                    self.lastTick = Date(); self.tick += 1
+                }
                 done()
             }
             store.execute(q); observers.append(q)

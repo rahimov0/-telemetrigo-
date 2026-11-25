@@ -2,12 +2,23 @@ import UIKit
 import GoogleMobileAds
 
 /// Flyover kaydı bittikten sonra gösterilen geçiş reklamı.
-/// ŞİMDİLİK Google'ın TEST kimlikleri kullanılıyor (gerçek reklam/gelir yok). App Store öncesi AdMob'daki gerçek kimliklerle değiştirilecek.
+/// TestFlight/geliştirme derlemelerinde Google'ın TEST reklamı gösterilir (kendi reklamlarımıza dokunmak AdMob hesabını riske atar);
+/// yalnızca App Store'dan indirilen sürümde gerçek reklam birimi kullanılır.
 @MainActor
 final class FlyoverAd: NSObject, GADFullScreenContentDelegate {
     static let shared = FlyoverAd()
-    static let appID = "ca-app-pub-3940256099942544~1458002511"       // test uygulama kimliği (Info.plist'te de var)
-    static let unitID = "ca-app-pub-3940256099942544/4411468910"      // test geçiş reklamı birimi
+    static let appID = "ca-app-pub-6811894230993861~5958730531"        // KROVA (AdMob) — Info.plist'te de aynı
+    private static let realUnit = "ca-app-pub-6811894230993861/9051797732"   // "Flyover Kayit Sonrasi Gecis"
+    private static let testUnit = "ca-app-pub-3940256099942544/4411468910"   // Google test geçiş reklamı
+    /// App Store sürümünde makbuz "receipt", TestFlight'ta "sandboxReceipt" olur
+    private static var isAppStoreBuild: Bool {
+        #if DEBUG
+        return false
+        #else
+        return Bundle.main.appStoreReceiptURL?.lastPathComponent == "receipt"
+        #endif
+    }
+    static var unitID: String { isAppStoreBuild ? realUnit : testUnit }
     private var ad: GADInterstitialAd?
     private var started = false
     private var onDone: (() -> Void)?

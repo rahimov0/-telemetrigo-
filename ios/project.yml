@@ -36,7 +36,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: KROVA
-        GADApplicationIdentifier: ca-app-pub-3940256099942544~1458002511
+        GADApplicationIdentifier: ca-app-pub-6811894230993861~5958730531
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDevelopmentRegion: tr

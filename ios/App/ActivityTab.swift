@@ -947,6 +947,9 @@ struct PhotoEditorSheet: View {
     var kcal: Double? = nil
     var lead: Activity? = nil
     var replacing: ProfilePost? = nil      // profildeki bir paylaşımı düzenliyorsak: yeni görsel onun yerine geçer
+    var restore: [String: Any]? = nil      // önceki editör ayarları ve kaynak fotoğraf
+    @State private var editState: String?
+    @State private var editPhoto: String?
     @State private var shareData: (Data, String)?
     @State private var caption = ""
     @State private var askCaption = false
@@ -960,13 +963,13 @@ struct PhotoEditorSheet: View {
                 }
             }.padding(.horizontal, 16).frame(height: 56).background(Theme.bg)
             Divider().overlay(Theme.line)
-            ActivityWeb(gpx: gpx, name: name, type: type, steps: steps, kcal: kcal, toVideo: { g, n in
+            ActivityWeb(gpx: gpx, name: name, type: type, steps: steps, kcal: kcal, restore: restore, toVideo: { g, n in
                 dismiss()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     if let l = lead { model.openVideo(mode: "live", lead: l) } else { model.pendingGpx = (n, g); model.tab = 1; model.openVideo(mode: "live", lead: nil) }
                 }
-            }, onImage: { _ in }, onProfile: { d, ext in
-                shareData = (d, ext); caption = replacing?.caption ?? ""; askCaption = true
+            }, onImage: { _ in }, onProfile: { d, ext, st, ph in
+                shareData = (d, ext); editState = st; editPhoto = ph; caption = replacing?.caption ?? ""; askCaption = true
             })
         }
         .background(Theme.bg.ignoresSafeArea())
@@ -976,8 +979,8 @@ struct PhotoEditorSheet: View {
             TextField("İsteğe bağlı", text: $caption)
             Button(replacing == nil ? "Profilde paylaş" : "Güncelle") {
                 guard let (d, ext) = shareData else { return }
-                if let r = replacing { model.profile.replace(r, data: d, ext: ext, caption: caption) }
-                else { model.profile.add(data: d, ext: ext, title: name, type: type, caption: caption, activityId: lead?.id) }
+                if let r = replacing { model.profile.replace(r, data: d, ext: ext, caption: caption, editState: editState, editPhoto: editPhoto) }
+                else { model.profile.add(data: d, ext: ext, title: name, type: type, caption: caption, activityId: lead?.id, editState: editState, editPhoto: editPhoto) }
                 model.tab = 2; dismiss()
             }
             Button("Vazgeç", role: .cancel) {}
@@ -989,9 +992,10 @@ struct ActivityWeb: UIViewRepresentable {
     let gpx: String, name: String, type: String
     var steps: Int? = nil
     var kcal: Double? = nil
+    var restore: [String: Any]? = nil
     let toVideo: (String, String) -> Void
     var onImage: ((URL) -> Void)? = nil     // dışa aktarılan görsel (profil galerisine eklenir)
-    var onProfile: ((Data, String) -> Void)? = nil   // "Profilde paylaş": ham görsel verisi + uzantı
+    var onProfile: ((Data, String, String?, String?) -> Void)? = nil   // "Profilde paylaş": ham görsel verisi + uzantı
     static let url = URL(string: "https://telemetrigo.rahimov.tr/aktivite.html?app=1")!
 
     func makeCoordinator() -> C { C(self) }
@@ -1004,6 +1008,7 @@ struct ActivityWeb: UIViewRepresentable {
         var payload: [String: Any] = ["gpx": gpx, "name": name, "type": type, "view": "photo"]
         payload["steps"] = steps ?? NSNull()
         payload["kcal"] = kcal.map { Int($0.rounded()) } ?? NSNull()
+        if let restore { payload["restore"] = restore }
         if let d = try? JSONSerialization.data(withJSONObject: payload), let j = String(data: d, encoding: .utf8) {
             cfg.userContentController.addUserScript(WKUserScript(source: "window.__TG_PENDING = \(j);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         }
@@ -1025,7 +1030,7 @@ struct ActivityWeb: UIViewRepresentable {
         func userContentController(_ u: WKUserContentController, didReceive m: WKScriptMessage) {
             guard let b = m.body as? [String: Any] else { return }
             if b["action"] as? String == "profile", let s = b["image"] as? String, let d = Data(base64Encoded: s) {
-                p.onProfile?(d, b["ext"] as? String ?? "jpg"); return
+                p.onProfile?(d, b["ext"] as? String ?? "jpg", b["state"] as? String, b["photo"] as? String); return
             }
             if b["action"] as? String == "savephoto", let s = b["image"] as? String, let d = Data(base64Encoded: s) {
                 let ext = (b["ext"] as? String) == "png" ? "png" : "jpg"

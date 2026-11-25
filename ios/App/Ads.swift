@@ -39,12 +39,19 @@ final class FlyoverAd: NSObject, GADFullScreenContentDelegate {
         }
     }
 
-    /// Reklam hazırsa gösterir, bitince (veya hazır değilse hemen) `done` çağrılır
+    /// Reklam hazırsa gösterir; değilse kısa süre yüklenmesini bekler. Bitince (veya reklam yoksa) `done` çağrılır
     func show(done: @escaping () -> Void) {
-        guard let ad, let vc = Self.topController() else { prepare(); done(); return }
-        onDone = done
-        self.ad = nil
-        ad.present(fromRootViewController: vc)
+        Task { @MainActor in
+            if ad == nil { prepare() }
+            var waited = 0.0
+            while ad == nil && waited < 4 { try? await Task.sleep(nanoseconds: 250_000_000); waited += 0.25 }
+            // dışa aktarma penceresi kapanırken ekran değişir: kısa bekle
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard let ad, let vc = Self.topController() else { done(); return }
+            onDone = done
+            self.ad = nil
+            ad.present(fromRootViewController: vc)
+        }
     }
 
     nonisolated func adDidDismissFullScreenContent(_ ad: GADFullScreenPresentingAd) {
@@ -54,9 +61,11 @@ final class FlyoverAd: NSObject, GADFullScreenContentDelegate {
         Task { @MainActor in let d = self.onDone; self.onDone = nil; self.prepare(); d?() }
     }
 
+    /// Önde görünen normal pencerenin en üstteki ekranı (bizim ilerleme penceremiz gibi üst seviye pencereler hariç)
     private static func topController() -> UIViewController? {
-        var vc = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }.first { $0.isKeyWindow }?.rootViewController
+        let wins = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }
+            .filter { !$0.isHidden && $0.windowLevel == .normal }
+        var vc = (wins.first { $0.isKeyWindow } ?? wins.last)?.rootViewController
         while let p = vc?.presentedViewController { vc = p }
         return vc
     }

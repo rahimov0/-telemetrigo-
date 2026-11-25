@@ -58,6 +58,7 @@ async function openPending(P) {
   const h = rec.id + (P.view === 'photo' ? '/foto' : '');
   history.replaceState(null, '', '#' + h);
   await openDetail(rec.id, P.view === 'photo');
+  if (P.restore) await applyRestore(P.restore);
   return true;
 }
 window.TelemetriGo = Object.assign(window.TelemetriGo || {}, {
@@ -234,6 +235,25 @@ const ed = {
   signStyle: prefs.signStyle || 'renkli', signText: prefs.signText || 'rova', signPos: prefs.signPos || 'altorta', signSize: prefs.signSize || 'o', signLine: prefs.signLine || 'alt',
   photo: null, pan: { x: 0, y: 0, z: 1 }, pos: {}, scale: {}, sel: null, boxes: {},
 };
+// Profil paylaşımını yeniden düzenlemek için saklanan editör ayarları
+const ED_KEEP = ['tpl', 'fmt', 'mapStyle', 'color', 'shape', 'textColor', 'font', 'fields', 'hide', 'sign', 'signStyle', 'signText', 'signPos', 'signSize', 'signLine', 'pan', 'pos', 'scale'];
+async function applyRestore(R) {
+  if (!R) return;
+  try {
+    const st = typeof R.state === 'string' ? JSON.parse(R.state) : (R.state || {});
+    for (const k of ED_KEEP) if (st[k] !== undefined) ed[k] = st[k];
+    if (ed.mapStyle !== 'yok' && !MAP_STYLES[ed.mapStyle]) ed.mapStyle = 'yok';
+    if (R.photo) {
+      const bin = atob(R.photo), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      ed.photo = await createImageBitmap(new Blob([u], { type: 'image/jpeg' }), { imageOrientation: 'from-image' });
+      $('addPh').classList.add('hidden'); $('photoClr').classList.remove('hidden'); $('zoomRow').classList.remove('hidden');
+      $('photoBtn').querySelector('span').textContent = 'Fotoğrafı değiştir';
+      $('zoom').value = Math.round((ed.pan?.z || 1) * 100); $('zoomV').textContent = `%${$('zoom').value}`;
+    }
+    openEditor(); scheduleEd();
+  } catch (e) { setMsg('Önceki ayarlar yüklenemedi: ' + esc(e.message)); }
+}
+
 function openEditor() {
   const tplSet = v => { ed.tpl = v; prefs.tpl = v; ed.pos = {}; ed.scale = {}; savePrefs(); scheduleEd(); };
   if (isApp) thumbStrip($('tpl'), TEMPLATES, () => ed.tpl, tplSet, (x, w, h, k) => compose(x, { ...edState(w, h), tpl: k, mapStyle: 'yok', pos: {}, scale: {}, sel: null }, edData(), { fetchTiles: false }));
@@ -379,7 +399,16 @@ $('expProfile').onclick = async () => {
   try {
     const f = await renderFull();
     const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
-    window.webkit.messageHandlers.tg.postMessage({ action: 'profile', ext: f.type === 'image/png' ? 'png' : 'jpg', image: data });
+    // yeniden düzenleyebilmek için ayarlar ve kaynak fotoğraf da gönderilir
+    const state = {}; for (const k of ED_KEEP) state[k] = ed[k];
+    let photo = null;
+    if (ed.photo) {
+      const k = Math.min(1, 1800 / Math.max(ed.photo.width, ed.photo.height)), pw = Math.round(ed.photo.width * k), ph = Math.round(ed.photo.height * k);
+      const c = new OffscreenCanvas(pw, ph); c.getContext('2d').drawImage(ed.photo, 0, 0, pw, ph);
+      const pb = await c.convertToBlob({ type: 'image/jpeg', quality: .88 });
+      photo = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = () => rej(r.error); r.readAsDataURL(pb); });
+    }
+    window.webkit.messageHandlers.tg.postMessage({ action: 'profile', ext: f.type === 'image/png' ? 'png' : 'jpg', image: data, state: JSON.stringify(state), photo });
   } catch (e) { setMsg('Profile eklenemedi: ' + esc(e.message)); }
   b.disabled = false;
 };

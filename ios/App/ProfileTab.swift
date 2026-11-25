@@ -66,9 +66,10 @@ final class ProfileStore: ObservableObject {
     }
 
     /// Editörden gelen görseli (ham veri) galeriye ekler
-    func add(data: Data, ext: String, title: String, type: String, caption: String = "", activityId: String? = nil) {
+    func add(data: Data, ext: String, title: String, type: String, caption: String = "", activityId: String? = nil, editState: String? = nil, editPhoto: String? = nil) {
         let id = UUID().uuidString, file = "\(id).\(ext == "png" ? "png" : "jpg")"
         do { try data.write(to: Self.dir.appendingPathComponent(file), options: .atomic) } catch { return }
+        saveEdit(id, state: editState, photo: editPhoto)
         DispatchQueue.main.async {
             self.posts.insert(ProfilePost(id: id, file: file, date: Date(), title: title, type: type, caption: caption, activityId: activityId), at: 0)
             self.save()
@@ -80,9 +81,10 @@ final class ProfileStore: ObservableObject {
     static let maxPins = 3
 
     /// Düzenlenmiş görseli aynı paylaşımın yerine koyar (tarih, sabitleme ve bağlantı korunur)
-    func replace(_ p: ProfilePost, data: Data, ext: String, caption: String) {
+    func replace(_ p: ProfilePost, data: Data, ext: String, caption: String, editState: String? = nil, editPhoto: String? = nil) {
         let file = "\(UUID().uuidString).\(ext == "png" ? "png" : "jpg")"
         do { try data.write(to: Self.dir.appendingPathComponent(file), options: .atomic) } catch { return }
+        saveEdit(p.id, state: editState, photo: editPhoto)
         DispatchQueue.main.async {
             guard let i = self.posts.firstIndex(where: { $0.id == p.id }) else { return }
             try? FileManager.default.removeItem(at: self.url(for: self.posts[i]))
@@ -90,6 +92,20 @@ final class ProfileStore: ObservableObject {
             self.save()
         }
     }
+    /// Yeniden düzenlemek için editör ayarları ve kaynak fotoğraf (base64)
+    private func editURL(_ id: String) -> URL { Self.dir.appendingPathComponent("\(id).edit.json") }
+    private func saveEdit(_ id: String, state: String?, photo: String?) {
+        guard state != nil || photo != nil else { return }
+        var d: [String: Any] = [:]
+        if let state { d["state"] = state }
+        if let photo { d["photo"] = photo }
+        if let data = try? JSONSerialization.data(withJSONObject: d) { try? data.write(to: editURL(id), options: .atomic) }
+    }
+    func editData(_ id: String) -> [String: Any]? {
+        guard let data = try? Data(contentsOf: editURL(id)) else { return nil }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+
     func setCaption(_ p: ProfilePost, _ text: String) {
         guard let i = posts.firstIndex(where: { $0.id == p.id }), posts[i].caption != text else { return }
         posts[i].caption = text; save()
@@ -103,6 +119,7 @@ final class ProfileStore: ObservableObject {
 
     func delete(_ p: ProfilePost) {
         try? FileManager.default.removeItem(at: url(for: p))
+        try? FileManager.default.removeItem(at: editURL(p.id))
         posts.removeAll { $0.id == p.id }
         save()
     }
@@ -168,7 +185,8 @@ struct ProfileTab: View {
         }
         .sheet(item: $editing) { post in
             if let a = act.activities.first(where: { $0.id == post.activityId }) {
-                PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue, steps: nil, kcal: Cal.active(a), lead: a, replacing: post)
+                PhotoEditorSheet(gpx: act.gpxText(a), name: a.type.title(a.start), type: a.type.rawValue, steps: nil, kcal: Cal.active(a), lead: a, replacing: post,
+                                 restore: store.editData(post.id))
                     .environmentObject(model)
             }
         }

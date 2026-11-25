@@ -152,7 +152,7 @@ struct FlyoverView: View {
         switch m {
         case .screen: warmThenRecord()
         case .fast: exportDirect(fps: 15, wait: 130_000_000)
-        case .quality: exportDirect(fps: 24, wait: 230_000_000)
+        case .quality: exportDirect(fps: 20, wait: 190_000_000)
         }
     }
 
@@ -383,7 +383,7 @@ struct FlyoverView: View {
                 }
                 Menu {
                     Button { pendingExport = .fast } label: { Label("Hızlı kaydet (15 kare/sn)", systemImage: "hare") }
-                    Button { pendingExport = .quality } label: { Label("Kaliteli kaydet (24 kare/sn)", systemImage: "sparkles") }
+                    Button { pendingExport = .quality } label: { Label("Kaliteli kaydet (20 kare/sn)", systemImage: "sparkles") }
                     Button { pendingExport = .screen } label: { Label("Ekran kaydı ile (gerçek zamanlı)", systemImage: "record.circle") }
                 } label: { Image(systemName: "square.and.arrow.down").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
                 Button { if playing { base = progress(at: Date()); playing = false }; showStyle = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }

@@ -498,7 +498,6 @@ struct ActivityTab: View {
                     HStack(alignment: .top) {
                         StatCell(label: isToday ? "Bugün" : selDay.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)), value: steps.formatted(), unit: "adım", tint: Theme.cSteps, big: true)
                         StatCell(label: "Yürünen", value: Fmt.km(dist), unit: "km", tint: Theme.cDist, big: true)
-                        StatCell(label: "Çıkılan kat", value: Int(health.weekFlights[cal.startOfDay(for: selDay)] ?? 0).formatted(), tint: Theme.cElev, big: true)
                     }
                     Chart(health.week, id: \.day) { d in
                         BarMark(x: .value("Gün", d.day, unit: .day), y: .value("Adım", max(d.steps, 60)), width: .ratio(0.55))

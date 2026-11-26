@@ -109,7 +109,7 @@ struct FlyoverView: View {
             follow = f
             // Yön, kameranın önündeki yola göre ve hızlı virajları geriden izlemeyecek kadar kısa pencereyle
             track = FlyoverTrack(points: pts, lookMeters: f * 0.3, smoothMeters: f * 0.12)
-            seconds = min(60, max(30, (first.totalDistance / 1000 * 6).rounded()))
+            seconds = first.totalDistance / 1000 <= 5 ? 30 : 60
             try? await Task.sleep(nanoseconds: 900_000_000)
             start(from: 0)
         }
@@ -392,6 +392,11 @@ struct FlyoverView: View {
                     Button { pendingExport = .screen } label: { Label("Ekran kaydı ile (gerçek zamanlı)", systemImage: "record.circle") }
                 } label: { Image(systemName: "square.and.arrow.down").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
                 Button { if playing { base = progress(at: Date()); playing = false }; showStyle = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
+                if (track?.totalDistance ?? 0) / 1000 <= 5 {
+                    Menu {
+                        ForEach([30.0, 60.0], id: \.self) { s in Button("\(Int(s)) sn") { let cur = progress(at: Date()); seconds = s; if playing { start(from: cur) } } }
+                    } label: { Text("\(Int(seconds)) sn").font(.subheadline.weight(.bold)).frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
+                }
             }.foregroundStyle(.white).buttonStyle(.plain).frame(maxWidth: .infinity)
         }
     }

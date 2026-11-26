@@ -112,7 +112,7 @@ struct WebView: UIViewRepresentable {
 
         // MARK: İndirme → paylaşım ekranı (Videoyu Kaydet)
         func download(_ d: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent(suggestedFilename.isEmpty ? "TelemetriGo.mp4" : suggestedFilename)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(suggestedFilename.isEmpty ? "KROVA.mp4" : suggestedFilename)
             try? FileManager.default.removeItem(at: url)
             dest = url; completionHandler(url)
         }

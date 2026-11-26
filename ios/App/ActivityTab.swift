@@ -1058,7 +1058,7 @@ struct ActivityWeb: UIViewRepresentable {
         func webView(_ w: WKWebView, navigationAction: WKNavigationAction, didBecome d: WKDownload) { d.delegate = self }
         func webView(_ w: WKWebView, navigationResponse: WKNavigationResponse, didBecome d: WKDownload) { d.delegate = self }
         func download(_ d: WKDownload, decideDestinationUsing r: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
-            let u = FileManager.default.temporaryDirectory.appendingPathComponent(suggestedFilename.isEmpty ? "TelemetriGo.jpg" : suggestedFilename)
+            let u = FileManager.default.temporaryDirectory.appendingPathComponent(suggestedFilename.isEmpty ? "KROVA.jpg" : suggestedFilename)
             try? FileManager.default.removeItem(at: u); dest = u; completionHandler(u)
         }
         func downloadDidFinish(_ d: WKDownload) {

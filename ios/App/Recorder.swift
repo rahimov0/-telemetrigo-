@@ -167,14 +167,14 @@ final class Recorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         var out = """
         <?xml version="1.0" encoding="UTF-8"?>
         <gpx version="1.1" creator="TelemetriGo iOS" xmlns="http://www.topografix.com/GPX/1/1" xmlns:tg="https://telemetrigo.rahimov.tr/gpx/1">
-        <metadata><name>TelemetriGo</name><time>\(iso.string(from: s.start))</time></metadata>
+        <metadata><name>KROVA</name><time>\(iso.string(from: s.start))</time></metadata>
 
         """
         let ref = rows.last
         for e in s.camEvents {
             out += "<wpt lat=\"\(n(ref?["la"], 7) ?? "0")\" lon=\"\(n(ref?["lo"], 7) ?? "0")\"><time>\(iso.string(from: e.time))</time><name>\(e.type)</name><type>tg:\(e.type)</type></wpt>\n"
         }
-        out += "<trk><name>TelemetriGo</name><trkseg>\n"
+        out += "<trk><name>KROVA</name><trkseg>\n"
         for r in rows {
             guard let t = r["t"] as? Double, let la = n(r["la"], 7), let lo = n(r["lo"], 7) else { continue }
             out += "<trkpt lat=\"\(la)\" lon=\"\(lo)\">"

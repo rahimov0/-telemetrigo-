@@ -371,7 +371,7 @@ struct FlyoverView: View {
     /// Uzun rotada kısa süre seçilirse harita karoları yetişmez: en az ~1 sn / km
     private var durations: [Double] {
         let km = (track?.totalDistance ?? 0) / 1000
-        return [15.0, 30.0, 45.0, 60.0].filter { $0 >= min(45, km * 1.0) }
+        return [30.0, 45.0, 60.0].filter { $0 >= min(45, km * 1.0) }
     }
 
     private func controls(_ p: Double) -> some View {

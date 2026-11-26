@@ -109,7 +109,7 @@ struct FlyoverView: View {
             follow = f
             // Yön, kameranın önündeki yola göre ve hızlı virajları geriden izlemeyecek kadar kısa pencereyle
             track = FlyoverTrack(points: pts, lookMeters: f * 0.3, smoothMeters: f * 0.12)
-            seconds = min(60, max(20, (first.totalDistance / 1000 * 2).rounded()))
+            seconds = min(60, max(30, (first.totalDistance / 1000 * 3).rounded()))
             try? await Task.sleep(nanoseconds: 900_000_000)
             start(from: 0)
         }

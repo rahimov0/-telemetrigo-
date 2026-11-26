@@ -19,7 +19,7 @@ enum ActType: String, Codable, CaseIterable, Identifiable {
         switch self { case .yuruyus: return .walk; case .kosu: return .run; case .tirmanis: return .hike
                       case .bisiklet: return .bike; case .motor: return .motorcycle; case .arac: return .car }
     }
-    var name: String { ["yuruyus": "Yürüyüş", "kosu": "Koşu", "tirmanis": "Tırmanış", "bisiklet": "Bisiklet", "motor": "Motor", "arac": "Araç"][rawValue]! }
+    var name: String { ["yuruyus": L("Yürüyüş"), "kosu": L("Koşu"), "tirmanis": L("Tırmanış"), "bisiklet": L("Bisiklet"), "motor": L("Motor"), "arac": L("Araç")][rawValue]! }
     var icon: String { ["yuruyus": "figure.walk", "kosu": "figure.run", "tirmanis": "figure.hiking", "bisiklet": "bicycle", "motor": "motorcycle", "arac": "car.fill"][rawValue]! }
     /// Makul üst hız (m/s): GPS sıçramalarını "en iyi tempo"dan ayıklar
     var maxPlausible: Double { kind.maxPlausibleSpeed }
@@ -38,7 +38,7 @@ enum ActType: String, Codable, CaseIterable, Identifiable {
     }
     func title(_ d: Date) -> String {
         let h = Calendar.current.component(.hour, from: d)
-        let part = h < 5 ? "Gece" : h < 11 ? "Sabah" : h < 14 ? "Öğle" : h < 18 ? "Öğleden sonra" : h < 22 ? "Akşam" : "Gece"
+        let part = h < 5 ? L("Gece") : h < 11 ? L("Sabah") : h < 14 ? L("Öğle") : h < 18 ? L("Öğleden sonra") : h < 22 ? L("Akşam") : L("Gece")
         let w = ["yuruyus": "yürüyüşü", "kosu": "koşusu", "tirmanis": "tırmanışı", "bisiklet": "bisiklet turu", "motor": "sürüşü", "arac": "yolculuğu"][rawValue]!
         return "\(part) \(w)"
     }
@@ -133,7 +133,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     private let synth = AVSpeechSynthesizer()
 
     static let dir: URL = {
-        let d = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Aktiviteler", isDirectory: true)
+        let d = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(L("Aktiviteler"), isDirectory: true)
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         return d
     }()
@@ -184,8 +184,8 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         timer = t
         say("\(type.name) başladı")
     }
-    func pause() { guard state == .running else { return }; tick(); engine.breakSegment(); state = .paused; say("Duraklatıldı") }
-    func resume() { guard state == .paused else { return }; lastTick = Date(); lastGood = nil; engine.breakSegment(); state = .running; say("Devam") }
+    func pause() { guard state == .running else { return }; tick(); engine.breakSegment(); state = .paused; say(L("Duraklatıldı")) }
+    func resume() { guard state == .paused else { return }; lastTick = Date(); lastGood = nil; engine.breakSegment(); state = .running; say(L("Devam")) }
 
     /// Bitir: GPX yaz, geçmişe ekle. Çok kısa kayıtları atar.
     @discardableResult
@@ -200,7 +200,7 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         state = .idle; current = nil; autoPaused = false
         let pts = readPoints(a.id)
         guard pts.count >= 2, !Validity.isTooShort(distance: a.distance, movingTime: moving) else {
-            delete(a); lastNote = "Kayıt çok kısaydı (20 m'den az ya da 15 sn'den kısa hareket), bu yüzden kaydedilmedi."; return nil
+            delete(a); lastNote = L("Kayıt çok kısaydı (20 m'den az ya da 15 sn'den kısa hareket), bu yüzden kaydedilmedi."); return nil
         }
         a.end = Date(timeIntervalSince1970: pts.last!.t)
         a.moving = moving

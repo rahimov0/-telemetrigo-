@@ -101,6 +101,7 @@ struct TypeIcon: View {
 
 struct ActivityTab: View {
     @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
+    @AppStorage("lang") private var langPref = "auto"
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var model: AppModel
     @ObservedObject var act: ActivityRecorder
@@ -152,8 +153,8 @@ struct ActivityTab: View {
                         Panel {
                             VStack(spacing: 8) {
                                 Image(systemName: "figure.run").font(.system(size: 32, weight: .bold)).foregroundStyle(Theme.acc)
-                                Text("İlk aktiviteni kaydet").font(.headline).foregroundStyle(Theme.text)
-                                Text("Yürüyüş, koşu, bisiklet ya da motor sürüşünü başlat; rota ve değerler burada birikir.").font(.subheadline).multilineTextAlignment(.center).foregroundStyle(Theme.text2)
+                                Text(L("İlk aktiviteni kaydet")).font(.headline).foregroundStyle(Theme.text)
+                                Text(L("Yürüyüş, koşu, bisiklet ya da motor sürüşünü başlat; rota ve değerler burada birikir.")).font(.subheadline).multilineTextAlignment(.center).foregroundStyle(Theme.text2)
                             }.frame(maxWidth: .infinity).padding(.vertical, 10)
                         }
                     }
@@ -168,7 +169,7 @@ struct ActivityTab: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3").foregroundStyle(Theme.text) }.accessibilityLabel("Aktivite ayarları")
+                    Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3").foregroundStyle(Theme.text) }.accessibilityLabel(L("Aktivite ayarları"))
                 }
             }
             .navigationDestination(for: Activity.self) { ActivityDetail(act: act, health: health, a: $0) }
@@ -176,7 +177,7 @@ struct ActivityTab: View {
                 Button { showRecord = true } label: {
                     HStack(spacing: 8) {
                         Image(systemName: act.state == .idle ? "record.circle" : "waveform.path.ecg")
-                        Text(act.state == .idle ? "Kayda başla" : "Kayda dön · \(Fmt.dur(act.moving))").monospacedDigit()
+                        Text(act.state == .idle ? L("Kayda başla") : LF("Kayda dön · %@", Fmt.dur(act.moving))).monospacedDigit()
                     }.font(.headline).foregroundStyle(Theme.onAcc).padding(.horizontal, 28).frame(height: 56)
                         .background(Theme.acc, in: Capsule()).shadow(color: Theme.acc.opacity(0.45), radius: 16, y: 4)
                 }.padding(.bottom, 10)
@@ -189,8 +190,8 @@ struct ActivityTab: View {
             }
         }
         .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
-        .alert("Kayıt kaydedilmedi", isPresented: Binding(get: { act.lastNote != nil }, set: { if !$0 { act.lastNote = nil } })) {
-            Button("Tamam") {}
+        .alert(L("Kayıt kaydedilmedi"), isPresented: Binding(get: { act.lastNote != nil }, set: { if !$0 { act.lastNote = nil } })) {
+            Button(L("Tamam")) {}
         } message: { Text(act.lastNote ?? "") }
         .onAppear { health.refresh(); health.loadWeek(containing: selDay, force: true); loadDaySteps(); if act.state != .idle { showRecord = true } }
         .onChange(of: selDay) { _, d in
@@ -229,18 +230,18 @@ struct ActivityTab: View {
         return Panel {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text(isToday ? "Bugün" : "Özet").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Text(isToday ? L("Bugün") : L("Özet")).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                     Spacer()
                     Text(selDay.formatted(.dateTime.weekday(.wide).day().month(.wide))).font(.subheadline).foregroundStyle(Theme.text2)
                 }
                 HStack(alignment: .top, spacing: 0) {
                     goal(kcal, goalKcal, Theme.cKcal, "flame.fill", (Cal.ready || fromHealth) ? Fmt.num(kcal) : "—", "kcal")
                     goal(mins, goalMin, Theme.cElev, "timer", Fmt.num(mins), "dakika")
-                    goal(steps, goalSteps, Theme.cSteps, "figure.walk", health.connected ? Int(steps).formatted() : "—", "adım")
+                    goal(steps, goalSteps, Theme.cSteps, "figure.walk", health.connected ? Int(steps).formatted() : "—", L("adım"))
                 }
                 if !Cal.ready && !fromHealth {
                     Button { showSettings = true } label: {
-                        Label("Kalori için boy ve kilonu gir", systemImage: "person.crop.circle.badge.plus").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.acc)
+                        Label(L("Kalori için boy ve kilonu gir"), systemImage: "person.crop.circle.badge.plus").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.acc)
                     }
                 }
             }
@@ -268,7 +269,7 @@ struct ActivityTab: View {
             return (d0, w.filter { $0.start >= d0 && $0.start < d1 }.reduce(0) { $0 + $1.distance } / Units.distDiv)
         }
         let mx = max(days.map { $0.km }.max() ?? 0, 0.1)
-        let title = weekBack == 0 ? "Bu hafta" : weekBack == 1 ? "Geçen hafta" : wk.formatted(.dateTime.day().month(.abbreviated)) + " haftası"
+        let title = weekBack == 0 ? L("Bu hafta") : weekBack == 1 ? L("Geçen hafta") : LF("%@ haftası", wk.formatted(.dateTime.day().month(.abbreviated)))
         return Panel {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -278,9 +279,9 @@ struct ActivityTab: View {
                     Button { shiftWeek(-1) } label: { Image(systemName: "chevron.right").font(.system(size: 14, weight: .bold)).frame(width: 36, height: 36).background(Theme.card2, in: Circle()) }.buttonStyle(.plain).opacity(weekBack == 0 ? 0.3 : 1).disabled(weekBack == 0)
                 }.foregroundStyle(Theme.text)
                 HStack(alignment: .top) {
-                    StatCell(label: "Mesafe", value: Fmt.km(w.reduce(0) { $0 + $1.distance }), unit: Units.distUnit, tint: Theme.cDist, big: true)
-                    StatCell(label: "Süre", value: Fmt.dur(w.reduce(0) { $0 + $1.moving }), tint: Theme.cTime, big: true)
-                    StatCell(label: "Aktivite", value: "\(w.count)", big: true)
+                    StatCell(label: L("Mesafe"), value: Fmt.km(w.reduce(0) { $0 + $1.distance }), unit: Units.distUnit, tint: Theme.cDist, big: true)
+                    StatCell(label: L("Süre"), value: Fmt.dur(w.reduce(0) { $0 + $1.moving }), tint: Theme.cTime, big: true)
+                    StatCell(label: L("Aktivite"), value: "\(w.count)", big: true)
                 }
                 HStack(alignment: .bottom, spacing: 6) {
                     ForEach(days.indices, id: \.self) { i in
@@ -307,10 +308,10 @@ struct ActivityTab: View {
     // MARK: Üst başlık, dönem seçici, gün/ay/yıl kartları
     private var header: some View {
         HStack {
-            Text("Özet").font(.system(size: 30, weight: .bold)).foregroundStyle(Theme.text)
+            Text(L("Özet")).font(.system(size: 30, weight: .bold)).foregroundStyle(Theme.text)
             Spacer()
             HStack(spacing: 2) {
-                ForEach([("sport", "Spor"), ("drive", "Sürüş")], id: \.0) { g in
+                ForEach([("sport", L("Spor")), ("drive", L("Sürüş"))], id: \.0) { g in
                     Button { withAnimation(.easeOut(duration: 0.15)) { groupRaw = g.0 } } label: {
                         Text(g.1).font(.subheadline.weight(.semibold))
                             .foregroundStyle(groupRaw == g.0 ? Theme.text : Theme.text3)
@@ -327,7 +328,7 @@ struct ActivityTab: View {
             ForEach(Period.allCases, id: \.self) { p in
                 Button { withAnimation(.easeOut(duration: 0.15)) { period = p } } label: {
                     VStack(spacing: 8) {
-                        Text(p.rawValue).font(.subheadline.weight(.semibold)).foregroundStyle(period == p ? Theme.text : Theme.text3)
+                        Text(L(p.rawValue)).font(.subheadline.weight(.semibold)).foregroundStyle(period == p ? Theme.text : Theme.text3)
                         Rectangle().fill(period == p ? Theme.acc : .clear).frame(height: 2)
                     }.frame(maxWidth: .infinity).contentShape(Rectangle())
                 }.buttonStyle(.plain)
@@ -345,9 +346,9 @@ struct ActivityTab: View {
 
     private func totals(_ list: [Activity]) -> some View {
         HStack(alignment: .top) {
-            StatCell(label: "Mesafe", value: Fmt.km(list.reduce(0) { $0 + $1.distance }), unit: Units.distUnit, tint: Theme.cDist, big: true)
-            StatCell(label: "Süre", value: Fmt.dur(list.reduce(0) { $0 + $1.moving }), tint: Theme.cTime, big: true)
-            StatCell(label: "Aktivite", value: "\(list.count)", big: true)
+            StatCell(label: L("Mesafe"), value: Fmt.km(list.reduce(0) { $0 + $1.distance }), unit: Units.distUnit, tint: Theme.cDist, big: true)
+            StatCell(label: L("Süre"), value: Fmt.dur(list.reduce(0) { $0 + $1.moving }), tint: Theme.cTime, big: true)
+            StatCell(label: L("Aktivite"), value: "\(list.count)", big: true)
         }
     }
 
@@ -356,7 +357,7 @@ struct ActivityTab: View {
         return Panel {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(Calendar.current.isDateInToday(selDay) ? "Bugün" : selDay.formatted(.dateTime.weekday(.wide))).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Text(Calendar.current.isDateInToday(selDay) ? L("Bugün") : selDay.formatted(.dateTime.weekday(.wide))).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                     Text(selDay.formatted(.dateTime.day().month(.wide).year())).font(.subheadline).foregroundStyle(Theme.text2)
                 }
                 Spacer()
@@ -373,7 +374,7 @@ struct ActivityTab: View {
                 NavigationLink(value: a) { ActivityCard(act: act, a: a) }.buttonStyle(.plain)
             }
         } else if !act.activities.isEmpty {
-            Panel { Text(group == .sport ? "Bu gün kayıtlı spor aktivitesi yok." : "Bu gün kayıtlı sürüş yok.").font(.subheadline).foregroundStyle(Theme.text2).frame(maxWidth: .infinity) }
+            Panel { Text(group == .sport ? L("Bu gün kayıtlı spor aktivitesi yok.") : L("Bu gün kayıtlı sürüş yok.")).font(.subheadline).foregroundStyle(Theme.text2).frame(maxWidth: .infinity) }
         }
     }
 
@@ -409,7 +410,7 @@ struct ActivityTab: View {
                 }
             }
             if list.isEmpty {
-                Panel { Text(group == .sport ? "Bu ay kayıtlı spor aktivitesi yok." : "Bu ay kayıtlı sürüş yok.").font(.subheadline).foregroundStyle(Theme.text2).frame(maxWidth: .infinity) }
+                Panel { Text(group == .sport ? L("Bu ay kayıtlı spor aktivitesi yok.") : L("Bu ay kayıtlı sürüş yok.")).font(.subheadline).foregroundStyle(Theme.text2).frame(maxWidth: .infinity) }
             } else {
                 ForEach(list) { a in NavigationLink(value: a) { ActivityCard(act: act, a: a) }.buttonStyle(.plain) }
             }
@@ -487,9 +488,9 @@ struct ActivityTab: View {
         Panel {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Label("Adımlar", systemImage: "figure.walk").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Label(L("Adımlar"), systemImage: "figure.walk").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                     Spacer()
-                    Label("Apple Sağlık", systemImage: "heart.fill").font(.caption.weight(.semibold)).foregroundStyle(Theme.cKcal)
+                    Label(L("Apple Sağlık"), systemImage: "heart.fill").font(.caption.weight(.semibold)).foregroundStyle(Theme.cKcal)
                 }
                 if health.connected {
                     let cal = Calendar.current
@@ -497,11 +498,11 @@ struct ActivityTab: View {
                     let steps = health.week.first(where: { cal.isDate($0.day, inSameDayAs: selDay) })?.steps ?? 0
                     let dist = health.weekDist[cal.startOfDay(for: selDay)] ?? 0
                     HStack(alignment: .top) {
-                        StatCell(label: isToday ? "Bugün" : selDay.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)), value: steps.formatted(), unit: "adım", tint: Theme.cSteps, big: true)
-                        StatCell(label: "Yürünen", value: Fmt.km(dist), unit: Units.distUnit, tint: Theme.cDist, big: true)
+                        StatCell(label: isToday ? L("Bugün") : selDay.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)), value: steps.formatted(), unit: L("adım"), tint: Theme.cSteps, big: true)
+                        StatCell(label: L("Yürünen"), value: Fmt.km(dist), unit: Units.distUnit, tint: Theme.cDist, big: true)
                     }
                     Chart(health.week, id: \.day) { d in
-                        BarMark(x: .value("Gün", d.day, unit: .day), y: .value("Adım", max(d.steps, 60)), width: .ratio(0.55))
+                        BarMark(x: .value(L("Gün"), d.day, unit: .day), y: .value(L("Adım"), max(d.steps, 60)), width: .ratio(0.55))
                             .foregroundStyle(cal.isDate(d.day, inSameDayAs: selDay) ? Theme.cSteps : Theme.cSteps.opacity(0.32)).cornerRadius(5)
                     }
                     .chartYAxis(.hidden)
@@ -518,10 +519,10 @@ struct ActivityTab: View {
                         }
                     }
                     .frame(height: 84)
-                    Text("Bir güne dokun: o günün özeti açılır.").font(.caption).foregroundStyle(Theme.text3)
+                    Text(L("Bir güne dokun: o günün özeti açılır.")).font(.caption).foregroundStyle(Theme.text3)
                 } else {
-                    Text("Günlük adımların ve yürüyüşlerin burada görünsün. Bitirdiğin aktiviteler de Sağlık uygulamasına antrenman olarak yazılır.").font(.subheadline).foregroundStyle(Theme.text2)
-                    Button { health.connect() } label: { Label("Apple Sağlık'a bağlan", systemImage: "heart.fill") }.buttonStyle(AccButton(height: 46, color: Theme.cKcal))
+                    Text(L("Günlük adımların ve yürüyüşlerin burada görünsün. Bitirdiğin aktiviteler de Sağlık uygulamasına antrenman olarak yazılır.")).font(.subheadline).foregroundStyle(Theme.text2)
+                    Button { health.connect() } label: { Label(L("Apple Sağlık'a bağlan"), systemImage: "heart.fill") }.buttonStyle(AccButton(height: 46, color: Theme.cKcal))
                     if let e = health.lastError { Text(e).font(.caption).foregroundStyle(Theme.err) }
                 }
             }
@@ -531,6 +532,7 @@ struct ActivityTab: View {
 
 struct ActivityCard: View {
     @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
+    @AppStorage("lang") private var langPref = "auto"
     let act: ActivityRecorder
     let a: Activity
     var body: some View {
@@ -546,10 +548,10 @@ struct ActivityCard: View {
                 Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.text3)
             }.padding(14)
             HStack(alignment: .top, spacing: 8) {
-                StatCell(label: "Mesafe", value: Fmt.km(a.distance), unit: Units.distUnit, tint: Theme.cDist)
-                StatCell(label: "Süre", value: Fmt.dur(a.moving), tint: Theme.cTime)
-                if a.type.pace { StatCell(label: "Tempo", value: Fmt.pace(avg), unit: Units.paceUnit, tint: Theme.cPace) }
-                else { StatCell(label: "Hız", value: Fmt.num(Units.speed(avg), 1), unit: Units.speedUnit, tint: Theme.cPace) }
+                StatCell(label: L("Mesafe"), value: Fmt.km(a.distance), unit: Units.distUnit, tint: Theme.cDist)
+                StatCell(label: L("Süre"), value: Fmt.dur(a.moving), tint: Theme.cTime)
+                if a.type.pace { StatCell(label: L("Tempo"), value: Fmt.pace(avg), unit: Units.paceUnit, tint: Theme.cPace) }
+                else { StatCell(label: L("Hız"), value: Fmt.num(Units.speed(avg), 1), unit: Units.speedUnit, tint: Theme.cPace) }
             }.padding(.horizontal, 14).padding(.bottom, 12)
             RouteThumb(act: act, a: a).frame(height: 150)
         }
@@ -562,6 +564,7 @@ struct ActivityCard: View {
 
 struct RecordScreen: View {
     @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
+    @AppStorage("lang") private var langPref = "auto"
     @ObservedObject var act: ActivityRecorder
     @ObservedObject var health: HealthManager
     let done: (Activity?) -> Void
@@ -593,9 +596,9 @@ struct RecordScreen: View {
                         signal
                     }.padding(.horizontal, 16).padding(.top, 8)
                 } else if act.autoPaused && act.autoPause && act.state == .running {
-                    badge("Otomatik duraklatıldı", Theme.mid)
+                    badge(L("Otomatik duraklatıldı"), Theme.mid)
                 } else if act.state == .paused {
-                    badge("Duraklatıldı", Theme.text2)
+                    badge(L("Duraklatıldı"), Theme.text2)
                 }
                 Spacer()
                 panel
@@ -605,12 +608,12 @@ struct RecordScreen: View {
         .onAppear { act.preview() }
         .onDisappear { act.stopPreview(); UIApplication.shared.isIdleTimerDisabled = false }
         .onChange(of: act.state) { _, st in UIApplication.shared.isIdleTimerDisabled = keepAwake && st != .idle }
-        .confirmationDialog("Aktivite bitirilsin mi?", isPresented: $confirmEnd, titleVisibility: .visible) {
-            Button("Bitir ve kaydet") {
+        .confirmationDialog(L("Aktivite bitirilsin mi?"), isPresented: $confirmEnd, titleVisibility: .visible) {
+            Button(L("Bitir ve kaydet")) {
                 if let a = act.finish() { health.save(a, points: act.readPoints(a.id)); done(a) } else { done(nil) }
             }
-            Button("Kaydetmeden sil", role: .destructive) { act.discard(); done(nil) }
-            Button("Vazgeç", role: .cancel) {}
+            Button(L("Kaydetmeden sil"), role: .destructive) { act.discard(); done(nil) }
+            Button(L("Vazgeç"), role: .cancel) {}
         }
     }
 
@@ -621,7 +624,7 @@ struct RecordScreen: View {
 
     private var signal: some View {
         let acc = act.accuracy
-        let (txt, col): (String, Color) = acc == nil ? ("Konum bekleniyor", Theme.text2) : acc! <= 10 ? ("GPS iyi", Theme.ok) : acc! <= 25 ? ("GPS orta", Theme.mid) : ("GPS zayıf", Theme.err)
+        let (txt, col): (String, Color) = acc == nil ? (L("Konum bekleniyor"), Theme.text2) : acc! <= 10 ? ("GPS iyi", Theme.ok) : acc! <= 25 ? ("GPS orta", Theme.mid) : (L("GPS zayıf"), Theme.err)
         return HStack(spacing: 6) { Circle().fill(col).frame(width: 8, height: 8); Text(txt).font(.footnote.weight(.semibold)).foregroundStyle(Theme.text) }
             .padding(.horizontal, 12).frame(height: 34).background(Theme.bg.opacity(0.85), in: Capsule())
     }
@@ -657,17 +660,17 @@ struct RecordScreen: View {
                 }.padding(.horizontal, 2)
             }
             Button { act.start() } label: {
-                Text("BAŞLA").font(.system(size: 20, weight: .heavy, design: .rounded)).foregroundStyle(Theme.onAcc)
+                Text(L("BAŞLA")).font(.system(size: 20, weight: .heavy, design: .rounded)).foregroundStyle(Theme.onAcc)
                     .frame(width: 108, height: 108).background(act.type.color, in: Circle())
                     .overlay(Circle().stroke(act.type.color.opacity(0.35), lineWidth: 9))
                     .shadow(color: act.type.color.opacity(0.5), radius: 22)
             }.buttonStyle(.plain).padding(.vertical, 6)
             VStack(spacing: 0) {
                 if act.type.kind.supportsAutoPause {
-                    Toggle("Otomatik duraklat", isOn: $act.autoPause).padding(.vertical, 8)
+                    Toggle(L("Otomatik duraklat"), isOn: $act.autoPause).padding(.vertical, 8)
                     Divider().overlay(Theme.line)
                 }
-                Toggle("Her kilometrede sesli bildirim", isOn: $act.voice).padding(.vertical, 8)
+                Toggle(L("Her kilometrede sesli bildirim"), isOn: $act.voice).padding(.vertical, 8)
             }
             .tint(act.type.color).foregroundStyle(Theme.text).font(.subheadline)
             .padding(.horizontal, 14).background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -682,13 +685,13 @@ struct RecordScreen: View {
         return VStack(spacing: 14) {
             VStack(spacing: 0) {
                 Text(Fmt.dur(act.moving)).font(.system(size: 68, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(Theme.cTime)
-                Text("Süre").font(.footnote.weight(.semibold)).foregroundStyle(Theme.text2)
+                Text(L("Süre")).font(.footnote.weight(.semibold)).foregroundStyle(Theme.text2)
             }
             HStack(alignment: .top, spacing: 0) {
-                big(Fmt.km(a?.distance ?? 0), "Mesafe (\(Units.distUnit))", Theme.cDist)
-                big(pace ? Fmt.pace(act.speed ?? 0) : (act.speed.map { Fmt.num(Units.speed($0), 1) } ?? "—"), pace ? "Anlık tempo" : "Hız (\(Units.speedUnit))", Theme.cPace)
-                if let k = kcal { big(Fmt.num(k), "Kalori", Theme.cKcal) }
-                else { big(pace ? Fmt.pace(avg) : Fmt.num(Units.speed(avg), 1), pace ? "Ort. tempo" : "Ort. hız", Theme.text) }
+                big(Fmt.km(a?.distance ?? 0), LF("Mesafe (%@)", Units.distUnit), Theme.cDist)
+                big(pace ? Fmt.pace(act.speed ?? 0) : (act.speed.map { Fmt.num(Units.speed($0), 1) } ?? "—"), pace ? L("Anlık tempo") : LF("Hız (%@)", Units.speedUnit), Theme.cPace)
+                if let k = kcal { big(Fmt.num(k), L("Kalori"), Theme.cKcal) }
+                else { big(pace ? Fmt.pace(avg) : Fmt.num(Units.speed(avg), 1), pace ? L("Ort. tempo") : L("Ort. hız"), Theme.text) }
             }
             HStack(spacing: 28) {
                 if act.state == .running {
@@ -699,12 +702,12 @@ struct RecordScreen: View {
                 }
             }.padding(.top, 4)
             if act.type.kind.supportsAutoPause {
-                Toggle("Otomatik duraklat", isOn: $act.autoPause).font(.subheadline).foregroundStyle(Theme.text)
+                Toggle(L("Otomatik duraklat"), isOn: $act.autoPause).font(.subheadline).foregroundStyle(Theme.text)
                     .tint(act.type.color).padding(.horizontal, 14).padding(.vertical, 6)
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             if act.state == .running {
-                Button { confirmEnd = true } label: { Text("Bitir").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text2).frame(height: 36) }
+                Button { confirmEnd = true } label: { Text(L("Bitir")).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text2).frame(height: 36) }
             }
         }
     }
@@ -726,6 +729,7 @@ struct Split: Identifiable { let id: Int; let len: Double; let time: Double; let
 
 struct ActivityDetail: View {
     @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
+    @AppStorage("lang") private var langPref = "auto"
     @EnvironmentObject var model: AppModel
     @ObservedObject var act: ActivityRecorder
     @ObservedObject var health: HealthManager
@@ -763,14 +767,14 @@ struct ActivityDetail: View {
                     statsPanel
                     qualityNote
                     VStack(spacing: 10) {
-                        Button { photo = true } label: { Label("Fotoğrafa ekle", systemImage: "photo") }.buttonStyle(AccButton(height: 52))
-                        Button { videoPick = true } label: { Label("Videoya ekle", systemImage: "film") }.buttonStyle(GhostButton(height: 52))
-                        if coords.count > 1 { Button { flyover = true } label: { Label("Flyover videosu", systemImage: "globe.europe.africa.fill") }.buttonStyle(GhostButton(height: 52)) }
+                        Button { photo = true } label: { Label(L("Fotoğrafa ekle"), systemImage: "photo") }.buttonStyle(AccButton(height: 52))
+                        Button { videoPick = true } label: { Label(L("Videoya ekle"), systemImage: "film") }.buttonStyle(GhostButton(height: 52))
+                        if coords.count > 1 { Button { flyover = true } label: { Label(L("Flyover videosu"), systemImage: "globe.europe.africa.fill") }.buttonStyle(GhostButton(height: 52)) }
                     }
                     if elev.count > 2 {
                         Panel {
                             VStack(alignment: .leading, spacing: 10) {
-                                Label("Yükseklik", systemImage: "mountain.2.fill").font(.subheadline.weight(.bold)).foregroundStyle(Theme.cElev)
+                                Label(L("Yükseklik"), systemImage: "mountain.2.fill").font(.subheadline.weight(.bold)).foregroundStyle(Theme.cElev)
                                 Chart(elev.indices, id: \.self) { i in
                                     AreaMark(x: .value("km", elev[i].0), y: .value("m", elev[i].1)).foregroundStyle(LinearGradient(colors: [Theme.cElev.opacity(0.35), Theme.cElev.opacity(0.02)], startPoint: .top, endPoint: .bottom))
                                     LineMark(x: .value("km", elev[i].0), y: .value("m", elev[i].1)).foregroundStyle(Theme.cElev)
@@ -788,8 +792,8 @@ struct ActivityDetail: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    ShareLink(item: act.gpxURL(a)) { Label("GPX paylaş", systemImage: "square.and.arrow.up") }
-                    Button(role: .destructive) { confirmDel = true } label: { Label("Sil", systemImage: "trash") }
+                    ShareLink(item: act.gpxURL(a)) { Label(L("GPX paylaş"), systemImage: "square.and.arrow.up") }
+                    Button(role: .destructive) { confirmDel = true } label: { Label(L("Sil"), systemImage: "trash") }
                 } label: { Image(systemName: "ellipsis.circle") }
             }
         }
@@ -804,8 +808,8 @@ struct ActivityDetail: View {
         }
         .sheet(isPresented: $showSettings) { ActivitySettings(act: act, health: health) }
         .fullScreenCover(isPresented: $flyover) { FlyoverView(a: a, points: act.readPoints(a.id)) }
-        .confirmationDialog("Aktivite silinsin mi? Bu işlem geri alınamaz.", isPresented: $confirmDel, titleVisibility: .visible) {
-            Button("Sil", role: .destructive) { act.delete(a); dismiss() }
+        .confirmationDialog(L("Aktivite silinsin mi? Bu işlem geri alınamaz."), isPresented: $confirmDel, titleVisibility: .visible) {
+            Button(L("Sil"), role: .destructive) { act.delete(a); dismiss() }
         }
     }
 
@@ -825,9 +829,9 @@ struct ActivityDetail: View {
                 .frame(height: 330)
                 .overlay(alignment: .bottomLeading) {
                     HStack(spacing: 8) {
-                        Text("Yavaş").font(.caption2.weight(.bold)).foregroundStyle(Theme.text)
+                        Text(L("Yavaş")).font(.caption2.weight(.bold)).foregroundStyle(Theme.text)
                         Capsule().fill(LinearGradient(colors: [speedColor(0), speedColor(0.5), speedColor(1)], startPoint: .leading, endPoint: .trailing)).frame(width: 64, height: 6)
-                        Text("Hızlı").font(.caption2.weight(.bold)).foregroundStyle(Theme.text)
+                        Text(L("Hızlı")).font(.caption2.weight(.bold)).foregroundStyle(Theme.text)
                     }.padding(.horizontal, 12).padding(.vertical, 7).background(.black.opacity(0.6), in: Capsule()).padding(12)
                 }
             } else {
@@ -843,8 +847,8 @@ struct ActivityDetail: View {
             Panel {
                 HStack(spacing: 12) {
                     Image(systemName: t.icon).font(.title3.weight(.bold)).foregroundStyle(t.color)
-                    Text("Bu hızda \(t.name.lowercased()) gibi görünüyor. Türü değiştirirsen kalori de ona göre hesaplanır.").font(.subheadline).foregroundStyle(Theme.text2)
-                    Button("Değiştir") { act.setType(a.id, to: t) }.font(.subheadline.weight(.bold)).foregroundStyle(Theme.acc).buttonStyle(.plain)
+                    Text(LF("Bu hızda %@ gibi görünüyor. Türü değiştirirsen kalori de ona göre hesaplanır.", t.name.lowercased())).font(.subheadline).foregroundStyle(Theme.text2)
+                    Button(L("Değiştir")) { act.setType(a.id, to: t) }.font(.subheadline.weight(.bold)).foregroundStyle(Theme.acc).buttonStyle(.plain)
                 }
             }
         }
@@ -853,7 +857,7 @@ struct ActivityDetail: View {
     /// GPS çok zayıfsa kullanıcı bilsin: mesafe ve rota eksik olabilir
     @ViewBuilder private var qualityNote: some View {
         if let w = a.weakPct, w >= 0.2 {
-            Label("GPS sinyali kaydın %\(Int((w * 100).rounded()))'inde zayıftı; mesafe ve rota gerçekten biraz farklı olabilir.", systemImage: "antenna.radiowaves.left.and.right.slash")
+            Label(LF("GPS sinyali kaydın %%%d'inde zayıftı; mesafe ve rota gerçekten biraz farklı olabilir.", Int((w * 100).rounded())), systemImage: "antenna.radiowaves.left.and.right.slash")
                 .font(.footnote).foregroundStyle(Theme.text2)
         }
     }
@@ -869,16 +873,16 @@ struct ActivityDetail: View {
                 }
                 Divider().overlay(Theme.line)
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], alignment: .leading, spacing: 18) {
-                    StatCell(label: "Süre", value: Fmt.dur(a.moving), tint: Theme.cTime, big: true)
-                    if let k = kcal { StatCell(label: "Aktif kalori", value: Fmt.num(k), unit: "kcal", tint: Theme.cKcal, big: true) }
-                    else if a.type.kind.countsCalories { Button { showSettings = true } label: { StatCell(label: "Aktif kalori", value: "—", unit: "kilonu gir", tint: Theme.cKcal, big: true) }.buttonStyle(.plain) }
-                    if a.type.pace { StatCell(label: "Ort. tempo", value: Fmt.pace(avg), unit: Units.paceUnit, tint: Theme.cPace, big: true) }
-                    else { StatCell(label: "Ort. hız", value: Fmt.num(Units.speed(avg), 1), unit: Units.speedUnit, tint: Theme.cPace, big: true) }
-                    StatCell(label: a.baro == true ? "Yükseliş (barometre)" : "Yükseliş", value: Fmt.num(Units.elev(a.gain)), unit: Units.elevUnit, tint: Theme.cElev, big: true)
+                    StatCell(label: L("Süre"), value: Fmt.dur(a.moving), tint: Theme.cTime, big: true)
+                    if let k = kcal { StatCell(label: L("Aktif kalori"), value: Fmt.num(k), unit: "kcal", tint: Theme.cKcal, big: true) }
+                    else if a.type.kind.countsCalories { Button { showSettings = true } label: { StatCell(label: L("Aktif kalori"), value: "—", unit: "kilonu gir", tint: Theme.cKcal, big: true) }.buttonStyle(.plain) }
+                    if a.type.pace { StatCell(label: L("Ort. tempo"), value: Fmt.pace(avg), unit: Units.paceUnit, tint: Theme.cPace, big: true) }
+                    else { StatCell(label: L("Ort. hız"), value: Fmt.num(Units.speed(avg), 1), unit: Units.speedUnit, tint: Theme.cPace, big: true) }
+                    StatCell(label: a.baro == true ? L("Yükseliş (barometre)") : L("Yükseliş"), value: Fmt.num(Units.elev(a.gain)), unit: Units.elevUnit, tint: Theme.cElev, big: true)
                     if a.type.pace { StatCell(label: "En iyi tempo", value: Fmt.pace(min(a.maxSpeed, a.type.maxPlausible)), unit: Units.paceUnit, tint: Theme.cMax, big: true) }
-                    else { StatCell(label: "Maks hız", value: Fmt.num(Units.speed(min(a.maxSpeed, a.type.maxPlausible))), unit: Units.speedUnit, tint: Theme.cMax, big: true) }
-                    if let s = steps, s > 0 { StatCell(label: "Adım", value: s.formatted(), tint: Theme.cSteps, big: true) }
-                    else { StatCell(label: "Geçen süre", value: Fmt.dur((a.end ?? a.start).timeIntervalSince(a.start)), big: true) }
+                    else { StatCell(label: L("Maks hız"), value: Fmt.num(Units.speed(min(a.maxSpeed, a.type.maxPlausible))), unit: Units.speedUnit, tint: Theme.cMax, big: true) }
+                    if let s = steps, s > 0 { StatCell(label: L("Adım"), value: s.formatted(), tint: Theme.cSteps, big: true) }
+                    else { StatCell(label: L("Geçen süre"), value: Fmt.dur((a.end ?? a.start).timeIntervalSince(a.start)), big: true) }
                 }
             }
         }
@@ -887,13 +891,13 @@ struct ActivityDetail: View {
     private var splitsPanel: some View {
         Panel {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Kilometre bölümleri").font(.subheadline.weight(.bold)).foregroundStyle(Theme.text).padding(.bottom, 6)
+                Text(L("Kilometre bölümleri")).font(.subheadline.weight(.bold)).foregroundStyle(Theme.text).padding(.bottom, 6)
                 let rates = splits.map { $0.time / max($0.len, 1) }
                 let best = rates.min() ?? 1, worst = rates.max() ?? 1
                 HStack {
                     Text("Km").frame(width: 40, alignment: .leading)
-                    Text(a.type.pace ? "Tempo" : "Hız").frame(width: 84, alignment: .leading)
-                    Text("Yükseklik").frame(width: 70, alignment: .leading)
+                    Text(a.type.pace ? L("Tempo") : L("Hız")).frame(width: 84, alignment: .leading)
+                    Text(L("Yükseklik")).frame(width: 70, alignment: .leading)
                     Spacer()
                 }.font(.caption).foregroundStyle(Theme.text3)
                 ForEach(splits) { s in
@@ -959,9 +963,9 @@ struct PhotoEditorSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                Text(replacing == nil ? "Fotoğrafa ekle" : "Paylaşımı düzenle").font(.headline).foregroundStyle(Theme.text)
+                Text(replacing == nil ? L("Fotoğrafa ekle") : L("Paylaşımı düzenle")).font(.headline).foregroundStyle(Theme.text)
                 HStack {
-                    Button { dismiss() } label: { Text("Kapat").font(.body.weight(.medium)).foregroundStyle(Theme.text).padding(.horizontal, 14).frame(height: 36).background(Theme.card2, in: Capsule()) }.buttonStyle(.plain)
+                    Button { dismiss() } label: { Text(L("Kapat")).font(.body.weight(.medium)).foregroundStyle(Theme.text).padding(.horizontal, 14).frame(height: 36).background(Theme.card2, in: Capsule()) }.buttonStyle(.plain)
                     Spacer()
                 }
             }.padding(.horizontal, 16).frame(height: 56).background(Theme.bg)
@@ -978,15 +982,15 @@ struct PhotoEditorSheet: View {
         .background(Theme.bg.ignoresSafeArea())
         .environment(\.colorScheme, .dark)
         .presentationDragIndicator(.visible)
-        .alert(replacing == nil ? "Açıklama ekle" : "Açıklamayı düzenle", isPresented: $askCaption) {
-            TextField("İsteğe bağlı", text: $caption)
-            Button(replacing == nil ? "Profilde paylaş" : "Güncelle") {
+        .alert(replacing == nil ? L("Açıklama ekle") : L("Açıklamayı düzenle"), isPresented: $askCaption) {
+            TextField(L("İsteğe bağlı"), text: $caption)
+            Button(replacing == nil ? L("Profilde paylaş") : L("Güncelle")) {
                 guard let (d, ext) = shareData else { return }
                 if let r = replacing { model.profile.replace(r, data: d, ext: ext, caption: caption, editState: editState, editPhoto: editPhoto) }
                 else { model.profile.add(data: d, ext: ext, title: name, type: type, caption: caption, activityId: lead?.id, editState: editState, editPhoto: editPhoto) }
                 model.tab = 2; dismiss()
             }
-            Button("Vazgeç", role: .cancel) {}
+            Button(L("Vazgeç"), role: .cancel) {}
         }
     }
 }
@@ -998,7 +1002,7 @@ struct ActivityWeb: UIViewRepresentable {
     var restore: [String: Any]? = nil
     let toVideo: (String, String) -> Void
     var onImage: ((URL) -> Void)? = nil     // dışa aktarılan görsel (profil galerisine eklenir)
-    var onProfile: ((Data, String, String?, String?) -> Void)? = nil   // "Profilde paylaş": ham görsel verisi + uzantı
+    var onProfile: ((Data, String, String?, String?) -> Void)? = nil   // L("Profilde paylaş"): ham görsel verisi + uzantı
     static let url = URL(string: "https://telemetrigo.rahimov.tr/aktivite.html?app=1")!
 
     func makeCoordinator() -> C { C(self) }
@@ -1042,7 +1046,7 @@ struct ActivityWeb: UIViewRepresentable {
                         let e = err.replacingOccurrences(of: "'", with: " ").replacingOccurrences(of: "\n", with: " ")
                         DispatchQueue.main.async { self?.web?.evaluateJavaScript("window.tgSaved && tgSaved(\(ok), '\(e)')") }
                     }
-                    guard st == .authorized || st == .limited else { reply(false, "Fotoğraflar izni verilmedi (Ayarlar > KROVA > Fotoğraflar)"); return }
+                    guard st == .authorized || st == .limited else { reply(false, L("Fotoğraflar izni verilmedi (Ayarlar > KROVA > Fotoğraflar)")); return }
                     let url = FileManager.default.temporaryDirectory.appendingPathComponent("KROVA-\(Int(Date().timeIntervalSince1970)).\(ext)")
                     do { try d.write(to: url, options: .atomic) } catch { reply(false, error.localizedDescription); return }
                     PHPhotoLibrary.shared().performChanges({ PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url) }) { ok, e in
@@ -1087,6 +1091,7 @@ struct ActivitySettings: View {
     @AppStorage("keepAwake") private var keepAwake = false
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("units") private var units = "metric"
+    @AppStorage("lang") private var lang = "auto"
     @AppStorage("profKg") private var kg = 0.0
     @AppStorage("profCm") private var cm = 0.0
     @AppStorage("goalKcal") private var goalKcal = 300.0
@@ -1107,68 +1112,68 @@ struct ActivitySettings: View {
         NavigationStack {
             List {
                 Section {
-                    Picker("Tema", selection: $appearance) { Text("Sistem").tag("system"); Text("Koyu").tag("dark"); Text("Açık").tag("light") }.pickerStyle(.segmented)
-                } header: { head("Görünüm") } footer: { foot("Stüdyo (video) ekranı şimdilik her zaman koyu kalır.") }
+                    Picker(L("Tema"), selection: $appearance) { Text(L("Sistem")).tag("system"); Text(L("Koyu")).tag("dark"); Text(L("Açık")).tag("light") }.pickerStyle(.segmented)
+                } header: { head(L("Görünüm")) } footer: { foot(L("Stüdyo (video) ekranı şimdilik her zaman koyu kalır.")) }
                 .listRowBackground(Theme.card)
 
                 Section {
-                    Picker("Birim", selection: $units) { Text("Kilometre (km, m)").tag("metric"); Text("Mil (mi, ft)").tag("imperial") }.pickerStyle(.segmented)
-                } header: { head("Birimler") } footer: { foot("Mesafe, hız, tempo ve yükseklik gösterimini değiştirir. Kayıtlar değişmez. Kilometre bölümleri tablosu ve sesli bildirim şimdilik kilometre olarak kalır.") }
+                    Picker(L("Birim"), selection: $units) { Text(L("Kilometre (km, m)")).tag("metric"); Text(L("Mil (mi, ft)")).tag("imperial") }.pickerStyle(.segmented)
+                } header: { head(L("Birimler")) } footer: { foot(L("Mesafe, hız, tempo ve yükseklik gösterimini değiştirir. Kayıtlar değişmez. Kilometre bölümleri tablosu ve sesli bildirim şimdilik kilometre olarak kalır.")) }
                 .listRowBackground(Theme.card)
 
                 Section {
-                    HStack { Text("Kilo"); Spacer(); TextField("0", value: $kg, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("kg").foregroundStyle(Theme.text2) }
-                    HStack { Text("Boy"); Spacer(); TextField("0", value: $cm, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("cm").foregroundStyle(Theme.text2) }
+                    HStack { Text(L("Kilo")); Spacer(); TextField("0", value: $kg, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("kg").foregroundStyle(Theme.text2) }
+                    HStack { Text(L("Boy")); Spacer(); TextField("0", value: $cm, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("cm").foregroundStyle(Theme.text2) }
                     if HealthManager.available && health.connected {
-                        Button { health.fetchProfile { w, h, msg in if let w { kg = w }; if let h { cm = h }; profMsg = msg } } label: { Label("Sağlık'tan al", systemImage: "heart.fill").foregroundStyle(Theme.cKcal) }
+                        Button { health.fetchProfile { w, h, msg in if let w { kg = w }; if let h { cm = h }; profMsg = msg } } label: { Label(L("Sağlık'tan al"), systemImage: "heart.fill").foregroundStyle(Theme.cKcal) }
                     }
                     if let m = profMsg { Text(m).font(.footnote).foregroundStyle(Theme.text2) }
-                } header: { head("Vücut bilgileri") } footer: { foot("Kalori hesabı için kullanılır; yalnızca bu cihazda tutulur. Aktif kalori = hareketle yakılan enerji (dinlenme enerjisi çıkarılmış), Apple Fitness'taki gibi.") }
+                } header: { head(L("Vücut bilgileri")) } footer: { foot(L("Kalori hesabı için kullanılır; yalnızca bu cihazda tutulur. Aktif kalori = hareketle yakılan enerji (dinlenme enerjisi çıkarılmış), Apple Fitness'taki gibi.")) }
                 .listRowBackground(Theme.card)
 
                 Section {
-                    HStack { Text("Kalori"); Spacer(); TextField("300", value: $goalKcal, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text("kcal").foregroundStyle(Theme.text2) }
-                    HStack { Text("Süre"); Spacer(); TextField("30", value: $goalMin, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text("dk").foregroundStyle(Theme.text2) }
-                    HStack { Text("Adım"); Spacer(); TextField("8000", value: $goalSteps, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text("adım").foregroundStyle(Theme.text2) }
-                } header: { head("Günlük hedefler") }
+                    HStack { Text(L("Kalori")); Spacer(); TextField("300", value: $goalKcal, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text("kcal").foregroundStyle(Theme.text2) }
+                    HStack { Text(L("Süre")); Spacer(); TextField("30", value: $goalMin, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text("dk").foregroundStyle(Theme.text2) }
+                    HStack { Text(L("Adım")); Spacer(); TextField("8000", value: $goalSteps, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text(L("adım")).foregroundStyle(Theme.text2) }
+                } header: { head(L("Günlük hedefler")) }
                 .listRowBackground(Theme.card)
 
                 Section {
-                    Toggle("Yürüyüş", isOn: $apW).onChange(of: apW) { _, v in save(.yuruyus, v) }
-                    Toggle("Koşu", isOn: $apR).onChange(of: apR) { _, v in save(.kosu, v) }
-                    Toggle("Tırmanış", isOn: $apT).onChange(of: apT) { _, v in save(.tirmanis, v) }
-                    Toggle("Bisiklet", isOn: $apB).onChange(of: apB) { _, v in save(.bisiklet, v) }
-                } header: { head("Otomatik duraklat") } footer: { foot("Yaklaşık 10 saniye yerinde durursan kayıt kendiliğinden bekler, yürümeye başlayınca devam eder. Yürüyüşte varsayılan kapalıdır.") }
+                    Toggle(L("Yürüyüş"), isOn: $apW).onChange(of: apW) { _, v in save(.yuruyus, v) }
+                    Toggle(L("Koşu"), isOn: $apR).onChange(of: apR) { _, v in save(.kosu, v) }
+                    Toggle(L("Tırmanış"), isOn: $apT).onChange(of: apT) { _, v in save(.tirmanis, v) }
+                    Toggle(L("Bisiklet"), isOn: $apB).onChange(of: apB) { _, v in save(.bisiklet, v) }
+                } header: { head(L("Otomatik duraklat")) } footer: { foot(L("Yaklaşık 10 saniye yerinde durursan kayıt kendiliğinden bekler, yürümeye başlayınca devam eder. Yürüyüşte varsayılan kapalıdır.")) }
                 .listRowBackground(Theme.card)
 
                 Section {
-                    Toggle("Sesli bildirim", isOn: $act.voice)
+                    Toggle(L("Sesli bildirim"), isOn: $act.voice)
                     if act.voice {
-                        Picker("Sıklık", selection: $act.voiceEvery) {
-                            Text("Her 1 km").tag(1); Text("Her 2 km").tag(2); Text("Her 5 km").tag(5)
+                        Picker(L("Sıklık"), selection: $act.voiceEvery) {
+                            Text(L("Her 1 km")).tag(1); Text(L("Her 2 km")).tag(2); Text(L("Her 5 km")).tag(5)
                         }.pickerStyle(.menu)
                     }
-                    Toggle("Ekran açık kalsın", isOn: $keepAwake)
-                } header: { head("Kayıt sırasında") } footer: { foot("Ekran açık kalırsa pil daha hızlı biter. Kapalıyken de kayıt sürer.") }
+                    Toggle(L("Ekran açık kalsın"), isOn: $keepAwake)
+                } header: { head(L("Kayıt sırasında")) } footer: { foot(L("Ekran açık kalırsa pil daha hızlı biter. Kapalıyken de kayıt sürer.")) }
                 .listRowBackground(Theme.card)
 
                 if HealthManager.available {
                     Section {
                         if health.connected {
-                            Toggle("Adım kartını göster", isOn: $showSteps)
-                            Toggle("Aktiviteyi Sağlık'a kaydet", isOn: $health.write)
-                            Toggle("Kaloriyi de yaz (saat takıyorsan kapat)", isOn: $health.writeEnergy).disabled(!health.write)
-                            Button("Bağlantıyı kes", role: .destructive) { health.disconnect() }
+                            Toggle(L("Adım kartını göster"), isOn: $showSteps)
+                            Toggle(L("Aktiviteyi Sağlık'a kaydet"), isOn: $health.write)
+                            Toggle(L("Kaloriyi de yaz (saat takıyorsan kapat)"), isOn: $health.writeEnergy).disabled(!health.write)
+                            Button(L("Bağlantıyı kes"), role: .destructive) { health.disconnect() }
                         } else {
-                            Button { health.connect() } label: { Label("Apple Sağlık'a bağlan", systemImage: "heart.fill").foregroundStyle(Theme.acc) }
+                            Button { health.connect() } label: { Label(L("Apple Sağlık'a bağlan"), systemImage: "heart.fill").foregroundStyle(Theme.acc) }
                         }
-                    } header: { head("Apple Sağlık") } footer: { foot("Adımlar yalnızca bu cihazda gösterilir. İstersen fotoğrafa ekleyeceğin değerler arasından \"Adım\"ı seçebilirsin. Erişimi iPhone Ayarlar > Sağlık > Veri Erişimi bölümünden de değiştirebilirsin.") }
+                    } header: { head(L("Apple Sağlık")) } footer: { foot(L("Adımlar yalnızca bu cihazda gösterilir. İstersen fotoğrafa ekleyeceğin değerler arasından \"Adım\"ı seçebilirsin. Erişimi iPhone Ayarlar > Sağlık > Veri Erişimi bölümünden de değiştirebilirsin.")) }
                     .listRowBackground(Theme.card)
                 }
 
                 Section {
-                    Button { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) } } label: { Label("Konum izni ayarları", systemImage: "location") }
-                } header: { head("İzinler") } footer: { foot("Kayıt ekran kilitliyken de sürsün diye konum izni \"Her zaman\" olmalı.") }
+                    Button { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) } } label: { Label(L("Konum izni ayarları"), systemImage: "location") }
+                } header: { head(L("İzinler")) } footer: { foot(L("Kayıt ekran kilitliyken de sürsün diye konum izni \"Her zaman\" olmalı.")) }
                 .listRowBackground(Theme.card)
             }
             .foregroundStyle(Theme.text)
@@ -1177,8 +1182,8 @@ struct ActivitySettings: View {
             .background(Theme.bg.ignoresSafeArea())
             .safeAreaInset(edge: .top, spacing: 0) {
                 ZStack {
-                    Text(embedded ? "Profil" : "Aktivite ayarları").font(.headline).foregroundStyle(Theme.text)
-                    if !embedded { HStack { Spacer(); Button { dismiss() } label: { Text("Bitti").font(.body.weight(.semibold)).foregroundStyle(Theme.onAcc).padding(.horizontal, 16).frame(height: 36).background(Theme.acc, in: Capsule()) }.buttonStyle(.plain) } }
+                    Text(embedded ? L("Profil") : L("Aktivite ayarları")).font(.headline).foregroundStyle(Theme.text)
+                    if !embedded { HStack { Spacer(); Button { dismiss() } label: { Text(L("Bitti")).font(.body.weight(.semibold)).foregroundStyle(Theme.onAcc).padding(.horizontal, 16).frame(height: 36).background(Theme.acc, in: Capsule()) }.buttonStyle(.plain) } }
                 }.padding(.horizontal, 16).frame(height: 56).background(Theme.bg)
             }
             .toolbar(.hidden, for: .navigationBar)

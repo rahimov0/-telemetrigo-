@@ -56,7 +56,7 @@ final class GoProManager: NSObject, ObservableObject {
         giveUp = Timer.scheduledTimer(withTimeInterval: 25, repeats: false) { [weak self] _ in
             guard let self, self.phase == .scanning || self.phase == .connecting else { return }
             self.disconnect()
-            self.phase = .failed("Kamera bulunamadı. GoPro açık mı ve telefonun yakınında mı?")
+            self.phase = .failed(L("Kamera bulunamadı. GoPro açık mı ve telefonun yakınında mı?"))
         }
         if let s = UserDefaults.standard.string(forKey: Self.savedKey), let id = UUID(uuidString: s),
            let p = central.retrievePeripherals(withIdentifiers: [id]).first {
@@ -146,7 +146,7 @@ final class GoProManager: NSObject, ObservableObject {
         let b = [UInt8](msg); guard b.count >= 2 else { return }
         if uuid == Self.cmdResp {
             let id = b[0], ok = b[1] == 0
-            if id == 0x01 { pendingShutter?(ok); pendingShutter = nil; if !ok { lastError = "GoPro kayıt komutunu reddetti (kart dolu/yok ya da kamera meşgul olabilir)." } }
+            if id == 0x01 { pendingShutter?(ok); pendingShutter = nil; if !ok { lastError = L("GoPro kayıt komutunu reddetti (kart dolu/yok ya da kamera meşgul olabilir).") } }
             if id == 0x0F && !ok { syncClockFallback() }
             return
         }
@@ -207,16 +207,16 @@ extension GoProManager: CBCentralManagerDelegate {
         p.discoverServices(nil)
     }
     func centralManager(_ c: CBCentralManager, didFailToConnect p: CBPeripheral, error: Error?) {
-        cleanup(); phase = .failed("Bağlanılamadı: \(error?.localizedDescription ?? "bilinmeyen hata")")
+        cleanup(); phase = .failed(LF("Bağlanılamadı: %@", error?.localizedDescription ?? L("bilinmeyen hata")))
         if wantConnect && reconnectWhileRecording { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in if self?.wantConnect == true { self?.connect() } } } else { wantConnect = false }
     }
     func centralManager(_ c: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) {
         let wasReady = phase == .ready
         cleanup()
-        if wantConnect && !reconnectWhileRecording { wantConnect = false; phase = .idle; if wasReady { lastError = "GoPro bağlantısı kapandı." }; return }
+        if wantConnect && !reconnectWhileRecording { wantConnect = false; phase = .idle; if wasReady { lastError = L("GoPro bağlantısı kapandı.") }; return }
         if wantConnect {
             phase = .scanning
-            if wasReady { lastError = "GoPro bağlantısı koptu, yeniden bağlanılıyor…" }
+            if wasReady { lastError = L("GoPro bağlantısı koptu, yeniden bağlanılıyor…") }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in if self?.wantConnect == true { self?.connect() } }
         } else { phase = .idle }
     }
@@ -235,7 +235,7 @@ extension GoProManager: CBPeripheralDelegate {
     func peripheral(_ p: CBPeripheral, didUpdateNotificationStateFor c: CBCharacteristic, error: Error?) {
         if let error {
             // şifreli özellik: eşleşme yoksa burada hata gelir
-            phase = .failed("Eşleşme gerekli. GoPro'da: Tercihler → Kablosuz Bağlantılar → Cihaz Bağla → GoPro Quik. (\(error.localizedDescription))")
+            phase = .failed(LF("Eşleşme gerekli. GoPro'da: Tercihler → Kablosuz Bağlantılar → Cihaz Bağla → GoPro Quik. (%@)", error.localizedDescription))
             return
         }
         let need = [Self.cmdResp, Self.settingResp, Self.queryResp]

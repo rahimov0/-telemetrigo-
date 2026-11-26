@@ -45,8 +45,8 @@ final class HealthManager: ObservableObject {
             guard let self else { return }
             if let err { DispatchQueue.main.async { done(nil, nil, err.localizedDescription) }; return }
             self.loadProfile { w, h in
-                if w == nil && h == nil { done(nil, nil, "Sağlık'ta kilo/boy bulunamadı ya da erişim kapalı. iPhone Ayarlar > Sağlık > Veri Erişimi > KROVA'dan aç; ya da elle gir.") }
-                else { done(w, h, "Sağlık'tan alındı.") }
+                if w == nil && h == nil { done(nil, nil, L("Sağlık'ta kilo/boy bulunamadı ya da erişim kapalı. iPhone Ayarlar > Sağlık > Veri Erişimi > KROVA'dan aç; ya da elle gir.")) }
+                else { done(w, h, L("Sağlık'tan alındı.")) }
             }
         }
     }
@@ -67,7 +67,7 @@ final class HealthManager: ObservableObject {
     }
 
     func connect() {
-        guard Self.available else { lastError = "Bu cihazda Sağlık verisi yok."; return }
+        guard Self.available else { lastError = L("Bu cihazda Sağlık verisi yok."); return }
         let read: Set<HKObjectType> = [stepType, walkDist, energyType, HKObjectType.activitySummaryType(), massType, heightType]
         let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), walkDist, cycDist, energyType]
         store.requestAuthorization(toShare: share, read: read) { [weak self] ok, err in

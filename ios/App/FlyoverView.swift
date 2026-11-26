@@ -42,14 +42,14 @@ enum FlyStat: String, CaseIterable, Identifiable {
     case speed, gain, dist, time, alt
     var id: String { rawValue }
     func title(pace: Bool) -> String {
-        switch self { case .speed: return pace ? "Tempo" : "Hız"; case .gain: return "Yükseliş"; case .dist: return "Mesafe"; case .time: return "Süre"; case .alt: return "Yükseklik" }
+        switch self { case .speed: return pace ? L("Tempo") : L("Hız"); case .gain: return L("Yükseliş"); case .dist: return L("Mesafe"); case .time: return L("Süre"); case .alt: return L("Yükseklik") }
     }
 }
 enum FlyPalette {
     static let all: [(key: String, name: String, color: Color)] = [
-        ("white", "Beyaz", .white), ("orange", "Turuncu", Color(red: 1.0, green: 0.353, blue: 0.122)),
-        ("yellow", "Sarı", Color(red: 1.0, green: 0.82, blue: 0.2)), ("blue", "Mavi", Color(red: 0.35, green: 0.7, blue: 1.0)),
-        ("green", "Yeşil", Color(red: 0.4, green: 0.9, blue: 0.55)), ("pink", "Pembe", Color(red: 1.0, green: 0.45, blue: 0.7))
+        ("white", L("Beyaz"), .white), ("orange", L("Turuncu"), Color(red: 1.0, green: 0.353, blue: 0.122)),
+        ("yellow", L("Sarı"), Color(red: 1.0, green: 0.82, blue: 0.2)), ("blue", L("Mavi"), Color(red: 0.35, green: 0.7, blue: 1.0)),
+        ("green", L("Yeşil"), Color(red: 0.4, green: 0.9, blue: 0.55)), ("pink", L("Pembe"), Color(red: 1.0, green: 0.45, blue: 0.7))
     ]
     static func color(_ k: String) -> Color { all.first { $0.key == k }?.color ?? .white }
 }
@@ -118,16 +118,16 @@ struct FlyoverView: View {
             if d && warming { warming = false; seconds = savedSeconds; base = 0; DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { startRecord() } }
             else if d && recording { DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { stopRecord() } }
         }
-        .alert("Flyover", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
-            Button("Tamam") {}
+        .alert(L("Flyover"), isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
+            Button(L("Tamam")) {}
         } message: { Text(message ?? "") }
-        .alert("Kaydetmeden önce", isPresented: Binding(get: { pendingExport != nil }, set: { if !$0 { pendingExport = nil } })) {
-            Button("Başla") { let m = pendingExport; pendingExport = nil; if let m { startExport(m) } }
-            Button("Vazgeç", role: .cancel) {}
+        .alert(L("Kaydetmeden önce"), isPresented: Binding(get: { pendingExport != nil }, set: { if !$0 { pendingExport = nil } })) {
+            Button(L("Başla")) { let m = pendingExport; pendingExport = nil; if let m { startExport(m) } }
+            Button(L("Vazgeç"), role: .cancel) {}
         } message: {
             Text(pendingExport == .screen
-                 ? "Sistem bir izin penceresi gösterecek, \"Kaydı Başlat\"a bas. Kayıt bitene kadar ekranı kapatma ve uygulamadan çıkma; yoksa kayıt iptal olur."
-                 : "Video hazırlanırken uygulamayı açık tut. Başka uygulamaya geçersen veya ekran kapanırsa kayıt duraklar, geri dönünce kaldığı yerden devam eder. Hızlı yaklaşık 1–2, kaliteli 3–5 dakika sürer." + powerNote)
+                 ? L("Sistem bir izin penceresi gösterecek, \"Kaydı Başlat\"a bas. Kayıt bitene kadar ekranı kapatma ve uygulamadan çıkma; yoksa kayıt iptal olur.")
+                 : L("Video hazırlanırken uygulamayı açık tut. Başka uygulamaya geçersen veya ekran kapanırsa kayıt duraklar, geri dönünce kaldığı yerden devam eder. Hızlı yaklaşık 1–2, kaliteli 3–5 dakika sürer.") + powerNote)
         }
         .sheet(isPresented: $showStyle) { styleSheet }
         .onAppear { FlyoverAd.shared.prepare() }
@@ -144,8 +144,8 @@ struct FlyoverView: View {
     private var powerNote: String {
         UIDevice.current.isBatteryMonitoringEnabled = true
         let low = UIDevice.current.batteryLevel >= 0 && UIDevice.current.batteryLevel < 0.25 && UIDevice.current.batteryState != .charging
-        if low { return " Şarjın düşük, şarja takman önerilir." }
-        if ProcessInfo.processInfo.isLowPowerModeEnabled { return " Düşük Güç Modu açık, kayıt yavaşlayabilir." }
+        if low { return L(" Şarjın düşük, şarja takman önerilir.") }
+        if ProcessInfo.processInfo.isLowPowerModeEnabled { return L(" Düşük Güç Modu açık, kayıt yavaşlayabilir.") }
         return ""
     }
 
@@ -160,13 +160,13 @@ struct FlyoverView: View {
     // MARK: Kaydet: uygulama içi ekran kaydı, bitince Fotoğraflar'a
     private func startRecord() {
         let r = RPScreenRecorder.shared()
-        guard r.isAvailable else { message = "Ekran kaydı bu cihazda şu an kullanılamıyor."; return }
+        guard r.isAvailable else { message = L("Ekran kaydı bu cihazda şu an kullanılamıyor."); return }
         playing = false; base = 0; done = false
         recording = true          // alt çubuk videonun başında görünmesin: izin penceresinden önce gizlenir
         r.isMicrophoneEnabled = false
         r.startRecording { err in
             DispatchQueue.main.async {
-                if let err { recording = false; message = "Kayıt başlatılamadı: \(err.localizedDescription)"; return }
+                if let err { recording = false; message = LF("Kayıt başlatılamadı: %@", err.localizedDescription); return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) { start(from: 0) }   // ilk kare yüklensin
             }
         }
@@ -174,12 +174,12 @@ struct FlyoverView: View {
     private func saveToPhotos(_ url: URL) {
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { st in
             guard st == .authorized || st == .limited else {
-                DispatchQueue.main.async { message = "Fotoğraflar'a kaydetme izni verilmedi. iPhone Ayarlar > KROVA > Fotoğraflar'dan izin ver." }
+                DispatchQueue.main.async { message = L("Fotoğraflar'a kaydetme izni verilmedi. iPhone Ayarlar > KROVA > Fotoğraflar'dan izin ver.") }
                 return
             }
             PHPhotoLibrary.shared().performChanges({ PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url) }) { ok, e in
                 DispatchQueue.main.async {
-                    let text = ok ? "Flyover videosu Fotoğraflar'a kaydedildi." : "Kaydedilemedi: \(e?.localizedDescription ?? "bilinmeyen hata")"
+                    let text = ok ? L("Flyover videosu Fotoğraflar'a kaydedildi.") : LF("Kaydedilemedi: %@", e?.localizedDescription ?? L("bilinmeyen hata"))
                     // reklam yalnızca kayıt başarılıysa gösterilir
                     if ok { FlyoverAd.shared.show { message = text } } else { message = text }
                 }
@@ -206,7 +206,7 @@ struct FlyoverView: View {
             } catch is CancellationError {
                 base = 0
             } catch {
-                base = 0; message = "Video hazırlanamadı: \(error.localizedDescription)"
+                base = 0; message = LF("Video hazırlanamadı: %@", error.localizedDescription)
             }
         }
     }
@@ -218,7 +218,7 @@ struct FlyoverView: View {
         try? FileManager.default.removeItem(at: url)
         RPScreenRecorder.shared().stopRecording(withOutput: url) { err in
             DispatchQueue.main.async {
-                if let err { message = "Kayıt kaydedilemedi: \(err.localizedDescription)"; return }
+                if let err { message = LF("Kayıt kaydedilemedi: %@", err.localizedDescription); return }
                 saveToPhotos(url)
             }
         }
@@ -288,7 +288,7 @@ struct FlyoverView: View {
                     ForEach(stats) { st in statView(st, pos: pos, v: v) }
                 }.padding(.horizontal, 16)
                 Spacer()
-                if warming { Text("Harita hazırlanıyor…").font(.subheadline.weight(.semibold)).padding(.horizontal, 16).padding(.vertical, 10)
+                if warming { Text(L("Harita hazırlanıyor…")).font(.subheadline.weight(.semibold)).padding(.horizontal, 16).padding(.vertical, 10)
                     .background(.black.opacity(0.55), in: Capsule()).foregroundStyle(.white).padding(.bottom, 24) }
                 else if !recording && !exporting { controls(p) }
             }
@@ -340,7 +340,7 @@ struct FlyoverView: View {
     private var styleSheet: some View {
         NavigationStack {
             Form {
-                Section("Gösterilecek bilgiler (en fazla 4)") {
+                Section(L("Gösterilecek bilgiler (en fazla 4)")) {
                     ForEach(FlyStat.allCases) { st in
                         Toggle(st.title(pace: a.type.pace), isOn: Binding(
                             get: { stats.contains(st) },
@@ -351,19 +351,19 @@ struct FlyoverView: View {
                             }))
                     }
                 }
-                Section("Yazı") {
+                Section(L("Yazı")) {
                     swatches($textKey)
-                    Picker("Yazı tipi", selection: $fontKey) {
-                        Text("Yuvarlak").tag("round"); Text("Standart").tag("std"); Text("Mono").tag("mono"); Text("Serif").tag("serif")
+                    Picker(L("Yazı tipi"), selection: $fontKey) {
+                        Text(L("Yuvarlak")).tag("round"); Text(L("Standart")).tag("std"); Text(L("Mono")).tag("mono"); Text(L("Serif")).tag("serif")
                     }.pickerStyle(.segmented)
                 }
-                Section("Rota rengi") { swatches($routeKey) }
-                Section { Toggle("KROVA imzası", isOn: $showSign) }
-                Section(footer: Text("Kapalıyken harita düz görünür: rota çizgisi ve nokta binaların arkasında kalıp kaybolmaz, video akıcı olur.")) { Toggle("3D bina ve arazi", isOn: $fly3D) }
+                Section(L("Rota rengi")) { swatches($routeKey) }
+                Section { Toggle(L("KROVA imzası"), isOn: $showSign) }
+                Section(footer: Text(L("Kapalıyken harita düz görünür: rota çizgisi ve nokta binaların arkasında kalıp kaybolmaz, video akıcı olur."))) { Toggle("3D bina ve arazi", isOn: $fly3D) }
             }
-            .navigationTitle("Görünüm")
+            .navigationTitle(L("Görünüm"))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Bitti") { showStyle = false } } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button(L("Bitti")) { showStyle = false } } }
         }
         .presentationDetents([.medium, .large])
     }
@@ -387,9 +387,9 @@ struct FlyoverView: View {
                         .font(.title2.weight(.bold)).frame(width: 58, height: 58).background(orange, in: Circle())
                 }
                 Menu {
-                    Button { pendingExport = .fast } label: { Label("Hızlı kaydet (15 kare/sn)", systemImage: "hare") }
-                    Button { pendingExport = .quality } label: { Label("Kaliteli kaydet (20 kare/sn)", systemImage: "sparkles") }
-                    Button { pendingExport = .screen } label: { Label("Ekran kaydı ile (gerçek zamanlı)", systemImage: "record.circle") }
+                    Button { pendingExport = .fast } label: { Label(L("Hızlı kaydet (15 kare/sn)"), systemImage: "hare") }
+                    Button { pendingExport = .quality } label: { Label(L("Kaliteli kaydet (20 kare/sn)"), systemImage: "sparkles") }
+                    Button { pendingExport = .screen } label: { Label(L("Ekran kaydı ile (gerçek zamanlı)"), systemImage: "record.circle") }
                 } label: { Image(systemName: "square.and.arrow.down").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
                 Button { if playing { base = progress(at: Date()); playing = false }; showStyle = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
                 if (track?.totalDistance ?? 0) / 1000 <= 5 {

@@ -94,6 +94,7 @@ final class AppModel: ObservableObject {
 }
 
 struct RootView: View {
+    @AppStorage("lang") private var langPref = "auto"
     @EnvironmentObject var model: AppModel
     var body: some View {
         // Sekme çubuğu içeriğin altında ayrı yer kaplar (üst üste binme olmaz); üç sekme de canlı kalır (video durumu kaybolmaz)
@@ -116,7 +117,8 @@ struct RootView: View {
 /// Yuvarlak, yarı saydam, yüzen sekme çubuğu
 struct FloatingTabBar: View {
     @Binding var selection: Int
-    private let items: [(String, String)] = [("Özet", "chart.bar.fill"), ("Stüdyo", "play.rectangle.fill"), ("Profil", "person.crop.circle.fill")]
+    @AppStorage("lang") private var langPref = "auto"
+    private var items: [(String, String)] { [(L("Özet"), "chart.bar.fill"), (L("Stüdyo"), "play.rectangle.fill"), (L("Profil"), "person.crop.circle.fill")] }
     var body: some View {
         HStack(spacing: 4) {
             ForEach(items.indices, id: \.self) { i in

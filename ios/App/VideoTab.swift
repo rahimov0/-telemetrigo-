@@ -129,7 +129,7 @@ struct WebView: UIViewRepresentable {
         // MARK: Sayfa uyarıları (alert/confirm)
         func webView(_ w: WKWebView, runJavaScriptAlertPanelWithMessage m: String, initiatedByFrame f: WKFrameInfo, completionHandler: @escaping () -> Void) {
             let a = UIAlertController(title: nil, message: m, preferredStyle: .alert)
-            a.addAction(UIAlertAction(title: "Tamam", style: .default) { _ in completionHandler() })
+            a.addAction(UIAlertAction(title: L("Tamam"), style: .default) { _ in completionHandler() })
             if let top = w.window?.rootViewController?.topMost { top.present(a, animated: true) } else { completionHandler() }
         }
     }

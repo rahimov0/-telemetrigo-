@@ -149,6 +149,7 @@ final class ProfileStore: ObservableObject {
 
 struct ProfileTab: View {
     @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
+    @AppStorage("lang") private var langPref = "auto"
     @ObservedObject var act: ActivityRecorder
     @ObservedObject var health: HealthManager
     @ObservedObject var store: ProfileStore
@@ -171,7 +172,7 @@ struct ProfileTab: View {
         ScrollView {
             VStack(spacing: 18) {
                 header
-                Picker("Tür", selection: $filter) { Text("Hepsi").tag("all"); Text("Spor").tag("sport"); Text("Sürüş").tag("drive") }.pickerStyle(.segmented)
+                Picker(L("Tür"), selection: $filter) { Text(L("Hepsi")).tag("all"); Text(L("Spor")).tag("sport"); Text(L("Sürüş")).tag("drive") }.pickerStyle(.segmented)
                 stats
                 gallery
             }
@@ -213,8 +214,8 @@ struct ProfileTab: View {
                     Image(systemName: "camera.fill").font(.system(size: 12, weight: .bold)).foregroundStyle(Theme.onAcc)
                         .frame(width: 28, height: 28).background(Theme.acc, in: Circle()).overlay(Circle().stroke(Theme.bg, lineWidth: 3))
                 }
-            }.accessibilityLabel("Profil fotoğrafını değiştir")
-            TextField("Adını yaz", text: $store.name)
+            }.accessibilityLabel(L("Profil fotoğrafını değiştir"))
+            TextField(L("Adını yaz"), text: $store.name)
                 .font(.title3.weight(.bold)).multilineTextAlignment(.center).foregroundStyle(Theme.text)
                 .submitLabel(.done)
         }
@@ -222,7 +223,7 @@ struct ProfileTab: View {
 
     private var stats: some View {
         HStack(spacing: 0) {
-            stat(Fmt.num(Double(shownPosts.count)), "paylaşım")
+            stat(Fmt.num(Double(shownPosts.count)), L("paylaşım"))
             stat(Fmt.num(Double(shownActs.count)), "aktivite")
             stat(Fmt.num(totalKm, 0), Units.distUnit)
         }
@@ -239,8 +240,8 @@ struct ProfileTab: View {
         if shownPosts.isEmpty {
             VStack(spacing: 8) {
                 Image(systemName: "photo.on.rectangle.angled").font(.system(size: 34)).foregroundStyle(Theme.text3)
-                Text(store.posts.isEmpty ? "Henüz paylaşım yok" : "Bu türde paylaşım yok").font(.headline).foregroundStyle(Theme.text)
-                Text(store.posts.isEmpty ? "Bir aktiviteyi fotoğrafa ekleyip Paylaş'a bastığında görsel burada birikir." : "Üstteki seçimi \"Hepsi\" yaparak tüm paylaşımlarını görebilirsin.")
+                Text(store.posts.isEmpty ? L("Henüz paylaşım yok") : L("Bu türde paylaşım yok")).font(.headline).foregroundStyle(Theme.text)
+                Text(store.posts.isEmpty ? L("Bir aktiviteyi fotoğrafa ekleyip Paylaş'a bastığında görsel burada birikir.") : L("Üstteki seçimi \"Hepsi\" yaparak tüm paylaşımlarını görebilirsin."))
                     .font(.subheadline).foregroundStyle(Theme.text2).multilineTextAlignment(.center)
             }.padding(.vertical, 40).padding(.horizontal, 20)
         } else {
@@ -298,23 +299,23 @@ struct PostDetail: View {
                     Text(post.title).font(.headline).foregroundStyle(Theme.text)
                     Text(post.date.formatted(.dateTime.day().month(.wide).year().hour().minute())).font(.subheadline).foregroundStyle(Theme.text2)
                 }
-                TextField("Açıklama ekle…", text: $caption, axis: .vertical)
+                TextField(L("Açıklama ekle…"), text: $caption, axis: .vertical)
                     .lineLimit(1...5).focused($focus).submitLabel(.done)
                     .padding(12).background(Theme.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous)).foregroundStyle(Theme.text)
                     .onChange(of: caption) { _, t in store.setCaption(post, t) }
                 HStack(spacing: 12) {
-                    ShareLink(item: store.url(for: cur)) { Label("Paylaş", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }
+                    ShareLink(item: store.url(for: cur)) { Label(L("Paylaş"), systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }
                         .buttonStyle(GhostButton(height: 50))
                     Button { if !store.togglePin(cur) { pinFull = true } } label: {
-                        Label(cur.pinned ? "Sabitlemeyi kaldır" : "Sabitle", systemImage: cur.pinned ? "pin.slash" : "pin").frame(maxWidth: .infinity)
+                        Label(cur.pinned ? L("Sabitlemeyi kaldır") : L("Sabitle"), systemImage: cur.pinned ? "pin.slash" : "pin").frame(maxWidth: .infinity)
                     }.buttonStyle(GhostButton(height: 50))
                 }
                 HStack(spacing: 12) {
                     if canEdit(cur) {
-                        Button { dismiss(); onEdit(cur) } label: { Label("Editörde aç", systemImage: "slider.horizontal.3").frame(maxWidth: .infinity) }
+                        Button { dismiss(); onEdit(cur) } label: { Label(L("Editörde aç"), systemImage: "slider.horizontal.3").frame(maxWidth: .infinity) }
                             .buttonStyle(GhostButton(height: 50))
                     }
-                    Button(role: .destructive) { confirm = true } label: { Label("Sil", systemImage: "trash").frame(maxWidth: .infinity) }
+                    Button(role: .destructive) { confirm = true } label: { Label(L("Sil"), systemImage: "trash").frame(maxWidth: .infinity) }
                         .buttonStyle(GhostButton(height: 50))
                 }
             }
@@ -323,9 +324,9 @@ struct PostDetail: View {
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.bg.ignoresSafeArea())
         .onAppear { caption = post.caption }
-        .alert("En fazla \(ProfileStore.maxPins) paylaşım sabitlenebilir", isPresented: $pinFull) { Button("Tamam") {} }
-        .confirmationDialog("Bu paylaşım profilinden silinsin mi? (Fotoğraflar'a kaydettiysen oradaki kopya silinmez.)", isPresented: $confirm, titleVisibility: .visible) {
-            Button("Sil", role: .destructive) { store.delete(post); dismiss() }
+        .alert(LF("En fazla %d paylaşım sabitlenebilir", ProfileStore.maxPins), isPresented: $pinFull) { Button(L("Tamam")) {} }
+        .confirmationDialog(L("Bu paylaşım profilinden silinsin mi? (Fotoğraflar'a kaydettiysen oradaki kopya silinmez.)"), isPresented: $confirm, titleVisibility: .visible) {
+            Button(L("Sil"), role: .destructive) { store.delete(post); dismiss() }
         }
     }
 }

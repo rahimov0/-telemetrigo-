@@ -26,12 +26,12 @@ final class ExportOverlay {
         pct.textColor = .white
         pct.font = .monospacedDigitSystemFont(ofSize: 64, weight: .bold)
         pct.text = "%0"
-        let title = UILabel(); title.text = "Video hazırlanıyor"; title.textColor = .white
+        let title = UILabel(); title.text = L("Video hazırlanıyor"); title.textColor = .white
         title.font = .systemFont(ofSize: 17, weight: .semibold)
-        let note = UILabel(); note.text = "Ekranı kapatma, uygulamadan çıkma"; note.textColor = UIColor.white.withAlphaComponent(0.7)
+        let note = UILabel(); note.text = L("Ekranı kapatma, uygulamadan çıkma"); note.textColor = UIColor.white.withAlphaComponent(0.7)
         note.font = .systemFont(ofSize: 13, weight: .medium)
         let cancel = UIButton(type: .system)
-        cancel.setTitle("İptal", for: .normal)
+        cancel.setTitle(L("İptal"), for: .normal)
         cancel.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
         cancel.tintColor = UIColor(red: 1, green: 0.353, blue: 0.122, alpha: 1)
         cancel.addAction(UIAction { [weak self] _ in self?.onCancel() }, for: .touchUpInside)
@@ -67,9 +67,9 @@ private final class VideoSegment {
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA, kCVPixelBufferWidthKey as String: w, kCVPixelBufferHeightKey as String: h
         ])
         self.startFrame = startFrame
-        guard writer.canAdd(input) else { throw ExportError(msg: "Video yazıcı başlatılamadı.") }
+        guard writer.canAdd(input) else { throw ExportError(msg: L("Video yazıcı başlatılamadı.")) }
         writer.add(input)
-        guard writer.startWriting() else { throw writer.error ?? ExportError(msg: "Video yazıcı başlatılamadı.") }
+        guard writer.startWriting() else { throw writer.error ?? ExportError(msg: L("Video yazıcı başlatılamadı.")) }
         writer.startSession(atSourceTime: .zero)
     }
     func discard() { writer.cancelWriting(); try? FileManager.default.removeItem(at: url) }
@@ -93,7 +93,7 @@ enum FlyoverExporter {
     /// `step(i)` i. kare için sahneyi ayarlar. Haritanın karoları yüklenebilsin diye her kareden önce kısa beklenir.
     static func render(frames: Int, fps: Int, wait: UInt64 = 300_000_000,
                        step: (Int) -> Void, progress: (Int) -> Void, cancelled: () -> Bool) async throws -> URL {
-        guard let win = keyWindow else { throw ExportError(msg: "Ekran bulunamadı.") }
+        guard let win = keyWindow else { throw ExportError(msg: L("Ekran bulunamadı.")) }
         let scale = min(win.screen.scale, 2)
         let w = Int(win.bounds.width * scale) & ~1, h = Int(win.bounds.height * scale) & ~1
         let fmt = UIGraphicsImageRendererFormat(); fmt.scale = scale; fmt.opaque = true
@@ -116,7 +116,7 @@ enum FlyoverExporter {
                     let t0 = Date()
                     while UIApplication.shared.applicationState != .active {
                         if cancelled() { throw CancellationError() }
-                        if Date().timeIntervalSince(t0) > 600 { throw ExportError(msg: "Uygulamaya 10 dakikadır dönülmediği için kayıt iptal edildi.") }
+                        if Date().timeIntervalSince(t0) > 600 { throw ExportError(msg: L("Uygulamaya 10 dakikadır dönülmediği için kayıt iptal edildi.")) }
                         try await Task.sleep(nanoseconds: 300_000_000)
                     }
                     try await Task.sleep(nanoseconds: 900_000_000)   // geri dönünce harita kendine gelsin
@@ -128,7 +128,7 @@ enum FlyoverExporter {
                 let img = renderer.image { _ in win.drawHierarchy(in: win.bounds, afterScreenUpdates: true) }
                 var pbOut: CVPixelBuffer?
                 CVPixelBufferCreate(nil, w, h, kCVPixelFormatType_32BGRA, nil, &pbOut)
-                guard let pb = pbOut, let cg = img.cgImage else { throw ExportError(msg: "Kare oluşturulamadı.") }
+                guard let pb = pbOut, let cg = img.cgImage else { throw ExportError(msg: L("Kare oluşturulamadı.")) }
                 CVPixelBufferLockBaseAddress(pb, [])
                 if let ctx = CGContext(data: CVPixelBufferGetBaseAddress(pb), width: w, height: h, bitsPerComponent: 8,
                                        bytesPerRow: CVPixelBufferGetBytesPerRow(pb), space: space,
@@ -144,7 +144,7 @@ enum FlyoverExporter {
                 if !ok {
                     // yazıcı bozuldu: bu parçayı at, parçanın ilk karesinden yeniden çiz
                     failures += 1
-                    if failures > 8 { throw s.writer.error ?? ExportError(msg: "Video yazılamadı. Uygulamayı açık tutup tekrar dene.") }
+                    if failures > 8 { throw s.writer.error ?? ExportError(msg: L("Video yazılamadı. Uygulamayı açık tutup tekrar dene.")) }
                     s.discard(); i = s.startFrame; seg = nil
                     continue
                 }
@@ -155,7 +155,7 @@ enum FlyoverExporter {
                     if await s.finish() { done.append(s.url) }
                     else {
                         failures += 1
-                        if failures > 8 { throw s.writer.error ?? ExportError(msg: "Video yazılamadı.") }
+                        if failures > 8 { throw s.writer.error ?? ExportError(msg: L("Video yazılamadı.")) }
                         s.discard(); i = s.startFrame
                     }
                 }
@@ -163,7 +163,7 @@ enum FlyoverExporter {
             if let s = seg {
                 seg = nil
                 if await s.finish() { done.append(s.url) }
-                else { s.discard(); throw s.writer.error ?? ExportError(msg: "Video tamamlanamadı.") }
+                else { s.discard(); throw s.writer.error ?? ExportError(msg: L("Video tamamlanamadı.")) }
             }
         } catch {
             cleanup(); throw error
@@ -178,7 +178,7 @@ enum FlyoverExporter {
         if urls.count == 1 { try FileManager.default.moveItem(at: urls[0], to: out); return out }
         let comp = AVMutableComposition()
         guard let track = comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
-            throw ExportError(msg: "Parçalar birleştirilemedi.")
+            throw ExportError(msg: L("Parçalar birleştirilemedi."))
         }
         var t = CMTime.zero
         for u in urls {
@@ -188,11 +188,11 @@ enum FlyoverExporter {
             try track.insertTimeRange(CMTimeRange(start: .zero, duration: d), of: vt, at: t)
             t = CMTimeAdd(t, d)
         }
-        guard let ex = AVAssetExportSession(asset: comp, presetName: AVAssetExportPresetPassthrough) else { throw ExportError(msg: "Birleştirici başlatılamadı.") }
+        guard let ex = AVAssetExportSession(asset: comp, presetName: AVAssetExportPresetPassthrough) else { throw ExportError(msg: L("Birleştirici başlatılamadı.")) }
         ex.outputURL = out; ex.outputFileType = .mp4
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in ex.exportAsynchronously { c.resume() } }
         urls.forEach { try? FileManager.default.removeItem(at: $0) }
-        if ex.status != .completed { throw ex.error ?? ExportError(msg: "Parçalar birleştirilemedi.") }
+        if ex.status != .completed { throw ex.error ?? ExportError(msg: L("Parçalar birleştirilemedi.")) }
         return out
     }
 }

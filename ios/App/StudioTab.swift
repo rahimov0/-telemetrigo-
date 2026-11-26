@@ -4,6 +4,7 @@ import KrovaCore
 /// Stüdyo: bir aktiviteden ya da bir videodan başla. Fotoğraf, video kartı ve canlı veri tek yerden.
 struct StudioTab: View {
     @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
+    @AppStorage("lang") private var langPref = "auto"
     @EnvironmentObject var model: AppModel
     @ObservedObject var act: ActivityRecorder
     @State private var picked: Activity?          // seçenek sayfası
@@ -13,17 +14,17 @@ struct StudioTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Text("Stüdyo").font(.system(size: 30, weight: .bold)).foregroundStyle(Theme.text)
+                Text(L("Stüdyo")).font(.system(size: 30, weight: .bold)).foregroundStyle(Theme.text)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    sectionTitle("Videodan başla")
+                    sectionTitle(L("Videodan başla"))
                     Button { model.openVideo(mode: "live", lead: nil) } label: {
                         HStack(spacing: 14) {
                             Image(systemName: "film.stack.fill").font(.system(size: 22)).foregroundStyle(Theme.onAcc)
                                 .frame(width: 52, height: 52).background(Color.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Video seç").font(.headline).foregroundStyle(Theme.onAcc)
-                                Text("GoPro sensör verisi ya da GPS ile canlı göstergeler").font(.caption).foregroundStyle(Theme.onAcc.opacity(0.75))
+                                Text(L("Video seç")).font(.headline).foregroundStyle(Theme.onAcc)
+                                Text(L("GoPro sensör verisi ya da GPS ile canlı göstergeler")).font(.caption).foregroundStyle(Theme.onAcc.opacity(0.75))
                             }
                             Spacer()
                             Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.onAcc.opacity(0.6))
@@ -34,8 +35,8 @@ struct StudioTab: View {
                         HStack(spacing: 12) {
                             Image(systemName: "gauge.with.dots.needle.67percent").font(.title3).foregroundStyle(ActType.motor.color).frame(width: 52)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("GoPro ile sürüş kaydı").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
-                                Text("Kamerayı bağla, GPS ile birlikte başlat").font(.caption).foregroundStyle(Theme.text2)
+                                Text(L("GoPro ile sürüş kaydı")).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                                Text(L("Kamerayı bağla, GPS ile birlikte başlat")).font(.caption).foregroundStyle(Theme.text2)
                             }
                             Spacer()
                             Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.text3)
@@ -44,14 +45,14 @@ struct StudioTab: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    sectionTitle("Aktiviteden başla")
-                    Text("Bir aktiviteye dokun: fotoğrafa ya da videoya ekle.").font(.subheadline).foregroundStyle(Theme.text2)
+                    sectionTitle(L("Aktiviteden başla"))
+                    Text(L("Bir aktiviteye dokun: fotoğrafa ya da videoya ekle.")).font(.subheadline).foregroundStyle(Theme.text2)
                     if act.activities.isEmpty {
                         Panel {
                             VStack(spacing: 8) {
                                 Image(systemName: "photo.on.rectangle.angled").font(.system(size: 30)).foregroundStyle(Theme.text3)
-                                Text("Henüz aktivite yok").font(.headline).foregroundStyle(Theme.text)
-                                Text("Özet sekmesinden bir kayıt başlat; bitince burada görünür.").font(.subheadline).foregroundStyle(Theme.text2).multilineTextAlignment(.center)
+                                Text(L("Henüz aktivite yok")).font(.headline).foregroundStyle(Theme.text)
+                                Text(L("Özet sekmesinden bir kayıt başlat; bitince burada görünür.")).font(.subheadline).foregroundStyle(Theme.text2).multilineTextAlignment(.center)
                             }.frame(maxWidth: .infinity).padding(.vertical, 10)
                         }
                     } else {
@@ -120,17 +121,17 @@ struct SourceSheet: View {
                         .foregroundStyle(Theme.text2)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(step == 0 ? "Ne ekleyelim?" : "Videoya nasıl eklensin?").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Text(step == 0 ? "Ne ekleyelim?" : L("Videoya nasıl eklensin?")).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                     Text(a.type.title(a.start)).font(.subheadline).foregroundStyle(Theme.text2)
                 }
                 Spacer()
             }.padding(.top, 22)
             if step == 0 {
-                option("photo.on.rectangle.angled", "Fotoğrafa ekle", "Rota ve değerlerle paylaşılabilir görsel", Theme.acc) { pick(.photo) }
-                option("film.stack.fill", "Videoya ekle", "Kart ya da canlı veri", ActType.motor.color) { withAnimation(.easeOut(duration: 0.15)) { step = 1 } }
+                option("photo.on.rectangle.angled", L("Fotoğrafa ekle"), L("Rota ve değerlerle paylaşılabilir görsel"), Theme.acc) { pick(.photo) }
+                option("film.stack.fill", L("Videoya ekle"), L("Kart ya da canlı veri"), ActType.motor.color) { withAnimation(.easeOut(duration: 0.15)) { step = 1 } }
             } else {
-                option("rectangle.on.rectangle.angled", "Aktivite kartı", "Rota ve değerler sabit kart olarak belirir; hangi saniyede ve ne kadar süre kalacağını sen seçersin", Theme.acc) { pick(.card) }
-                option("speedometer", "Canlı veri", "Hız, rota ve eğim göstergeleri videoyla birlikte akar", ActType.motor.color) { pick(.live) }
+                option("rectangle.on.rectangle.angled", L("Aktivite kartı"), L("Rota ve değerler sabit kart olarak belirir; hangi saniyede ve ne kadar süre kalacağını sen seçersin"), Theme.acc) { pick(.card) }
+                option("speedometer", L("Canlı veri"), L("Hız, rota ve eğim göstergeleri videoyla birlikte akar"), ActType.motor.color) { pick(.live) }
             }
             Spacer(minLength: 0)
         }
@@ -166,11 +167,11 @@ struct VideoCover: View {
         VStack(spacing: 0) {
             HStack {
                 Button { model.videoRoute = nil } label: {
-                    Text("Kapat").font(.body.weight(.medium)).foregroundStyle(.white).padding(.horizontal, 14).frame(height: 34)
+                    Text(L("Kapat")).font(.body.weight(.medium)).foregroundStyle(.white).padding(.horizontal, 14).frame(height: 34)
                         .background(Color.white.opacity(0.14), in: Capsule())
                 }
                 Spacer()
-                Text(v.mode == "card" ? "Aktivite kartı" : "Canlı veri").font(.headline).foregroundStyle(.white)
+                Text(v.mode == "card" ? L("Aktivite kartı") : L("Canlı veri")).font(.headline).foregroundStyle(.white)
                 Spacer()
                 Color.clear.frame(width: 66, height: 1)
             }.padding(.horizontal, 16).padding(.vertical, 8)

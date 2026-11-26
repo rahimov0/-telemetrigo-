@@ -76,6 +76,7 @@ struct FlyoverView: View {
     @State private var warming = false
     @State private var savedSeconds = 30.0
     @State private var pendingExport: FlyExport?
+    @AppStorage("fly3D") private var fly3D = false
     @AppStorage("flyStats") private var statsRaw = "speed,gain,dist"
     @AppStorage("flyTextColor") private var textKey = "white"
     @AppStorage("flyRouteColor") private var routeKey = "orange"
@@ -275,11 +276,14 @@ struct FlyoverView: View {
                     .foregroundStyle(rc)
                     .stroke(.white, lineWidth: 4)
             }
-            .mapStyle(.hybrid(elevation: .realistic, pointsOfInterest: .excludingAll))
+            .mapStyle(.hybrid(elevation: fly3D ? .realistic : .flat, pointsOfInterest: .excludingAll))
+            .mapControlVisibility(.hidden)
             .ignoresSafeArea()
+            LinearGradient(colors: [.black.opacity(0.5), .black.opacity(0.22), .clear], startPoint: .top, endPoint: .bottom)
+                .frame(height: 230).frame(maxHeight: .infinity, alignment: .top).ignoresSafeArea().allowsHitTesting(false)
             VStack(spacing: 14) {
                 if showSign { KrovaSignature(height: 30) }
-                Text(a.type.title(a.start)).font(.subheadline.weight(.semibold)).foregroundStyle(FlyPalette.color(textKey).opacity(0.92))
+                Text(a.type.title(a.start)).font(.subheadline.weight(.semibold)).foregroundStyle(FlyPalette.color(textKey))
                 HStack(alignment: .top) {
                     ForEach(stats) { st in statView(st, pos: pos, v: v) }
                 }.padding(.horizontal, 16)
@@ -289,7 +293,7 @@ struct FlyoverView: View {
                 else if !recording && !exporting { controls(p) }
             }
             .padding(.top, 56).padding(.bottom, 28)
-            .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
+            .shadow(color: .black.opacity(0.75), radius: 4, y: 1)
         }
     }
 
@@ -302,7 +306,7 @@ struct FlyoverView: View {
         let pace = a.type.pace
         let (val, unit): (String, String) = {
             switch st {
-            case .speed: return (pace ? Fmt.pace(v) : Fmt.num(v * 3.6, 1), pace ? "/km" : "km/s")
+            case .speed: return (pace ? Fmt.pace(v) : Fmt.num(v * 3.6, 1), pace ? "/km" : "km/sa")
             case .gain: return (Fmt.num(pos.gain), "m")
             case .dist: return (Fmt.num(pos.dist / 1000, pos.dist < 10_000 ? 2 : 1), "km")
             case .time: return (Fmt.dur(pos.time), "")
@@ -315,9 +319,9 @@ struct FlyoverView: View {
     private func stat(_ label: String, _ value: String, _ unit: String, big: Bool) -> some View {
         let c = FlyPalette.color(textKey)
         return VStack(spacing: 2) {
-            Text(label).font(.footnote.weight(.semibold)).foregroundStyle(c.opacity(0.85))
+            Text(label).font(.subheadline.weight(.bold)).foregroundStyle(c)
             Text(value).font(.system(size: big ? 38 : 30, weight: .bold, design: fontDesign)).monospacedDigit().minimumScaleFactor(0.6).lineLimit(1).foregroundStyle(c)
-            Text(unit.isEmpty ? " " : unit).font(.footnote.weight(.semibold)).foregroundStyle(c.opacity(0.85))
+            Text(unit.isEmpty ? " " : unit).font(.subheadline.weight(.bold)).foregroundStyle(c)
         }.frame(maxWidth: .infinity)
     }
 
@@ -355,6 +359,7 @@ struct FlyoverView: View {
                 }
                 Section("Rota rengi") { swatches($routeKey) }
                 Section { Toggle("KROVA imzası", isOn: $showSign) }
+                Section(footer: Text("Kapalıyken harita düz görünür: rota çizgisi ve nokta binaların arkasında kalıp kaybolmaz, video akıcı olur.")) { Toggle("3D bina ve arazi", isOn: $fly3D) }
             }
             .navigationTitle("Görünüm")
             .navigationBarTitleDisplayMode(.inline)

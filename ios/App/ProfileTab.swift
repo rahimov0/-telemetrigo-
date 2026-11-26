@@ -148,6 +148,7 @@ final class ProfileStore: ObservableObject {
 }
 
 struct ProfileTab: View {
+    @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
     @ObservedObject var act: ActivityRecorder
     @ObservedObject var health: HealthManager
     @ObservedObject var store: ProfileStore
@@ -163,7 +164,7 @@ struct ProfileTab: View {
     }
     private var shownActs: [Activity] { act.activities.filter { inFilter($0.type.rawValue) } }
     private var shownPosts: [ProfilePost] { store.ordered.filter { inFilter($0.type) } }
-    private var totalKm: Double { shownActs.reduce(0) { $0 + $1.distance } / 1000 }
+    private var totalKm: Double { shownActs.reduce(0) { $0 + $1.distance } / Units.distDiv }
     private let cols = [GridItem(.flexible(), spacing: 2), GridItem(.flexible(), spacing: 2), GridItem(.flexible(), spacing: 2)]
 
     var body: some View {
@@ -223,7 +224,7 @@ struct ProfileTab: View {
         HStack(spacing: 0) {
             stat(Fmt.num(Double(shownPosts.count)), "paylaşım")
             stat(Fmt.num(Double(shownActs.count)), "aktivite")
-            stat(Fmt.num(totalKm, 0), "km")
+            stat(Fmt.num(totalKm, 0), Units.distUnit)
         }
         .padding(.vertical, 14).background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }

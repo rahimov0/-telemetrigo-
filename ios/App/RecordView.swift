@@ -2,6 +2,7 @@ import SwiftUI
 import CoreLocation
 
 struct RecordView: View {
+    @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
     @EnvironmentObject var model: AppModel
     var body: some View {
         // Alt nesnelerin değişikliklerini izlemek için ayrı görünüm
@@ -116,15 +117,15 @@ private struct RecordContent: View {
                     }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(rec.speed.map { "\(Int(($0 * 3.6).rounded()))" } ?? "—").font(.system(size: 84, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Theme.cPace)
-                    Text("km/h").font(.title3.weight(.bold)).foregroundStyle(Theme.cPace.opacity(0.75))
+                    Text(rec.speed.map { "\(Int(Units.speed($0).rounded()))" } ?? "—").font(.system(size: 84, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Theme.cPace)
+                    Text(Units.speedUnit).font(.title3.weight(.bold)).foregroundStyle(Theme.cPace.opacity(0.75))
                 }.frame(maxWidth: .infinity)
                 if let s = rec.current {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         HStack(spacing: 8) {
                             stat(clock(Int(ctx.date.timeIntervalSince(s.start))), "Süre", Theme.cTime)
-                            stat(String(format: "%.2f", s.distance / 1000).replacingOccurrences(of: ".", with: ","), "Mesafe km", Theme.cDist)
-                            stat("\(Int((s.maxSpeed * 3.6).rounded()))", "Maks km/h", Theme.cMax)
+                            stat(String(format: "%.2f", s.distance / Units.distDiv).replacingOccurrences(of: ".", with: ","), "Mesafe \(Units.distUnit)", Theme.cDist)
+                            stat("\(Int(Units.speed(s.maxSpeed).rounded()))", "Maks \(Units.speedUnit)", Theme.cMax)
                         }
                     }
                 }
@@ -168,7 +169,7 @@ private struct RecordContent: View {
                         HStack(alignment: .top) {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(s.start.formatted(date: .abbreviated, time: .shortened)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
-                                Text("\(clock(Int((s.end ?? s.start).timeIntervalSince(s.start)))) · " + String(format: "%.2f km", s.distance / 1000).replacingOccurrences(of: ".", with: ",") + " · maks \(Int((s.maxSpeed * 3.6).rounded())) km/h")
+                                Text("\(clock(Int((s.end ?? s.start).timeIntervalSince(s.start)))) · " + String(format: "%.2f ", s.distance / Units.distDiv) + Units.distUnit.replacingOccurrences(of: ".", with: ",") + " · maks \(Int(Units.speed(s.maxSpeed).rounded())) \(Units.speedUnit)")
                                     .font(.footnote).foregroundStyle(Theme.text2)
                                 if s.camEvents.contains(where: { $0.type == "camstart" }) {
                                     Label("GoPro ile eşleşti", systemImage: "link").font(.caption.weight(.semibold)).foregroundStyle(Theme.ok)

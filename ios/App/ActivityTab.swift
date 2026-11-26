@@ -100,6 +100,7 @@ struct TypeIcon: View {
 // MARK: Aktivite akışı (ana ekran)
 
 struct ActivityTab: View {
+    @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var model: AppModel
     @ObservedObject var act: ActivityRecorder
@@ -264,7 +265,7 @@ struct ActivityTab: View {
         let w = acts.filter { $0.start >= wk && $0.start < wkEnd }
         let days = (0..<7).map { i -> (date: Date, km: Double) in
             let d0 = cal.date(byAdding: .day, value: i, to: wk) ?? wk, d1 = cal.date(byAdding: .day, value: 1, to: d0) ?? d0
-            return (d0, w.filter { $0.start >= d0 && $0.start < d1 }.reduce(0) { $0 + $1.distance } / 1000)
+            return (d0, w.filter { $0.start >= d0 && $0.start < d1 }.reduce(0) { $0 + $1.distance } / Units.distDiv)
         }
         let mx = max(days.map { $0.km }.max() ?? 0, 0.1)
         let title = weekBack == 0 ? "Bu hafta" : weekBack == 1 ? "Geçen hafta" : wk.formatted(.dateTime.day().month(.abbreviated)) + " haftası"
@@ -277,7 +278,7 @@ struct ActivityTab: View {
                     Button { shiftWeek(-1) } label: { Image(systemName: "chevron.right").font(.system(size: 14, weight: .bold)).frame(width: 36, height: 36).background(Theme.card2, in: Circle()) }.buttonStyle(.plain).opacity(weekBack == 0 ? 0.3 : 1).disabled(weekBack == 0)
                 }.foregroundStyle(Theme.text)
                 HStack(alignment: .top) {
-                    StatCell(label: "Mesafe", value: Fmt.km(w.reduce(0) { $0 + $1.distance }), unit: "km", tint: Theme.cDist, big: true)
+                    StatCell(label: "Mesafe", value: Fmt.km(w.reduce(0) { $0 + $1.distance }), unit: Units.distUnit, tint: Theme.cDist, big: true)
                     StatCell(label: "Süre", value: Fmt.dur(w.reduce(0) { $0 + $1.moving }), tint: Theme.cTime, big: true)
                     StatCell(label: "Aktivite", value: "\(w.count)", big: true)
                 }
@@ -344,7 +345,7 @@ struct ActivityTab: View {
 
     private func totals(_ list: [Activity]) -> some View {
         HStack(alignment: .top) {
-            StatCell(label: "Mesafe", value: Fmt.km(list.reduce(0) { $0 + $1.distance }), unit: "km", tint: Theme.cDist, big: true)
+            StatCell(label: "Mesafe", value: Fmt.km(list.reduce(0) { $0 + $1.distance }), unit: Units.distUnit, tint: Theme.cDist, big: true)
             StatCell(label: "Süre", value: Fmt.dur(list.reduce(0) { $0 + $1.moving }), tint: Theme.cTime, big: true)
             StatCell(label: "Aktivite", value: "\(list.count)", big: true)
         }
@@ -385,7 +386,7 @@ struct ActivityTab: View {
         let n = cal.range(of: .day, in: .month, for: m0)?.count ?? 30
         let perDay = (0..<n).map { i -> Double in
             let d0 = cal.date(byAdding: .day, value: i, to: m0) ?? m0, d1 = cal.date(byAdding: .day, value: 1, to: d0) ?? d0
-            return list.filter { $0.start >= d0 && $0.start < d1 }.reduce(0) { $0 + $1.distance } / 1000
+            return list.filter { $0.start >= d0 && $0.start < d1 }.reduce(0) { $0 + $1.distance } / Units.distDiv
         }
         let mx = max(perDay.max() ?? 0, 0.1)
         return VStack(alignment: .leading, spacing: 14) {
@@ -423,7 +424,7 @@ struct ActivityTab: View {
         let list = acts.filter { $0.start >= y0 && $0.start < y1 }
         let months = (0..<12).map { i -> (date: Date, km: Double) in
             let m0 = cal.date(byAdding: .month, value: i, to: y0) ?? y0, m1 = cal.date(byAdding: .month, value: 1, to: m0) ?? m0
-            return (m0, list.filter { $0.start >= m0 && $0.start < m1 }.reduce(0) { $0 + $1.distance } / 1000)
+            return (m0, list.filter { $0.start >= m0 && $0.start < m1 }.reduce(0) { $0 + $1.distance } / Units.distDiv)
         }
         let mx = max(months.map { $0.km }.max() ?? 0, 0.1)
         return Panel {
@@ -497,7 +498,7 @@ struct ActivityTab: View {
                     let dist = health.weekDist[cal.startOfDay(for: selDay)] ?? 0
                     HStack(alignment: .top) {
                         StatCell(label: isToday ? "Bugün" : selDay.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)), value: steps.formatted(), unit: "adım", tint: Theme.cSteps, big: true)
-                        StatCell(label: "Yürünen", value: Fmt.km(dist), unit: "km", tint: Theme.cDist, big: true)
+                        StatCell(label: "Yürünen", value: Fmt.km(dist), unit: Units.distUnit, tint: Theme.cDist, big: true)
                     }
                     Chart(health.week, id: \.day) { d in
                         BarMark(x: .value("Gün", d.day, unit: .day), y: .value("Adım", max(d.steps, 60)), width: .ratio(0.55))
@@ -529,6 +530,7 @@ struct ActivityTab: View {
 }
 
 struct ActivityCard: View {
+    @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
     let act: ActivityRecorder
     let a: Activity
     var body: some View {
@@ -544,10 +546,10 @@ struct ActivityCard: View {
                 Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.text3)
             }.padding(14)
             HStack(alignment: .top, spacing: 8) {
-                StatCell(label: "Mesafe", value: Fmt.km(a.distance), unit: "km", tint: Theme.cDist)
+                StatCell(label: "Mesafe", value: Fmt.km(a.distance), unit: Units.distUnit, tint: Theme.cDist)
                 StatCell(label: "Süre", value: Fmt.dur(a.moving), tint: Theme.cTime)
-                if a.type.pace { StatCell(label: "Tempo", value: Fmt.pace(avg), unit: "/km", tint: Theme.cPace) }
-                else { StatCell(label: "Hız", value: Fmt.num(avg * 3.6, 1), unit: "km/h", tint: Theme.cPace) }
+                if a.type.pace { StatCell(label: "Tempo", value: Fmt.pace(avg), unit: Units.paceUnit, tint: Theme.cPace) }
+                else { StatCell(label: "Hız", value: Fmt.num(Units.speed(avg), 1), unit: Units.speedUnit, tint: Theme.cPace) }
             }.padding(.horizontal, 14).padding(.bottom, 12)
             RouteThumb(act: act, a: a).frame(height: 150)
         }
@@ -559,6 +561,7 @@ struct ActivityCard: View {
 // MARK: Tam ekran kayıt
 
 struct RecordScreen: View {
+    @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
     @ObservedObject var act: ActivityRecorder
     @ObservedObject var health: HealthManager
     let done: (Activity?) -> Void
@@ -682,10 +685,10 @@ struct RecordScreen: View {
                 Text("Süre").font(.footnote.weight(.semibold)).foregroundStyle(Theme.text2)
             }
             HStack(alignment: .top, spacing: 0) {
-                big(Fmt.km(a?.distance ?? 0), "Mesafe (km)", Theme.cDist)
-                big(pace ? Fmt.pace(act.speed ?? 0) : (act.speed.map { Fmt.num($0 * 3.6, 1) } ?? "—"), pace ? "Anlık tempo" : "Hız (km/h)", Theme.cPace)
+                big(Fmt.km(a?.distance ?? 0), "Mesafe (\(Units.distUnit))", Theme.cDist)
+                big(pace ? Fmt.pace(act.speed ?? 0) : (act.speed.map { Fmt.num(Units.speed($0), 1) } ?? "—"), pace ? "Anlık tempo" : "Hız (\(Units.speedUnit))", Theme.cPace)
                 if let k = kcal { big(Fmt.num(k), "Kalori", Theme.cKcal) }
-                else { big(pace ? Fmt.pace(avg) : Fmt.num(avg * 3.6, 1), pace ? "Ort. tempo" : "Ort. hız", Theme.text) }
+                else { big(pace ? Fmt.pace(avg) : Fmt.num(Units.speed(avg), 1), pace ? "Ort. tempo" : "Ort. hız", Theme.text) }
             }
             HStack(spacing: 28) {
                 if act.state == .running {
@@ -722,6 +725,7 @@ struct RecordScreen: View {
 struct Split: Identifiable { let id: Int; let len: Double; let time: Double; let ele: Double? }
 
 struct ActivityDetail: View {
+    @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
     @EnvironmentObject var model: AppModel
     @ObservedObject var act: ActivityRecorder
     @ObservedObject var health: HealthManager
@@ -861,18 +865,18 @@ struct ActivityDetail: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(Fmt.km(a.distance)).font(.system(size: 56, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Theme.cDist)
-                    Text("km").font(.title3.weight(.bold)).foregroundStyle(Theme.cDist.opacity(0.75))
+                    Text(Units.distUnit).font(.title3.weight(.bold)).foregroundStyle(Theme.cDist.opacity(0.75))
                 }
                 Divider().overlay(Theme.line)
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], alignment: .leading, spacing: 18) {
                     StatCell(label: "Süre", value: Fmt.dur(a.moving), tint: Theme.cTime, big: true)
                     if let k = kcal { StatCell(label: "Aktif kalori", value: Fmt.num(k), unit: "kcal", tint: Theme.cKcal, big: true) }
                     else if a.type.kind.countsCalories { Button { showSettings = true } label: { StatCell(label: "Aktif kalori", value: "—", unit: "kilonu gir", tint: Theme.cKcal, big: true) }.buttonStyle(.plain) }
-                    if a.type.pace { StatCell(label: "Ort. tempo", value: Fmt.pace(avg), unit: "/km", tint: Theme.cPace, big: true) }
-                    else { StatCell(label: "Ort. hız", value: Fmt.num(avg * 3.6, 1), unit: "km/h", tint: Theme.cPace, big: true) }
-                    StatCell(label: a.baro == true ? "Yükseliş (barometre)" : "Yükseliş", value: Fmt.num(a.gain), unit: "m", tint: Theme.cElev, big: true)
-                    if a.type.pace { StatCell(label: "En iyi tempo", value: Fmt.pace(min(a.maxSpeed, a.type.maxPlausible)), unit: "/km", tint: Theme.cMax, big: true) }
-                    else { StatCell(label: "Maks hız", value: Fmt.num(min(a.maxSpeed, a.type.maxPlausible) * 3.6), unit: "km/h", tint: Theme.cMax, big: true) }
+                    if a.type.pace { StatCell(label: "Ort. tempo", value: Fmt.pace(avg), unit: Units.paceUnit, tint: Theme.cPace, big: true) }
+                    else { StatCell(label: "Ort. hız", value: Fmt.num(Units.speed(avg), 1), unit: Units.speedUnit, tint: Theme.cPace, big: true) }
+                    StatCell(label: a.baro == true ? "Yükseliş (barometre)" : "Yükseliş", value: Fmt.num(Units.elev(a.gain)), unit: Units.elevUnit, tint: Theme.cElev, big: true)
+                    if a.type.pace { StatCell(label: "En iyi tempo", value: Fmt.pace(min(a.maxSpeed, a.type.maxPlausible)), unit: Units.paceUnit, tint: Theme.cMax, big: true) }
+                    else { StatCell(label: "Maks hız", value: Fmt.num(Units.speed(min(a.maxSpeed, a.type.maxPlausible))), unit: Units.speedUnit, tint: Theme.cMax, big: true) }
                     if let s = steps, s > 0 { StatCell(label: "Adım", value: s.formatted(), tint: Theme.cSteps, big: true) }
                     else { StatCell(label: "Geçen süre", value: Fmt.dur((a.end ?? a.start).timeIntervalSince(a.start)), big: true) }
                 }
@@ -896,9 +900,9 @@ struct ActivityDetail: View {
                     let r = s.time / max(s.len, 1)
                     let t = worst > best ? 1 - (r - best) / (worst - best) : 1
                     HStack {
-                        Text(s.len < 999 ? Fmt.num(s.len / 1000, 2) : "\(s.id)").frame(width: 40, alignment: .leading)
-                        Text(a.type.pace ? Fmt.pace(s.len / max(1, s.time)) : Fmt.num(s.len / max(1, s.time) * 3.6, 1)).foregroundStyle(Theme.cPace).frame(width: 84, alignment: .leading)
-                        Text(s.ele.map { ($0 >= 0 ? "+" : "") + Fmt.num($0) + " m" } ?? "—").foregroundStyle(Theme.text2).frame(width: 70, alignment: .leading)
+                        Text(s.len < 999 ? Fmt.num(s.len / Units.distDiv, 2) : "\(s.id)").frame(width: 40, alignment: .leading)
+                        Text(a.type.pace ? Fmt.pace(s.len / max(1, s.time)) : Fmt.num(Units.speed(s.len / max(1, s.time)), 1)).foregroundStyle(Theme.cPace).frame(width: 84, alignment: .leading)
+                        Text(s.ele.map { ($0 >= 0 ? "+" : "") + Fmt.num(Units.elev($0)) + " " + Units.elevUnit } ?? "—").foregroundStyle(Theme.text2).frame(width: 70, alignment: .leading)
                         GeometryReader { g in
                             Capsule().fill(speedColor(1 - t)).frame(width: max(8, g.size.width * (0.35 + 0.65 * t)), height: 8).frame(maxHeight: .infinity, alignment: .center)
                         }
@@ -925,7 +929,7 @@ struct ActivityDetail: View {
             let d = CLLocation(latitude: p.la, longitude: p.lo).distance(from: CLLocation(latitude: q.la, longitude: q.lo))
             let v = q.sp ?? d / max(dt, 0.1)
             if dt < 30, v >= a.type.stopSpeed { dist += d; mv += dt }
-            if let e = q.al, i % 5 == 0 { el.append((dist / 1000, e)) }
+            if let e = q.al, i % 5 == 0 { el.append((dist / Units.distDiv, Units.elev(e))) }
             if dist >= Double(k) * 1000 {
                 sp.append(Split(id: k, len: 1000, time: mv - lastT, ele: q.al.flatMap { e in lastE.map { e - $0 } }))
                 lastT = mv; lastE = q.al; k += 1
@@ -1082,6 +1086,7 @@ struct ActivitySettings: View {
     @AppStorage("showSteps") private var showSteps = true
     @AppStorage("keepAwake") private var keepAwake = false
     @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("units") private var units = "metric"
     @AppStorage("profKg") private var kg = 0.0
     @AppStorage("profCm") private var cm = 0.0
     @AppStorage("goalKcal") private var goalKcal = 300.0
@@ -1104,6 +1109,11 @@ struct ActivitySettings: View {
                 Section {
                     Picker("Tema", selection: $appearance) { Text("Sistem").tag("system"); Text("Koyu").tag("dark"); Text("Açık").tag("light") }.pickerStyle(.segmented)
                 } header: { head("Görünüm") } footer: { foot("Stüdyo (video) ekranı şimdilik her zaman koyu kalır.") }
+                .listRowBackground(Theme.card)
+
+                Section {
+                    Picker("Birim", selection: $units) { Text("Kilometre (km, m)").tag("metric"); Text("Mil (mi, ft)").tag("imperial") }.pickerStyle(.segmented)
+                } header: { head("Birimler") } footer: { foot("Mesafe, hız, tempo ve yükseklik gösterimini değiştirir. Kayıtlar değişmez. Kilometre bölümleri tablosu ve sesli bildirim şimdilik kilometre olarak kalır.") }
                 .listRowBackground(Theme.card)
 
                 Section {

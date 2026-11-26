@@ -306,11 +306,11 @@ struct FlyoverView: View {
         let pace = a.type.pace
         let (val, unit): (String, String) = {
             switch st {
-            case .speed: return (pace ? Fmt.pace(v) : Fmt.num(v * 3.6, 1), pace ? "/km" : "km/sa")
-            case .gain: return (Fmt.num(pos.gain), "m")
-            case .dist: return (Fmt.num(pos.dist / 1000, pos.dist < 10_000 ? 2 : 1), "km")
+            case .speed: return (pace ? Fmt.pace(v) : Fmt.num(Units.speed(v), 1), pace ? Units.paceUnit : (Units.imperial ? "mph" : "km/sa"))
+            case .gain: return (Fmt.num(Units.elev(pos.gain)), Units.elevUnit)
+            case .dist: return (Fmt.num(pos.dist / Units.distDiv, pos.dist < 10_000 ? 2 : 1), Units.distUnit)
             case .time: return (Fmt.dur(pos.time), "")
-            case .alt: return (Fmt.num(pos.ele), "m")
+            case .alt: return (Fmt.num(Units.elev(pos.ele)), Units.elevUnit)
             }
         }()
         return stat(st.title(pace: pace), val, unit, big: stats.count <= 3)

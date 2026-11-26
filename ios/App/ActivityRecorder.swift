@@ -64,6 +64,18 @@ struct TrackPoint: Codable {
     var al: Double?; var ha: Double; var sp: Double?
 }
 
+/// Kilometre / mil seçimi (Ayarlar > Birimler). Veriler hep metre ve m/sn saklanır, yalnızca gösterim değişir.
+enum Units {
+    static var imperial: Bool { UserDefaults.standard.string(forKey: "units") == "imperial" }
+    static var distUnit: String { imperial ? "mi" : "km" }
+    static var speedUnit: String { imperial ? "mph" : "km/h" }
+    static var paceUnit: String { imperial ? "/mi" : "/km" }
+    static var elevUnit: String { imperial ? "ft" : "m" }
+    static var distDiv: Double { imperial ? 1609.344 : 1000 }
+    static func speed(_ ms: Double) -> Double { imperial ? ms * 2.236936 : ms * 3.6 }
+    static func elev(_ m: Double) -> Double { imperial ? m * 3.28084 : m }
+}
+
 enum Fmt {
     static func dur(_ s: Double) -> String {
         let s = max(0, Int(s.rounded())), h = s / 3600, m = s / 60 % 60, x = s % 60
@@ -71,9 +83,9 @@ enum Fmt {
     }
     static func pace(_ v: Double) -> String {
         guard v > 0.3 else { return "—" }
-        let s = Int((1000 / v).rounded()); return String(format: "%d:%02d", s / 60, s % 60)
+        let s = Int((Units.distDiv / v).rounded()); return String(format: "%d:%02d", s / 60, s % 60)
     }
-    static func km(_ m: Double) -> String { String(format: "%.2f", m / 1000).replacingOccurrences(of: ".", with: ",") }
+    static func km(_ m: Double) -> String { String(format: "%.2f", m / Units.distDiv).replacingOccurrences(of: ".", with: ",") }
     static func num(_ v: Double, _ d: Int = 0) -> String { String(format: "%.\(d)f", v).replacingOccurrences(of: ".", with: ",") }
 }
 

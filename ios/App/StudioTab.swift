@@ -3,6 +3,7 @@ import KrovaCore
 
 /// Stüdyo: bir aktiviteden ya da bir videodan başla. Fotoğraf, video kartı ve canlı veri tek yerden.
 struct StudioTab: View {
+    @AppStorage("units") private var unitsPref = "metric"   // birim değişince ekran yenilensin
     @EnvironmentObject var model: AppModel
     @ObservedObject var act: ActivityRecorder
     @State private var picked: Activity?          // seçenek sayfası
@@ -93,7 +94,7 @@ struct StudioTab: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(a.type.title(a.start)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
                 Text(a.start.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(Theme.text2)
-                Text("\(Fmt.km(a.distance)) km · \(Fmt.dur(a.moving))").font(.caption.weight(.semibold)).foregroundStyle(Theme.cDist).monospacedDigit()
+                Text("\(Fmt.km(a.distance)) \(Units.distUnit) · \(Fmt.dur(a.moving))").font(.caption.weight(.semibold)).foregroundStyle(Theme.cDist).monospacedDigit()
             }
             Spacer()
             Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.text3)

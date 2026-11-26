@@ -392,9 +392,6 @@ struct FlyoverView: View {
                     Button { pendingExport = .screen } label: { Label("Ekran kaydı ile (gerçek zamanlı)", systemImage: "record.circle") }
                 } label: { Image(systemName: "square.and.arrow.down").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
                 Button { if playing { base = progress(at: Date()); playing = false }; showStyle = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
-                Menu {
-                    ForEach(durations, id: \.self) { s in Button("\(Int(s)) sn") { let cur = progress(at: Date()); seconds = s; if playing { start(from: cur) } } }
-                } label: { Text("\(Int(seconds)) sn").font(.subheadline.weight(.bold)).frame(width: 44, height: 44).background(.black.opacity(0.45), in: Circle()) }
             }.foregroundStyle(.white).buttonStyle(.plain).frame(maxWidth: .infinity)
         }
     }

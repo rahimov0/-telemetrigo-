@@ -1121,6 +1121,13 @@ struct ActivitySettings: View {
                 } header: { head(L("Birimler")) } footer: { foot(L("Mesafe, hız, tempo ve yükseklik gösterimini değiştirir. Kayıtlar değişmez. Kilometre bölümleri tablosu ve sesli bildirim şimdilik kilometre olarak kalır.")) }
                 .listRowBackground(Theme.card)
 
+                if FlyoverAd.privacyOptionsRequired {
+                    Section {
+                        Button(L("Reklam gizlilik seçenekleri")) { FlyoverAd.showPrivacyOptions() }
+                    } header: { head(L("Gizlilik")) }
+                    .listRowBackground(Theme.card)
+                }
+
                 Section {
                     HStack { Text(L("Kilo")); Spacer(); TextField("0", value: $kg, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("kg").foregroundStyle(Theme.text2) }
                     HStack { Text(L("Boy")); Spacer(); TextField("0", value: $cm, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80); Text("cm").foregroundStyle(Theme.text2) }

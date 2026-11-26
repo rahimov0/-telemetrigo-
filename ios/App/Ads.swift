@@ -1,5 +1,6 @@
 import UIKit
 import GoogleMobileAds
+import UserMessagingPlatform
 
 /// Flyover kaydı bittikten sonra gösterilen geçiş reklamı.
 /// TestFlight/geliştirme derlemelerinde Google'ın TEST reklamı gösterilir (kendi reklamlarımıza dokunmak AdMob hesabını riske atar);
@@ -21,6 +22,30 @@ final class FlyoverAd: NSObject, GADFullScreenContentDelegate {
     static var unitID: String { isAppStoreBuild ? realUnit : testUnit }
     private var ad: GADInterstitialAd?
     private var started = false
+    private var consentDone = false
+    private var gathering = false
+
+    /// AB/BK'de Google'ın onay penceresi (UMP); diğer ülkelerde hiçbir şey göstermez. Reklam yalnızca izin uygunsa istenir
+    func gatherConsent(_ completion: @escaping () -> Void) {
+        if consentDone { completion(); return }
+        if gathering { return }
+        gathering = true
+        UMPConsentInformation.sharedInstance.requestConsentInfoUpdate(with: UMPRequestParameters()) { [weak self] _ in
+            Task { @MainActor in
+                UMPConsentForm.loadAndPresentIfRequired(from: Self.topController()) { _ in
+                    Task { @MainActor in self?.consentDone = true; self?.gathering = false; completion() }
+                }
+            }
+        }
+    }
+
+    /// Ayarlar'daki "Reklam gizlilik seçenekleri" düğmesi yalnızca gerekli bölgelerde görünür
+    static var privacyOptionsRequired: Bool {
+        UMPConsentInformation.sharedInstance.privacyOptionsRequirementStatus == .required
+    }
+    static func showPrivacyOptions() {
+        UMPConsentForm.presentPrivacyOptionsForm(from: topController()) { _ in }
+    }
     private var onDone: (() -> Void)?
 
     /// Kişiselleştirme yok: izleme izni istenmez, Sağlık verisiyle hiçbir bağ kurulmaz
@@ -32,6 +57,8 @@ final class FlyoverAd: NSObject, GADFullScreenContentDelegate {
     }
 
     func prepare() {
+        if !consentDone { gatherConsent { [weak self] in self?.prepare() }; return }
+        guard UMPConsentInformation.sharedInstance.canRequestAds else { return }
         if !started { started = true; GADMobileAds.sharedInstance().start(completionHandler: nil) }
         guard ad == nil else { return }
         GADInterstitialAd.load(withAdUnitID: Self.unitID, request: request()) { [weak self] ad, _ in
@@ -62,7 +89,7 @@ final class FlyoverAd: NSObject, GADFullScreenContentDelegate {
     }
 
     /// Önde görünen normal pencerenin en üstteki ekranı (bizim ilerleme penceremiz gibi üst seviye pencereler hariç)
-    private static func topController() -> UIViewController? {
+    fileprivate static func topController() -> UIViewController? {
         let wins = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }
             .filter { !$0.isHidden && $0.windowLevel == .normal }
         var vc = (wins.first { $0.isKeyWindow } ?? wins.last)?.rootViewController

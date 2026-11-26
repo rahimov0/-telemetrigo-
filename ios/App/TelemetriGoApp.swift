@@ -7,6 +7,7 @@ struct TelemetriGoApp: App {
     var body: some Scene {
         WindowGroup {
             RootView().environmentObject(model)
+                .onAppear { FlyoverAd.shared.gatherConsent {} }
                 .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil).tint(Theme.accent)
         }
     }

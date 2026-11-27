@@ -31,9 +31,9 @@ enum Theme {
     static let line = Color(dark: UIColor.white.withAlphaComponent(0.08), light: UIColor.black.withAlphaComponent(0.08))
     /// Grafik çubuklarının boş zemini
     static let track = Color(dark: UIColor.white.withAlphaComponent(0.07), light: UIColor.black.withAlphaComponent(0.06))
-    static let ok = Color(red: 0.31, green: 0.9, blue: 0.55)
-    static let mid = Color(red: 1, green: 0.82, blue: 0.25)
-    static let err = Color(red: 1, green: 0.3, blue: 0.37)
+    static let ok = Color(dark: UIColor(red: 0.31, green: 0.9, blue: 0.55, alpha: 1), light: UIColor(red: 0.1, green: 0.6, blue: 0.32, alpha: 1))
+    static let mid = Color(dark: UIColor(red: 1, green: 0.82, blue: 0.25, alpha: 1), light: UIColor(red: 0.74, green: 0.52, blue: 0.0, alpha: 1))
+    static let err = Color(dark: UIColor(red: 1, green: 0.3, blue: 0.37, alpha: 1), light: UIColor(red: 0.86, green: 0.15, blue: 0.25, alpha: 1))
 }
 
 /// Kayıt ve GoPro'yu birlikte yöneten model

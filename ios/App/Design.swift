@@ -4,13 +4,13 @@ import CoreLocation
 
 // MARK: Renk sistemi: her değerin kendi rengi var (süre sarı, mesafe mavi, tempo camgöbeği, kalori pembe, yükseliş yeşil, adım mor)
 extension Theme {
-    static let cDist = Color(red: 0.30, green: 0.64, blue: 1.0)     // #4DA3FF
-    static let cTime = Color(red: 1.0, green: 0.84, blue: 0.04)     // #FFD60A
-    static let cPace = Color(red: 0.39, green: 0.82, blue: 1.0)     // #64D2FF
-    static let cKcal = Color(red: 1.0, green: 0.22, blue: 0.37)     // #FF375F
-    static let cElev = Color(red: 0.19, green: 0.82, blue: 0.35)    // #30D158
-    static let cSteps = Color(red: 0.75, green: 0.35, blue: 0.95)   // #BF5AF2
-    static let cMax = Color(red: 1.0, green: 0.62, blue: 0.04)      // #FF9F0A
+    static let cDist = Color(dark: UIColor(red: 0.30, green: 0.64, blue: 1.0, alpha: 1), light: UIColor(red: 0.0, green: 0.45, blue: 0.95, alpha: 1))     // #4DA3FF
+    static let cTime = Color(dark: UIColor(red: 1.0, green: 0.84, blue: 0.04, alpha: 1), light: UIColor(red: 0.72, green: 0.53, blue: 0.0, alpha: 1))     // #FFD60A
+    static let cPace = Color(dark: UIColor(red: 0.39, green: 0.82, blue: 1.0, alpha: 1), light: UIColor(red: 0.0, green: 0.56, blue: 0.76, alpha: 1))     // #64D2FF
+    static let cKcal = Color(dark: UIColor(red: 1.0, green: 0.22, blue: 0.37, alpha: 1), light: UIColor(red: 0.86, green: 0.12, blue: 0.28, alpha: 1))     // #FF375F
+    static let cElev = Color(dark: UIColor(red: 0.19, green: 0.82, blue: 0.35, alpha: 1), light: UIColor(red: 0.12, green: 0.6, blue: 0.26, alpha: 1))    // #30D158
+    static let cSteps = Color(dark: UIColor(red: 0.75, green: 0.35, blue: 0.95, alpha: 1), light: UIColor(red: 0.66, green: 0.3, blue: 0.84, alpha: 1))   // #BF5AF2
+    static let cMax = Color(dark: UIColor(red: 1.0, green: 0.62, blue: 0.04, alpha: 1), light: UIColor(red: 0.88, green: 0.48, blue: 0.0, alpha: 1))      // #FF9F0A
 }
 
 extension ActType {

@@ -298,7 +298,7 @@ struct PostDetail: View {
                 }
                 VStack(spacing: 2) {
                     Text(post.title).font(.headline).foregroundStyle(Theme.text)
-                    Text(post.date.formatted(.dateTime.day().month(.wide).year().hour().minute())).font(.subheadline).foregroundStyle(Theme.text2)
+                    Text(post.date.formatted(.dateTime.day().month(.wide).year().hour().minute().locale(AppLang.locale))).font(.subheadline).foregroundStyle(Theme.text2)
                 }
                 TextField(L("Açıklama ekle…"), text: $caption, axis: .vertical)
                     .lineLimit(1...5).focused($focus).submitLabel(.done)

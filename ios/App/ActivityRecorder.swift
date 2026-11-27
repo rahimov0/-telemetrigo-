@@ -39,6 +39,10 @@ enum ActType: String, Codable, CaseIterable, Identifiable {
     func title(_ d: Date) -> String {
         let h = Calendar.current.component(.hour, from: d)
         let part = h < 5 ? L("Gece") : h < 11 ? L("Sabah") : h < 14 ? L("Öğle") : h < 18 ? L("Öğleden sonra") : h < 22 ? L("Akşam") : L("Gece")
+        if AppLang.isEnglish {
+            let e = ["yuruyus": "walk", "kosu": "run", "tirmanis": "hike", "bisiklet": "ride", "motor": "ride", "arac": "drive"][rawValue]!
+            return "\(part) \(e)"
+        }
         let w = ["yuruyus": "yürüyüşü", "kosu": "koşusu", "tirmanis": "tırmanışı", "bisiklet": "bisiklet turu", "motor": "sürüşü", "arac": "yolculuğu"][rawValue]!
         return "\(part) \(w)"
     }
@@ -85,8 +89,8 @@ enum Fmt {
         guard v > 0.3 else { return "—" }
         let s = Int((Units.distDiv / v).rounded()); return String(format: "%d:%02d", s / 60, s % 60)
     }
-    static func km(_ m: Double) -> String { String(format: "%.2f", m / Units.distDiv).replacingOccurrences(of: ".", with: ",") }
-    static func num(_ v: Double, _ d: Int = 0) -> String { String(format: "%.\(d)f", v).replacingOccurrences(of: ".", with: ",") }
+    static func km(_ m: Double) -> String { AppLang.dec(String(format: "%.2f", m / Units.distDiv)) }
+    static func num(_ v: Double, _ d: Int = 0) -> String { AppLang.dec(String(format: "%.\(d)f", v)) }
 }
 
 /// Aktivite kaydı: arka planda GPS, otomatik duraklatma, kilometre başına sesli bildirim

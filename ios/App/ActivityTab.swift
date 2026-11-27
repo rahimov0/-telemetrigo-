@@ -232,12 +232,12 @@ struct ActivityTab: View {
                 HStack {
                     Text(isToday ? L("Bugün") : L("Özet")).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                     Spacer()
-                    Text(selDay.formatted(.dateTime.weekday(.wide).day().month(.wide))).font(.subheadline).foregroundStyle(Theme.text2)
+                    Text(selDay.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(AppLang.locale))).font(.subheadline).foregroundStyle(Theme.text2)
                 }
                 HStack(alignment: .top, spacing: 0) {
                     goal(kcal, goalKcal, Theme.cKcal, "flame.fill", (Cal.ready || fromHealth) ? Fmt.num(kcal) : "—", "kcal")
-                    goal(mins, goalMin, Theme.cElev, "timer", Fmt.num(mins), "dakika")
-                    goal(steps, goalSteps, Theme.cSteps, "figure.walk", health.connected ? Int(steps).formatted() : "—", L("adım"))
+                    goal(mins, goalMin, Theme.cElev, "timer", Fmt.num(mins), L("dakika"))
+                    goal(steps, goalSteps, Theme.cSteps, "figure.walk", health.connected ? Int(steps).formatted(.number.locale(AppLang.locale)) : "—", L("adım"))
                 }
                 if !Cal.ready && !fromHealth {
                     Button { showSettings = true } label: {
@@ -269,7 +269,7 @@ struct ActivityTab: View {
             return (d0, w.filter { $0.start >= d0 && $0.start < d1 }.reduce(0) { $0 + $1.distance } / Units.distDiv)
         }
         let mx = max(days.map { $0.km }.max() ?? 0, 0.1)
-        let title = weekBack == 0 ? L("Bu hafta") : weekBack == 1 ? L("Geçen hafta") : LF("%@ haftası", wk.formatted(.dateTime.day().month(.abbreviated)))
+        let title = weekBack == 0 ? L("Bu hafta") : weekBack == 1 ? L("Geçen hafta") : LF("%@ haftası", wk.formatted(.dateTime.day().month(.abbreviated).locale(AppLang.locale)))
         return Panel {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -294,9 +294,9 @@ struct ActivityTab: View {
                                     Capsule().fill(Theme.track).frame(height: 64)
                                     Capsule().fill(sel ? Theme.acc : Theme.cDist).frame(height: days[i].km > 0 ? max(8, 64 * days[i].km / mx) : 0)
                                 }.frame(width: 26)
-                                Text(d.formatted(.dateTime.weekday(.abbreviated))).font(.caption2.weight(.semibold)).foregroundStyle(sel ? Theme.onAcc : Theme.text2)
+                                Text(d.formatted(.dateTime.weekday(.abbreviated).locale(AppLang.locale))).font(.caption2.weight(.semibold)).foregroundStyle(sel ? Theme.onAcc : Theme.text2)
                                     .padding(.horizontal, 6).padding(.vertical, 3).background(sel ? Theme.acc : .clear, in: Capsule())
-                                Text(d.formatted(.dateTime.day())).font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(future ? Theme.text3 : Theme.text)
+                                Text(d.formatted(.dateTime.day().locale(AppLang.locale))).font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(future ? Theme.text3 : Theme.text)
                             }.frame(maxWidth: .infinity).contentShape(Rectangle())
                         }.buttonStyle(.plain).disabled(future)
                     }
@@ -357,8 +357,8 @@ struct ActivityTab: View {
         return Panel {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(Calendar.current.isDateInToday(selDay) ? L("Bugün") : selDay.formatted(.dateTime.weekday(.wide))).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
-                    Text(selDay.formatted(.dateTime.day().month(.wide).year())).font(.subheadline).foregroundStyle(Theme.text2)
+                    Text(Calendar.current.isDateInToday(selDay) ? L("Bugün") : selDay.formatted(.dateTime.weekday(.wide).locale(AppLang.locale))).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Text(selDay.formatted(.dateTime.day().month(.wide).year().locale(AppLang.locale))).font(.subheadline).foregroundStyle(Theme.text2)
                 }
                 Spacer()
                 navArrows(canForward: selDay < today,
@@ -394,7 +394,7 @@ struct ActivityTab: View {
             Panel {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        Text(m0.formatted(.dateTime.month(.wide).year())).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                        Text(m0.formatted(.dateTime.month(.wide).year().locale(AppLang.locale))).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                         Spacer()
                         navArrows(canForward: monthBack > 0, back: { monthBack += 1 }, forward: { monthBack = max(0, monthBack - 1) })
                     }
@@ -431,7 +431,7 @@ struct ActivityTab: View {
         return Panel {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text(y0.formatted(.dateTime.year())).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+                    Text(y0.formatted(.dateTime.year().locale(AppLang.locale))).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
                     Spacer()
                     navArrows(canForward: yearBack > 0, back: { yearBack += 1 }, forward: { yearBack = max(0, yearBack - 1) })
                 }
@@ -449,7 +449,7 @@ struct ActivityTab: View {
                                     Capsule().fill(Theme.track).frame(height: 90)
                                     Capsule().fill(Theme.cDist).frame(height: m.km > 0 ? max(8, 90 * m.km / mx) : 0)
                                 }
-                                Text(m.date.formatted(.dateTime.month(.narrow))).font(.caption2.weight(.semibold)).foregroundStyle(Theme.text2)
+                                Text(m.date.formatted(.dateTime.month(.narrow).locale(AppLang.locale))).font(.caption2.weight(.semibold)).foregroundStyle(Theme.text2)
                             }.frame(maxWidth: .infinity).contentShape(Rectangle())
                         }.buttonStyle(.plain)
                     }
@@ -498,7 +498,7 @@ struct ActivityTab: View {
                     let steps = health.week.first(where: { cal.isDate($0.day, inSameDayAs: selDay) })?.steps ?? 0
                     let dist = health.weekDist[cal.startOfDay(for: selDay)] ?? 0
                     HStack(alignment: .top) {
-                        StatCell(label: isToday ? L("Bugün") : selDay.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)), value: steps.formatted(), unit: L("adım"), tint: Theme.cSteps, big: true)
+                        StatCell(label: isToday ? L("Bugün") : selDay.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(AppLang.locale)), value: steps.formatted(.number.locale(AppLang.locale)), unit: L("adım"), tint: Theme.cSteps, big: true)
                         StatCell(label: L("Yürünen"), value: Fmt.km(dist), unit: Units.distUnit, tint: Theme.cDist, big: true)
                     }
                     Chart(health.week, id: \.day) { d in
@@ -506,7 +506,7 @@ struct ActivityTab: View {
                             .foregroundStyle(cal.isDate(d.day, inSameDayAs: selDay) ? Theme.cSteps : Theme.cSteps.opacity(0.32)).cornerRadius(5)
                     }
                     .chartYAxis(.hidden)
-                    .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.abbreviated)).foregroundStyle(Theme.text2) } }
+                    .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.abbreviated).locale(AppLang.locale)).foregroundStyle(Theme.text2) } }
                     .chartOverlay { proxy in
                         GeometryReader { geo in
                             Rectangle().fill(.clear).contentShape(Rectangle()).onTapGesture { loc in
@@ -542,7 +542,7 @@ struct ActivityCard: View {
                 TypeIcon(t: a.type)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(a.type.title(a.start)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
-                    Text(a.start.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(Theme.text2)
+                    Text(a.start.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(AppLang.locale))).font(.caption).foregroundStyle(Theme.text2)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Theme.text3)
@@ -760,7 +760,7 @@ struct ActivityDetail: View {
                         TypeIcon(t: a.type, size: 46)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(a.type.title(a.start)).font(.title3.weight(.bold)).foregroundStyle(Theme.text)
-                            Text(a.start.formatted(date: .long, time: .shortened)).font(.subheadline).foregroundStyle(Theme.text2)
+                            Text(a.start.formatted(Date.FormatStyle(date: .long, time: .shortened).locale(AppLang.locale))).font(.subheadline).foregroundStyle(Theme.text2)
                         }
                     }
                     typeSuggestion
@@ -881,7 +881,7 @@ struct ActivityDetail: View {
                     StatCell(label: a.baro == true ? L("Yükseliş (barometre)") : L("Yükseliş"), value: Fmt.num(Units.elev(a.gain)), unit: Units.elevUnit, tint: Theme.cElev, big: true)
                     if a.type.pace { StatCell(label: "En iyi tempo", value: Fmt.pace(min(a.maxSpeed, a.type.maxPlausible)), unit: Units.paceUnit, tint: Theme.cMax, big: true) }
                     else { StatCell(label: L("Maks hız"), value: Fmt.num(Units.speed(min(a.maxSpeed, a.type.maxPlausible))), unit: Units.speedUnit, tint: Theme.cMax, big: true) }
-                    if let s = steps, s > 0 { StatCell(label: L("Adım"), value: s.formatted(), tint: Theme.cSteps, big: true) }
+                    if let s = steps, s > 0 { StatCell(label: L("Adım"), value: s.formatted(.number.locale(AppLang.locale)), tint: Theme.cSteps, big: true) }
                     else { StatCell(label: L("Geçen süre"), value: Fmt.dur((a.end ?? a.start).timeIntervalSince(a.start)), big: true) }
                 }
             }
@@ -1146,7 +1146,7 @@ struct ActivitySettings: View {
 
                 Section {
                     HStack { Text(L("Kalori")); Spacer(); TextField("300", value: $goalKcal, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text("kcal").foregroundStyle(Theme.text2) }
-                    HStack { Text(L("Süre")); Spacer(); TextField("30", value: $goalMin, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text("dk").foregroundStyle(Theme.text2) }
+                    HStack { Text(L("Süre")); Spacer(); TextField("30", value: $goalMin, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text(L("dk")).foregroundStyle(Theme.text2) }
                     HStack { Text(L("Adım")); Spacer(); TextField("8000", value: $goalSteps, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80); Text(L("adım")).foregroundStyle(Theme.text2) }
                 } header: { head(L("Günlük hedefler")) }
                 .listRowBackground(Theme.card)

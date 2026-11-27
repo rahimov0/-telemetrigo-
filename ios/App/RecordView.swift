@@ -126,7 +126,7 @@ private struct RecordContent: View {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         HStack(spacing: 8) {
                             stat(clock(Int(ctx.date.timeIntervalSince(s.start))), L("Süre"), Theme.cTime)
-                            stat(String(format: "%.2f", s.distance / Units.distDiv).replacingOccurrences(of: ".", with: ","), "Mesafe \(Units.distUnit)", Theme.cDist)
+                            stat(AppLang.dec(String(format: "%.2f", s.distance / Units.distDiv)), L("Mesafe") + " " + Units.distUnit, Theme.cDist)
                             stat("\(Int(Units.speed(s.maxSpeed).rounded()))", LF("Maks %@", Units.speedUnit), Theme.cMax)
                         }
                     }
@@ -170,8 +170,8 @@ private struct RecordContent: View {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(alignment: .top) {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(s.start.formatted(date: .abbreviated, time: .shortened)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
-                                Text("\(clock(Int((s.end ?? s.start).timeIntervalSince(s.start)))) · " + (String(format: "%.2f ", s.distance / Units.distDiv).replacingOccurrences(of: ".", with: ",") + Units.distUnit) + " · maks \(Int(Units.speed(s.maxSpeed).rounded())) \(Units.speedUnit)")
+                                Text(s.start.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(AppLang.locale))).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                                Text("\(clock(Int((s.end ?? s.start).timeIntervalSince(s.start)))) · " + (AppLang.dec(String(format: "%.2f ", s.distance / Units.distDiv)) + Units.distUnit) + " · " + L("maks") + " \(Int(Units.speed(s.maxSpeed).rounded())) \(Units.speedUnit)")
                                     .font(.footnote).foregroundStyle(Theme.text2)
                                 if s.camEvents.contains(where: { $0.type == "camstart" }) {
                                     Label(L("GoPro ile eşleşti"), systemImage: "link").font(.caption.weight(.semibold)).foregroundStyle(Theme.ok)

@@ -12,12 +12,20 @@ enum AppLang {
     }
 }
 
+extension AppLang {
+    /// Tarih ve sayı biçimleri uygulama diline uyar (telefonun bölgesi Türkçe olsa bile)
+    static var locale: Locale { Locale(identifier: isEnglish ? "en_GB" : "tr_TR") }
+    /// Ondalık ayırıcı: Türkçede virgül, İngilizcede nokta
+    static func dec(_ s: String) -> String { isEnglish ? s : s.replacingOccurrences(of: ".", with: ",") }
+}
+
 /// Metin çevirisi: Türkçe asıl metindir; İngilizce seçiliyse sözlükten gelir, yoksa Türkçe kalır.
 func L(_ s: String) -> String { AppLang.isEnglish ? (enStrings[s] ?? s) : s }
 /// Biçimli metin: L("Sinyal iyi · ±%d m") gibi, ardından değerler
 func LF(_ s: String, _ args: CVarArg...) -> String { String(format: L(s), arguments: args) }
 
 private let enPairs: [(String, String)] = [
+    ("dakika", "min"), ("dk", "min"), ("maks", "max"), ("Mesafe", "Distance"),
     ("Yeni sürüm mevcut", "New version available"), ("Güncelle", "Update"), ("Sürüm %@ App Store'da", "Version %@ is on the App Store"),
     ("Adım kartını göster", "Show steps card"), ("Adım", "Steps"), ("Adımlar", "Steps"), ("Adını yaz", "Enter a name"),
     ("Aktif kalori", "Active calories"), ("Aktivite ayarları", "Activity settings"), ("Aktivite bitirilsin mi?", "Finish activity?"),

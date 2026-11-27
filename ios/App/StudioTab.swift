@@ -94,7 +94,7 @@ struct StudioTab: View {
             RouteThumb(act: act, a: a).frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(a.type.title(a.start)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
-                Text(a.start.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(Theme.text2)
+                Text(a.start.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(AppLang.locale))).font(.caption).foregroundStyle(Theme.text2)
                 Text("\(Fmt.km(a.distance)) \(Units.distUnit) · \(Fmt.dur(a.moving))").font(.caption.weight(.semibold)).foregroundStyle(Theme.cDist).monospacedDigit()
             }
             Spacer()

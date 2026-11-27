@@ -1117,6 +1117,11 @@ struct ActivitySettings: View {
                 .listRowBackground(Theme.card)
 
                 Section {
+                    Picker(L("Dil"), selection: $lang) { Text(L("Otomatik")).tag("auto"); Text("Türkçe").tag("tr"); Text("English").tag("en") }.pickerStyle(.segmented)
+                } header: { head(L("Dil")) } footer: { foot(L("Otomatik: telefon Türkçeyse Türkçe, değilse İngilizce. Fotoğraf ve video editörü şimdilik Türkçe kalır.")) }
+                .listRowBackground(Theme.card)
+
+                Section {
                     Picker(L("Birim"), selection: $units) { Text(L("Kilometre (km, m)")).tag("metric"); Text(L("Mil (mi, ft)")).tag("imperial") }.pickerStyle(.segmented)
                 } header: { head(L("Birimler")) } footer: { foot(L("Mesafe, hız, tempo ve yükseklik gösterimini değiştirir. Kayıtlar değişmez. Kilometre bölümleri tablosu ve sesli bildirim şimdilik kilometre olarak kalır.")) }
                 .listRowBackground(Theme.card)

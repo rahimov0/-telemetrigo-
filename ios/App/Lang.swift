@@ -18,6 +18,7 @@ func L(_ s: String) -> String { AppLang.isEnglish ? (enStrings[s] ?? s) : s }
 func LF(_ s: String, _ args: CVarArg...) -> String { String(format: L(s), arguments: args) }
 
 private let enPairs: [(String, String)] = [
+    ("Yeni sürüm mevcut", "New version available"), ("Güncelle", "Update"), ("Sürüm %@ App Store'da", "Version %@ is on the App Store"),
     ("Adım kartını göster", "Show steps card"), ("Adım", "Steps"), ("Adımlar", "Steps"), ("Adını yaz", "Enter a name"),
     ("Aktif kalori", "Active calories"), ("Aktivite ayarları", "Activity settings"), ("Aktivite bitirilsin mi?", "Finish activity?"),
     ("Aktivite kartı", "Activity card"), ("Aktivite silinsin mi? Bu işlem geri alınamaz.", "Delete this activity? This cannot be undone."),

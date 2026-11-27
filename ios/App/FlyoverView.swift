@@ -84,6 +84,7 @@ struct FlyoverView: View {
     @AppStorage("flySign") private var showSign = true
     @State private var cancelExport = false
     @State private var message: String?
+    @State private var adAfterMessage = false
 
     private let orange = Color(red: 1.0, green: 0.353, blue: 0.122)
 
@@ -119,7 +120,10 @@ struct FlyoverView: View {
             else if d && recording { DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { stopRecord() } }
         }
         .alert(L("Flyover"), isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
-            Button(L("Tamam")) {}
+            Button(L("Tamam")) {
+                // Reklam, kaydedildi mesajı okunduktan sonra gösterilir
+                if adAfterMessage { adAfterMessage = false; FlyoverAd.shared.show {} }
+            }
         } message: { Text(message ?? "") }
         .alert(L("Kaydetmeden önce"), isPresented: Binding(get: { pendingExport != nil }, set: { if !$0 { pendingExport = nil } })) {
             Button(L("Başla")) { let m = pendingExport; pendingExport = nil; if let m { startExport(m) } }
@@ -179,9 +183,10 @@ struct FlyoverView: View {
             }
             PHPhotoLibrary.shared().performChanges({ PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url) }) { ok, e in
                 DispatchQueue.main.async {
-                    let text = ok ? L("Flyover videosu Fotoğraflar'a kaydedildi.") : LF("Kaydedilemedi: %@", e?.localizedDescription ?? L("bilinmeyen hata"))
-                    // reklam yalnızca kayıt başarılıysa gösterilir
-                    if ok { FlyoverAd.shared.show { message = text } } else { message = text }
+                    try? FileManager.default.removeItem(at: url)
+                    // Sonuç hemen gösterilir; reklam yalnızca kayıt başarılıysa ve mesaj kapatılınca gelir
+                    adAfterMessage = ok
+                    message = ok ? L("Flyover videosu Fotoğraflar'a kaydedildi.") : LF("Kaydedilemedi: %@", e?.localizedDescription ?? L("bilinmeyen hata"))
                 }
             }
         }

@@ -108,6 +108,7 @@ struct RootView: View {
             FloatingTabBar(selection: $model.tab)
         }
         .background(Theme.bg.ignoresSafeArea())
+        .overlay(alignment: .top) { UpdateBanner() }
         .fullScreenCover(item: $model.videoRoute) { VideoCover(v: $0).environmentObject(model) }
     }
     private func page<V: View>(_ i: Int, @ViewBuilder _ v: () -> V) -> some View {

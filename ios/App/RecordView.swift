@@ -12,6 +12,7 @@ struct RecordView: View {
 }
 
 private struct RecordContent: View {
+    @AppStorage("lang") private var langPref = "auto"   // dil değişince bu ekran da yeniden çizilsin
     @EnvironmentObject var model: AppModel
     @ObservedObject var gopro: GoProManager
     @ObservedObject var rec: Recorder

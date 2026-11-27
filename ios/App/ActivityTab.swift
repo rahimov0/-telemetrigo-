@@ -947,6 +947,7 @@ struct ActivityDetail: View {
 
 // MARK: Fotoğraf editörü (web: aktivite sayfası)
 struct PhotoEditorSheet: View {
+    @AppStorage("lang") private var langPref = "auto"   // dil değişince bu ekran da yeniden çizilsin
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     let gpx: String, name: String, type: String

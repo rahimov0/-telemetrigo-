@@ -27,6 +27,7 @@ struct KrovaMark: View {
 
 /// K + ROVA imzası
 struct KrovaSignature: View {
+    @AppStorage("lang") private var langPref = "auto"   // dil değişince bu ekran da yeniden çizilsin
     var height: CGFloat = 34
     var mono: Color? = nil
     var body: some View {
@@ -60,6 +61,7 @@ enum FlyExport: Identifiable {
 
 /// Flyover: rotanın başından sonuna kuş bakışı, 3D uydu haritada akan video
 struct FlyoverView: View {
+    @AppStorage("lang") private var langPref = "auto"   // dil değişince bu ekran da yeniden çizilsin
     @Environment(\.dismiss) private var dismiss
     let a: Activity
     let points: [TrackPoint]

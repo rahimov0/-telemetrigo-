@@ -278,6 +278,7 @@ struct PostThumb: View {
 }
 
 struct PostDetail: View {
+    @AppStorage("lang") private var langPref = "auto"   // dil değişince bu ekran da yeniden çizilsin
     @ObservedObject var store: ProfileStore
     let post: ProfilePost
     var canEdit: (ProfilePost) -> Bool = { _ in false }

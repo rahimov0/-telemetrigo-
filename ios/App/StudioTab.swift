@@ -108,6 +108,7 @@ enum SourceChoice { case photo, card, live }
 
 /// "Bu aktiviteyle ne yapalım?" iki adımlı seçim: Fotoğraf / Video → Kart / Canlı veri
 struct SourceSheet: View {
+    @AppStorage("lang") private var langPref = "auto"   // dil değişince bu ekran da yeniden çizilsin
     let a: Activity
     var videoOnly = false
     let pick: (SourceChoice) -> Void
@@ -161,6 +162,7 @@ struct SourceSheet: View {
 struct VideoRoute: Identifiable { let id = UUID(); var mode: String; var lead: Activity? }
 
 struct VideoCover: View {
+    @AppStorage("lang") private var langPref = "auto"   // dil değişince bu ekran da yeniden çizilsin
     @EnvironmentObject var model: AppModel
     let v: VideoRoute
     var body: some View {

@@ -133,8 +133,17 @@ final class ActivityRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     private let synth = AVSpeechSynthesizer()
 
     static let dir: URL = {
-        let d = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(L("Aktiviteler"), isDirectory: true)
+        let d = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Aktiviteler", isDirectory: true)   // klasör adı dile bağlı olmamalı: yoksa dil değişince kayıtlar kaybolmuş görünür
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        // 1.8.3'te İngilizce telefonda kayıtlar "Activities" klasörüne yazılmış olabilir: ana klasöre taşı
+        let old = d.deletingLastPathComponent().appendingPathComponent("Activities", isDirectory: true)
+        if let files = try? FileManager.default.contentsOfDirectory(at: old, includingPropertiesForKeys: nil) {
+            for f in files {
+                let dst = d.appendingPathComponent(f.lastPathComponent)
+                if !FileManager.default.fileExists(atPath: dst.path) { try? FileManager.default.moveItem(at: f, to: dst) }
+            }
+            try? FileManager.default.removeItem(at: old)
+        }
         return d
     }()
 
